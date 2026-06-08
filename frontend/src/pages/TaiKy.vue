@@ -1,0 +1,1652 @@
+<template>
+  <div class="app-layout">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sb-top">
+        <router-link to="/" class="sb-back" :title="t('back_portal')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>
+        </router-link>
+        <div class="sb-logo">
+          <div class="sb-logo-mark sb-logo-violet">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div>
+            <div class="sb-name">{{ t('welcome_tk').replace('AI ', '') }}</div>
+            <div class="sb-org">CT Group</div>
+          </div>
+        </div>
+        <button class="sb-reload" title="Tạo đánh giá mới / Tải lại" @click="() => window.location.reload()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/></svg>
+        </button>
+      </div>
+
+      <div class="sb-body">
+        <!-- Input Mode Toggle -->
+        <div class="sb-section">
+          <div class="sb-section-title">{{ t('input_mode') }}</div>
+          <div class="mode-toggle">
+            <button
+              class="mode-btn"
+              :class="{active: inputMode === 'default'}"
+              @click="inputMode = 'default'"
+            >
+              <span class="mode-icon">📄</span>
+              {{ t('mode_default') }}
+            </button>
+            <button
+              class="mode-btn"
+              :class="{active: inputMode === 'scan'}"
+              @click="inputMode = 'scan'"
+            >
+              <span class="mode-icon">📷</span>
+              {{ t('mode_scan') }}
+            </button>
+          </div>
+        </div>
+
+        <div class="sb-section">
+          <div class="sb-section-title">{{ t('eval_docs') }}</div>
+
+          <div class="sb-upload-card" :class="{filled: evalFile, err: !evalFile&&tried}"
+            @dragover.prevent @drop.prevent="drop($event,'eval')" @click="$refs.rEval.click()">
+            <input ref="rEval" type="file" :accept="inputMode==='scan'?'.pdf':'.docx,.pdf'" hidden @change="e=>pickFile(e,'eval')"/>
+            <div class="upc-icon">📝</div>
+            <div class="upc-info" :title="evalFile ? evalFileName : ''">
+              <div class="upc-label">{{ t('file_eval_title') }}</div>
+              <div class="upc-val" :class="evalFile?'ok':'empty'">
+                {{ evalFile ? evalFileName : t('click_to_select') }}
+              </div>
+              <div v-if="!evalFile" class="upc-hint">{{ inputMode==='scan' ? 'PDF scan' : t('file_eval_desc') }}</div>
+            </div>
+            <button v-if="evalFile" class="upc-rm" @click.stop="evalFile=null;evalFileName=''">✕</button>
+          </div>
+
+          <div class="sb-upload-card" :class="{filled: reportFile, err: !reportFile&&tried}"
+            @dragover.prevent @drop.prevent="drop($event,'report')" @click="$refs.rReport.click()">
+            <input ref="rReport" type="file" :accept="inputMode==='scan'?'.pdf':'.xlsx,.pdf'" hidden @change="e=>pickFile(e,'report')"/>
+            <div class="upc-icon">📊</div>
+            <div class="upc-info" :title="reportFile ? reportFileName : ''">
+              <div class="upc-label">{{ t('file_report_title') }}</div>
+              <div class="upc-val" :class="reportFile?'ok':'empty'">
+                {{ reportFile ? reportFileName : t('click_to_select') }}
+              </div>
+              <div v-if="!reportFile" class="upc-hint">{{ inputMode==='scan' ? 'PDF scan' : t('file_report_desc') }}</div>
+            </div>
+            <button v-if="reportFile" class="upc-rm" @click.stop="reportFile=null;reportFileName=''">✕</button>
+          </div>
+
+          <!-- Divider tùy chọn -->
+          <div class="sb-opt-divider"><span>Tùy chọn</span></div>
+
+          <!-- Báo cáo ngày (optional) -->
+          <div class="sb-upload-card sb-upload-optional" @dragover.prevent @drop.prevent="drop($event,'daily')" @click="$refs.rDaily.click()">
+            <input ref="rDaily" type="file" accept=".docx,.xlsx,.xls,.pdf" hidden @change="e=>pickFile(e,'daily')"/>
+            <div class="upc-icon">📅</div>
+            <div class="upc-info" :title="dailyReportFile ? dailyReportFileName : ''">
+              <div class="upc-label">Báo cáo ngày <span class="upc-opt-badge">Tùy chọn</span></div>
+              <div class="upc-val" :class="dailyReportFile?'ok':'empty'">
+                {{ dailyReportFile ? dailyReportFileName : 'Click để chọn' }}
+              </div>
+              <div v-if="!dailyReportFile" class="upc-hint">.docx / .xlsx / .pdf</div>
+            </div>
+            <button v-if="dailyReportFile" class="upc-rm" @click.stop="dailyReportFile=null;dailyReportFileName=''">✕</button>
+          </div>
+
+          <!-- Date range (hiện khi chọn file báo cáo ngày) -->
+          <div v-if="dailyReportFile" class="sb-date-range">
+            <div class="sb-date-row">
+              <label>Từ ngày</label>
+              <input type="date" v-model="ngayBD" class="sb-date-input" />
+            </div>
+            <div class="sb-date-row">
+              <label>Đến ngày</label>
+              <input type="date" v-model="ngayKT" class="sb-date-input" />
+            </div>
+            <div v-if="soNgayLamViec > 0" class="sb-days-badge">
+              📊 {{ soNgayLamViec }} ngày làm việc cần báo cáo
+            </div>
+          </div>
+
+          <p v-if="tried&&(!evalFile||!reportFile)" class="sb-err">{{ t('need_2_files') }}</p>
+
+          <button class="sb-btn-primary" :disabled="loading" @click="doEvaluate">
+            <span v-if="loading" class="spinner"></span>
+            <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            {{ loading ? t('analyzing') : t('analyze_btn') }}
+          </button>
+        </div>
+
+        <!-- Results summary -->
+        <div v-if="result" class="sb-section">
+          <div class="sb-section-title">{{ t('result') }}</div>
+          <div class="sb-badge" :class="result.recommendation?.includes('Tái ký')||result.recommendation?.includes('Đề xuất')?'badge-pass':'badge-fail'">
+            <div class="badge-icon">{{ result.recommendation?.includes('Tái ký')||result.recommendation?.includes('Đề xuất')?'✓':'!' }}</div>
+            <div class="badge-text">{{ result.recommendation || 'Đang xử lý' }}</div>
+          </div>
+
+          <!-- Proposal & Urgency badges -->
+          <div v-if="result.proposal_level" class="sb-mini-badges">
+            <div class="sb-mini-badge" :class="'mb-'+proposalColor(result.proposal_level)">
+              {{ t('proposal_level') }}: {{ result.proposal_level }}
+            </div>
+          </div>
+
+          <div class="sb-counts">
+            <div class="sc"><div class="sc-val score">{{ result.overall_score?.toFixed(1) || '—' }}</div><div class="sc-lbl">{{ t('score_total') }}</div></div>
+            <div class="sc"><div class="sc-val ok">{{ result.competency_scores?.length || 0 }}</div><div class="sc-lbl">{{ t('competency') }}</div></div>
+            <div class="sc"><div class="sc-val warn">{{ result.evidence?.length || 0 }}</div><div class="sc-lbl">{{ t('evidence') }}</div></div>
+          </div>
+          <button class="sb-btn-secondary" @click="downloadPdf">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            {{ t('export_pdf') }}
+          </button>
+        </div>
+
+        <!-- Progress -->
+        <div v-if="loading" class="sb-section">
+          <div class="sb-section-title">{{ t('progress') }}</div>
+          <p class="progress-text">{{ progress.message || t('analyzing') }}</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN RESULT PANEL -->
+    <main class="result-panel">
+      <!-- Welcome -->
+      <div v-if="!result && !loading && !ocrReview" class="welcome">
+        <div class="welcome-icon">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <rect width="48" height="48" rx="16" fill="url(#tg)"/>
+            <text x="24" y="32" text-anchor="middle" font-size="22">📝</text>
+            <defs><linearGradient id="tg" x1="0" y1="0" x2="48" y2="48"><stop stop-color="#8b5cf6"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs>
+          </svg>
+        </div>
+        <h1>{{ t('welcome_tk') }}</h1>
+        <p>{{ t('welcome_tk_desc') }}</p>
+        <div class="welcome-features">
+          <div class="wf"><div class="wf-icon">📄</div><div>{{ t('tk_f1') }}</div></div>
+          <div class="wf"><div class="wf-icon">📊</div><div>{{ t('tk_f2') }}</div></div>
+          <div class="wf"><div class="wf-icon">✅</div><div>{{ t('tk_f3') }}</div></div>
+        </div>
+      </div>
+
+      <!-- Loading -->
+      <div v-if="loading" class="loading-screen">
+        <div class="loading-spinner"></div>
+        <p>{{ inputMode==='scan'&&!ocrReview ? t('ocr_processing') : (store.lang==='en'?'AI is analyzing contract renewal...':'AI đang phân tích hồ sơ tái ký...') }}</p>
+        <p class="loading-sub">{{ store.lang==='en'?'This might take 30-60 seconds':'Quá trình này có thể mất 30–60 giây' }}</p>
+      </div>
+
+      <!-- Error -->
+      <div v-if="error" class="error-card">
+        <div class="error-icon">❌</div>
+        <p>{{ error }}</p>
+      </div>
+
+      <!-- OCR Review Screen -->
+      <div v-if="ocrReview && !loading && !result" class="results-scroll ocr-review-screen">
+
+        <!-- Header Bar -->
+        <div class="ocr-review-header">
+          <div class="ocr-review-title">
+            <div class="ocr-review-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <div>
+              <h2>{{ t('review_ocr') }}</h2>
+              <p class="ocr-review-subtitle">Kiểm tra và chỉnh sửa trực tiếp nội dung OCR</p>
+            </div>
+          </div>
+          <button class="sb-btn-primary ocr-confirm-btn-top" :disabled="loading" @click="confirmOcr">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            {{ t('confirm_evaluate') }}
+          </button>
+        </div>
+
+        <!-- Document Tabs -->
+        <div class="ocr-doc-tabs">
+          <button class="ocr-doc-tab" :class="{active: ocrTab==='eval'}" @click="ocrTab='eval'">
+            <span class="ocr-doc-tab-icon">📝</span>
+            <span class="ocr-doc-tab-label">{{ t('tab_eval') }}</span>
+          </button>
+          <button class="ocr-doc-tab" :class="{active: ocrTab==='report'}" @click="ocrTab='report'">
+            <span class="ocr-doc-tab-icon">📊</span>
+            <span class="ocr-doc-tab-label">{{ t('tab_report') }}</span>
+          </button>
+        </div>
+
+        <!-- ========== TAB: PHIẾU ĐÁNH GIÁ TÁI KÝ ========== -->
+        <div v-if="ocrTab==='eval'" class="ocr-content-card">
+
+          <!-- Thông tin nhân viên (Extracted Fields) -->
+          <div v-if="ocrExtractedFields.length" class="ocr-info-section">
+            <div class="ocr-info-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>
+              Thông tin nhân viên
+            </div>
+            <div class="ocr-info-grid">
+              <div v-for="(field, fi) in ocrExtractedFields" :key="fi" class="ocr-info-row" :class="{'ocr-info-missing': !field.value}">
+                <label class="ocr-info-label">
+                  <span class="ocr-info-dot" :class="field.value ? 'dot-ok' : 'dot-warn'"></span>
+                  {{ field.label }}
+                </label>
+                <input
+                  type="text"
+                  class="ocr-info-input"
+                  :value="field.value"
+                  :placeholder="'Chưa phát hiện — nhập thủ công'"
+                  @input="updateExtractedField(fi, $event.target.value)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Nội dung phiếu đánh giá (Word Template) -->
+          <div class="ocr-edit-section">
+            <div class="ocr-edit-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Nội dung phiếu đánh giá
+              <button class="ocr-toggle-edit" @click="ocrEditMode.eval = !ocrEditMode.eval">
+                <template v-if="!ocrEditMode.eval">✏️ Sửa JSON gốc</template>
+                <template v-else>👁️ Xem Form</template>
+              </button>
+            </div>
+            
+            <!-- Rendered Form (Word style) -->
+            <div v-if="!ocrEditMode.eval" class="word-template-view">
+              <div class="word-header">
+                <h2>BÁO CÁO KẾT QUẢ CÔNG VIỆC (TÁI KÝ HỢP ĐỒNG)</h2>
+              </div>
+              
+              <template v-if="ocrEvalContent && ocrEvalContent.thong_tin_nhan_vien">
+                <table class="word-table">
+                  <tr>
+                    <td class="word-label">Họ và tên CBNV:</td>
+                    <td><input type="text" v-model="ocrEvalContent.thong_tin_nhan_vien.ho_ten" class="word-input" /></td>
+                    <td class="word-label">MSNV:</td>
+                    <td><input type="text" v-model="ocrEvalContent.thong_tin_nhan_vien.msnv" class="word-input" /></td>
+                  </tr>
+                  <tr>
+                    <td class="word-label">Vị trí công việc:</td>
+                    <td><input type="text" v-model="ocrEvalContent.thong_tin_nhan_vien.vi_tri" class="word-input" /></td>
+                    <td class="word-label">Phòng – Ban – LL/Khối:</td>
+                    <td><input type="text" v-model="ocrEvalContent.thong_tin_nhan_vien.phong_ban" class="word-input" /></td>
+                  </tr>
+                  <tr>
+                    <td class="word-label">Ngày nhận việc/Ngày tái TD:</td>
+                    <td><input type="text" v-model="ocrEvalContent.thong_tin_nhan_vien.ngay_nhan_viec" class="word-input" /></td>
+                    <td colspan="2"></td>
+                  </tr>
+                  <tr>
+                    <td class="word-label">Ngày bắt đầu HĐ gần nhất:</td>
+                    <td><input type="text" v-model="ocrEvalContent.thong_tin_nhan_vien.ngay_bat_dau_hd" class="word-input" /></td>
+                    <td class="word-label">Ngày hết hạn HĐ:</td>
+                    <td><input type="text" v-model="ocrEvalContent.thong_tin_nhan_vien.ngay_het_han_hd" class="word-input" /></td>
+                  </tr>
+                </table>
+
+                <h3 class="word-h3">I. TUÂN THỦ VỀ QUẢN TRỊ NỘI BỘ</h3>
+                <table class="word-table">
+                  <tr>
+                    <th class="word-th">Đánh giá mức độ tuân thủ</th>
+                    <th class="word-th">Mức độ hoàn thành<br/>(Quản lý trực tiếp đánh giá)</th>
+                  </tr>
+                  <tr v-for="(item, idx) in ocrEvalContent.muc_1_tuan_thu" :key="'tuanthu'+idx">
+                    <td><textarea v-model="item.noi_dung" class="word-textarea"></textarea></td>
+                    <td><textarea v-model="item.muc_do_hoan_thanh" class="word-textarea"></textarea></td>
+                  </tr>
+                </table>
+
+                <h3 class="word-h3">II. BÁO CÁO KẾT QUẢ CÔNG VIỆC</h3>
+                <table class="word-table">
+                  <tr>
+                    <th class="word-th" style="width: 52%">Đánh giá thực hiện chỉ tiêu cam kết<br/>(liệt kê chi tiết công việc và kết quả)</th>
+                    <th class="word-th" style="width: 12%" colspan="2">Nhân viên tự đánh giá<br/>(Mức độ hoàn thành | Tỷ lệ đạt)</th>
+                    <th class="word-th" style="width: 12%" colspan="2">Quản lý trực tiếp đánh giá<br/>(Mức độ hoàn thành | Tỷ lệ đạt)</th>
+                  </tr>
+                  <tr v-for="(item, idx) in ocrEvalContent.muc_2_ket_qua_cong_viec" :key="'kq'+idx">
+                    <td><textarea v-model="item.chi_tieu" class="word-textarea" style="min-height: 80px;"></textarea></td>
+                    <td style="width: 6%; text-align: center;"><input type="text" v-model="item.nv_muc_do_hoan_thanh" class="word-input" style="text-align: center;" /></td>
+                    <td style="width: 6%; text-align: center;"><input type="text" v-model="item.nv_ty_le_dat" class="word-input" style="text-align: center;" /></td>
+                    <td style="width: 6%; text-align: center;"><input type="text" v-model="item.ql_muc_do_hoan_thanh" class="word-input" style="text-align: center;" /></td>
+                    <td style="width: 6%; text-align: center;"><input type="text" v-model="item.ql_ty_le_dat" class="word-input" style="text-align: center;" /></td>
+                  </tr>
+                </table>
+
+                <h3 class="word-h3">III. ĐÁNH GIÁ KẾT QUẢ CÔNG VIỆC (Phần này dành cho cán bộ quản lý trực tiếp)</h3>
+                <table class="word-table" v-if="ocrEvalContent.muc_3_danh_gia_quan_ly">
+                  <tr>
+                    <th class="word-th" style="width: 40%">Nhận xét của Quản lý trực tiếp:</th>
+                    <th class="word-th"></th>
+                  </tr>
+                  <tr>
+                    <td>Nhận xét chi tiết kết quả CV CBNV đã thực hiện:</td>
+                    <td><textarea v-model="ocrEvalContent.muc_3_danh_gia_quan_ly.nhan_xet_chi_tiet" class="word-textarea"></textarea></td>
+                  </tr>
+                  <tr>
+                    <td>Ưu điểm của CBNV:</td>
+                    <td><textarea v-model="ocrEvalContent.muc_3_danh_gia_quan_ly.uu_diem" class="word-textarea"></textarea></td>
+                  </tr>
+                  <tr>
+                    <td>Hạn chế của CBNV:</td>
+                    <td><textarea v-model="ocrEvalContent.muc_3_danh_gia_quan_ly.han_che" class="word-textarea"></textarea></td>
+                  </tr>
+                  <tr>
+                    <td>Giải pháp, yêu cầu khắc phục trong thời gian tới:</td>
+                    <td><textarea v-model="ocrEvalContent.muc_3_danh_gia_quan_ly.giai_phap" class="word-textarea"></textarea></td>
+                  </tr>
+                </table>
+
+                <table class="word-table" v-if="ocrEvalContent.de_xuat">
+                  <tr>
+                    <td style="width: 50%;">
+                      <strong>Đề xuất của Quản lý trực tiếp:</strong><br/>
+                      <textarea v-model="ocrEvalContent.de_xuat.quan_ly_truc_tiep" class="word-textarea" style="min-height:80px;"></textarea>
+                    </td>
+                    <td style="width: 50%;">
+                      <strong>Đề xuất của Lãnh đạo Ban/Lực lượng/Khối:</strong><br/>
+                      <textarea v-model="ocrEvalContent.de_xuat.lanh_dao_ban" class="word-textarea" style="min-height:80px;"></textarea>
+                    </td>
+                  </tr>
+                </table>
+              </template>
+              <div v-else style="text-align:center; padding: 40px; color:#94a3b8">
+                Đang xử lý cấu trúc JSON...
+              </div>
+            </div>
+            
+            <!-- Raw Edit -->
+            <textarea
+              v-else
+              :value="JSON.stringify(ocrEvalContent, null, 2)"
+              @input="tryParseJson($event.target.value, 'eval')"
+              class="ocr-edit-area"
+              placeholder="Nội dung JSON phiếu đánh giá..."
+              spellcheck="false"
+            ></textarea>
+          </div>
+
+          <!-- Warning Status -->
+          <div v-if="ocrWarnings.length" class="ocr-status-bar ocr-status-warn">
+            <div class="ocr-status-content">
+              <span class="ocr-status-icon">⚠️</span>
+              <div class="ocr-status-text">
+                <strong>{{ ocrWarnings.length }} trường cần kiểm tra</strong>
+                <div class="ocr-warn-tags">
+                  <span v-for="(w, wi) in ocrWarnings" :key="wi" class="ocr-warn-tag">{{ w }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== TAB: BÁO CÁO KẾT QUẢ CÔNG VIỆC ========== -->
+        <div v-if="ocrTab==='report'" class="ocr-content-card">
+          <div class="ocr-edit-section">
+            <div class="ocr-edit-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Nội dung báo cáo kết quả công việc
+              <button class="ocr-toggle-edit" @click="ocrEditMode.report = !ocrEditMode.report">
+                <template v-if="!ocrEditMode.report">✏️ Sửa JSON gốc</template>
+                <template v-else>👁️ Xem Form</template>
+              </button>
+            </div>
+            
+            <!-- Rendered Form (Word style) -->
+            <div v-if="!ocrEditMode.report" class="rpt-doc">
+              <div class="rpt-title">{{ ocrReportContent.tieu_de || 'KẾ HOẠCH SXKD VÀ ĐÁNH GIÁ KẾT QUẢ THỰC HIỆN' }}</div>
+              
+              <!-- New scan_sxkd format (ho_ten, cong_viec at top level) -->
+              <template v-if="ocrReportContent && (ocrReportContent.cong_viec || ocrReportContent.ho_ten)">
+                <div class="rpt-info-row">
+                  <span class="rpt-field-label">Họ và tên:</span>
+                  <input class="rpt-inline-input rpt-name" v-model="ocrReportContent.ho_ten" />
+                </div>
+
+                <div class="rpt-section-label">BẢNG KẾ HOẠCH VÀ KẾT QUẢ CÔNG VIỆC</div>
+                <div class="rpt-table-wrap">
+                  <table class="rpt-table">
+                    <thead>
+                      <tr class="rpt-th">
+                        <th rowspan="2" class="rpt-th-stt">STT</th>
+                        <th rowspan="2" class="rpt-th-mang">CÁC MẢNG CÔNG TÁC</th>
+                        <th rowspan="2" class="rpt-th-mota">MÔ TẢ SẢN PHẨM HOÀN THÀNH TRONG THÁNG</th>
+                        <th colspan="3" class="rpt-thg rpt-th-kh">KẾ HOẠCH</th>
+                        <th colspan="3" class="rpt-thg rpt-th-kq">KẾT QUẢ</th>
+                        <th rowspan="2" class="rpt-th-link">LINK SẢN PHẨM</th>
+                      </tr>
+                      <tr class="rpt-th">
+                        <th class="rpt-ths">TỶ TRỌNG</th><th class="rpt-ths">KPI</th><th class="rpt-ths">BOD</th>
+                        <th class="rpt-ths rpt-kq-col">TỶ LỆ KPI</th><th class="rpt-ths rpt-kq-col">KQ KPI</th><th class="rpt-ths rpt-kq-col">BOD</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(item, idx) in ocrReportContent.cong_viec" :key="'sxkd_cv'+idx" class="rpt-row">
+                        <td class="rpt-td-stt">{{ item.stt || idx+1 }}</td>
+                        <td class="rpt-td-mang"><input class="rpt-input" v-model="item.mang_cong_tac" /></td>
+                        <td class="rpt-td-mota"><textarea class="rpt-ta" v-model="item.mo_ta_san_pham" rows="3"></textarea></td>
+                        <td class="rpt-td-num"><input class="rpt-input rpt-tc" v-model="item.ty_trong" /></td>
+                        <td class="rpt-td-num"><input class="rpt-input rpt-tc" v-model="item.kpi_ke_hoach" /></td>
+                        <td class="rpt-td-bod"><input class="rpt-input" v-model="item.bod_ke_hoach" /></td>
+                        <td class="rpt-td-num rpt-kqc"><input class="rpt-input rpt-tc" v-model="item.ty_le_kpi_ket_qua" /></td>
+                        <td class="rpt-td-num rpt-kqc"><input class="rpt-input rpt-tc rpt-kqb" v-model="item.ket_qua_kpi" /></td>
+                        <td class="rpt-td-bod rpt-kqc"><input class="rpt-input" v-model="item.bod_ket_qua" /></td>
+                        <td class="rpt-td-link"><textarea class="rpt-ta rpt-link-ta" v-model="item.link_san_pham" rows="2"></textarea></td>
+                      </tr>
+                      <tr class="rpt-total-row">
+                        <td colspan="3" class="rpt-total-label">TỶ LỆ ĐẠT</td>
+                        <td class="rpt-td-num rpt-tc">{{ ocrReportContent.ty_le_dat_ke_hoach || '100%' }}</td>
+                        <td colspan="2"></td>
+                        <td colspan="2" class="rpt-td-num rpt-tc rpt-kqb">{{ ocrReportContent.ty_le_dat_ket_qua || '' }}</td>
+                        <td colspan="1"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Nội quy -->
+                <template v-if="ocrReportContent.noi_quy && ocrReportContent.noi_quy.length">
+                  <div class="rpt-section-label rpt-nq-label">NỘI QUY BẮT BUỘC</div>
+                  <div class="rpt-nq-note">(Vi phạm sẽ bị khấu trừ KPI)</div>
+                  <div class="rpt-table-wrap">
+                    <table class="rpt-table rpt-nq-table">
+                      <thead><tr class="rpt-th"><th class="rpt-th-stt">STT</th><th>NỘI DUNG</th><th class="rpt-ths">KẾ HOẠCH</th><th class="rpt-ths">KẾT QUẢ</th><th>XÁC NHẬN</th><th>GHI CHÚ</th></tr></thead>
+                      <tbody>
+                        <tr v-for="(nq, idx) in ocrReportContent.noi_quy" :key="'nq'+idx" class="rpt-row">
+                          <td class="rpt-td-stt">{{ nq.stt || idx+1 }}</td>
+                          <td><input class="rpt-input" v-model="nq.noi_dung" /></td>
+                          <td class="rpt-td-num rpt-tc"><input class="rpt-input rpt-tc" v-model="nq.ke_hoach" /></td>
+                          <td class="rpt-td-num rpt-tc rpt-kqc"><input class="rpt-input rpt-tc" v-model="nq.ket_qua" /></td>
+                          <td><input class="rpt-input" v-model="nq.xac_nhan" /></td>
+                          <td><input class="rpt-input" v-model="nq.ghi_chu" /></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </template>
+
+                <!-- Xét duyệt -->
+                <template v-if="ocrReportContent.xet_duyet">
+                  <div class="rpt-xd-title">PHẦN TRÌNH VÀ XÉT DUYỆT</div>
+                  <table class="rpt-xd-table">
+                    <thead><tr><th>XÉT DUYỆT</th><th>Ý KIẾN</th><th>Ranking</th></tr></thead>
+                    <tbody>
+                      <tr><td class="rpt-xd-label">HOD</td><td><input class="rpt-input" v-model="ocrReportContent.xet_duyet.hod_y_kien" /></td><td rowspan="2" class="rpt-xd-ranking"><input class="rpt-input rpt-tc rpt-ranking-input" v-model="ocrReportContent.xet_duyet.ranking" /></td></tr>
+                      <tr><td class="rpt-xd-label">BOD</td><td><input class="rpt-input" v-model="ocrReportContent.xet_duyet.bod_y_kien" /></td></tr>
+                    </tbody>
+                  </table>
+                </template>
+              </template>
+
+              <!-- Old format (thong_tin_chung / bang_cong_viec) -->
+              <template v-else-if="ocrReportContent && ocrReportContent.thong_tin_chung">
+                <div class="rpt-info-row">
+                  <span class="rpt-field-label">Họ và tên:</span>
+                  <input class="rpt-inline-input" v-model="ocrReportContent.thong_tin_chung.ho_ten" />
+                  <span class="rpt-field-label" style="margin-left:20px">MSNV:</span>
+                  <input class="rpt-inline-input" v-model="ocrReportContent.thong_tin_chung.msnv" style="max-width:120px" />
+                </div>
+                <div class="rpt-info-row">
+                  <span class="rpt-field-label">Phòng ban:</span>
+                  <input class="rpt-inline-input" v-model="ocrReportContent.thong_tin_chung.phong_ban" />
+                  <span class="rpt-field-label" style="margin-left:20px">Vị trí:</span>
+                  <input class="rpt-inline-input" v-model="ocrReportContent.thong_tin_chung.vi_tri" />
+                </div>
+
+                <div class="rpt-section-label">BẢNG KẾT QUẢ CÔNG VIỆC</div>
+                <div class="rpt-table-wrap">
+                  <table class="rpt-table rpt-nq-table">
+                    <thead><tr class="rpt-th">
+                      <th class="rpt-th-stt">STT</th>
+                      <th style="width:52%">II. BÁO CÁO KẾT QUẢ CÔNG VIỆC</th>
+                      <th class="rpt-ths">Nhân viên tự đánh giá<br/>(Mức độ hoàn thành | Tỷ lệ đạt)</th>
+                      <th class="rpt-ths">Quản lý trực tiếp đánh giá<br/>(Mức độ hoàn thành | Tỷ lệ đạt)</th>
+                    </tr></thead>
+                    <tbody>
+                      <tr v-for="(item, idx) in ocrReportContent.bang_cong_viec" :key="'report_kq'+idx" class="rpt-row">
+                        <td class="rpt-td-stt">{{ item.stt || idx+1 }}</td>
+                        <td><textarea class="rpt-ta" v-model="item.noi_dung_cong_viec" rows="3"></textarea></td>
+                        <td class="rpt-td-num"><input class="rpt-input rpt-tc" v-model="item.tu_danh_gia" /></td>
+                        <td class="rpt-td-num"><input class="rpt-input rpt-tc" v-model="item.quan_ly_danh_gia" /></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <template v-if="ocrReportContent.tong_ket">
+                  <div class="rpt-section-label" style="color:#10b981">TỔNG KẾT</div>
+                  <div class="rpt-info-row">
+                    <span class="rpt-field-label">Tổng tỷ trọng:</span>
+                    <input class="rpt-inline-input" v-model="ocrReportContent.tong_ket.tong_ty_trong" style="max-width:100px" />
+                    <span class="rpt-field-label" style="margin-left:16px">Tự ĐG:</span>
+                    <input class="rpt-inline-input" v-model="ocrReportContent.tong_ket.diem_tu_danh_gia" style="max-width:100px" />
+                    <span class="rpt-field-label" style="margin-left:16px">QL ĐG:</span>
+                    <input class="rpt-inline-input" v-model="ocrReportContent.tong_ket.diem_quan_ly" style="max-width:100px" />
+                  </div>
+                </template>
+              </template>
+
+              <div v-else style="text-align:center; padding: 40px; color:#94a3b8">
+                Đang xử lý cấu trúc JSON...
+              </div>
+            </div>
+            
+            <!-- Raw Edit -->
+            <textarea
+              v-else
+              :value="JSON.stringify(ocrReportContent, null, 2)"
+              @input="tryParseJson($event.target.value, 'report')"
+              class="ocr-edit-area"
+              placeholder="Nội dung JSON báo cáo công việc..."
+              spellcheck="false"
+            ></textarea>
+          </div>
+        </div>
+
+        <!-- Bottom Confirm Button -->
+        <div class="ocr-confirm-bottom">
+          <button class="sb-btn-primary ocr-confirm-btn-lg" :disabled="loading" @click="confirmOcr">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            {{ t('confirm_evaluate') }}
+          </button>
+          <p class="ocr-confirm-hint">AI sẽ sử dụng nội dung phía trên để đánh giá</p>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div v-if="result && !loading" class="results-scroll">
+        <!-- Employee Info -->
+        <div class="emp-info-card">
+          <div class="emp-info-header">
+            <div class="emp-avatar">{{ (result.employee_name || '?')[0] }}</div>
+            <div>
+              <div class="emp-info-title">{{ result.employee_name || 'Chưa xác định' }}</div>
+              <div style="font-size: .78rem; color: #64748b">{{ result.job_title || '' }}</div>
+            </div>
+          </div>
+          <div class="emp-info-grid">
+            <div>
+              <div class="emp-field-label">Họ tên</div>
+              <div class="emp-field-value" :class="{'emp-field-empty': !result.employee_name}">{{ result.employee_name || 'Chưa trích xuất' }}</div>
+            </div>
+            <div>
+              <div class="emp-field-label">Chức danh</div>
+              <div class="emp-field-value" :class="{'emp-field-empty': !result.job_title}">{{ result.job_title || 'Chưa trích xuất' }}</div>
+            </div>
+            <div>
+              <div class="emp-field-label">Phòng ban / Công ty</div>
+              <div class="emp-field-value" :class="{'emp-field-empty': !result.department}">{{ result.department || 'Chưa trích xuất' }}</div>
+            </div>
+            <div>
+              <div class="emp-field-label">Ngày đánh giá</div>
+              <div class="emp-field-value" :class="{'emp-field-empty': !result.evaluation_date}">{{ result.evaluation_date || '—' }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Document Warnings -->
+        <div class="result-card">
+          <div class="rc-header" :class="docWarningsComplete && !hasValidationWarnings ? 'rc-h-green' : 'rc-h-warn'" @click="toggle('docwarn')">
+            <span>{{ docWarningsComplete && !hasValidationWarnings ? '✅' : '⚠️' }} Tình trạng điền hồ sơ
+              <span v-if="totalWarningsCount > 0" class="warn-count">({{ totalWarningsCount }})</span>
+            </span>
+            <span class="rc-arrow" :class="{open:sec.docwarn}">›</span>
+          </div>
+          <div v-if="sec.docwarn" class="rc-body">
+            <!-- Document Completeness -->
+            <div v-if="docWarningsComplete" class="doc-complete-badge">
+              <span class="dc-icon">✅</span>
+              <span>Hồ sơ đầy đủ: Đã điền đủ các thông tin bắt buộc.</span>
+            </div>
+            <div v-else>
+              <div class="doc-incomplete-badge" style="margin-bottom: 12px;">
+                <span class="di-icon">⚠️</span>
+                <span>Hồ sơ cần bổ sung — Có trường thông tin bị để trống:</span>
+              </div>
+              <ul class="warn-list">
+                <li v-for="(w, wi) in docWarningsList" :key="wi" class="warn-item">{{ typeof w === 'object' ? w.message : w }}</li>
+              </ul>
+            </div>
+
+            <!-- Validation Warnings -->
+            <div v-if="hasValidationWarnings" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+              <div v-if="validationWarningsList.length" style="margin-bottom: 12px;">
+                <div class="doc-incomplete-badge" style="margin-bottom: 8px;">
+                  <span class="di-icon">⚠️</span>
+                  <span>Cảnh báo dữ liệu đầu vào:</span>
+                </div>
+                <ul class="warn-list" style="margin-left: 12px;">
+                  <li v-for="(w, wi) in validationWarningsList" :key="wi" class="warn-item">{{ typeof w === 'object' ? w.message : w }}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2AS Assessment / Nhận định của 2AS -->
+        <div class="result-card">
+          <div class="rc-header rc-h-violet" @click="toggle('assessment')">
+            <span>🤖 Nhận định của 2AS & Đề xuất xử lý</span>
+            <span class="rc-arrow" :class="{open:sec.assessment}">›</span>
+          </div>
+          <div v-if="sec.assessment" class="rc-body" style="padding-top: 16px;">
+            <!-- Proposal Level -->
+            <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 200px; padding: 14px 16px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fafbfc;">
+                <div class="emp-field-label">Mức độ đề xuất</div>
+                <div style="font-size: 1rem; font-weight: 700; margin-top: 4px;" :style="{color: proposalColor(result.proposal_level) === 'green' ? '#16a34a' : proposalColor(result.proposal_level) === 'yellow' ? '#ca8a04' : proposalColor(result.proposal_level) === 'red' ? '#dc2626' : '#64748b'}">
+                  {{ result.proposal_level || 'Chưa xác định' }}
+                </div>
+              </div>
+              <div style="flex: 1; min-width: 200px; padding: 14px 16px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fafbfc;">
+                <div class="emp-field-label">Điểm tổng</div>
+                <div style="font-size: 1.4rem; font-weight: 800; margin-top: 4px; color: #7c3aed;">
+                  {{ result.overall_score?.toFixed(1) || '—' }}<span style="font-size: .8rem; font-weight: 400; color: #94a3b8;">/10</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recommendation -->
+            <div style="padding: 14px 16px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fafbfc; margin-bottom: 12px;">
+              <div class="emp-field-label">Đề xuất của 2AS</div>
+              <div style="font-size: .92rem; font-weight: 600; color: #1e293b; margin-top: 6px; line-height: 1.5;">
+                {{ result.recommendation || 'Đang phân tích...' }}
+              </div>
+              <div v-if="result.recommendation_reasoning" style="font-size: .84rem; color: #64748b; margin-top: 8px; line-height: 1.5;">
+                {{ result.recommendation_reasoning }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Competency Scores -->
+        <div v-if="result.competency_scores?.length" class="result-card">
+          <div class="rc-header rc-h-blue" @click="toggle('comp')">
+            <span>📊 {{ store.lang==='en'?'Competency Scores':'Bảng năng lực' }} – {{ result.competency_scores.length }} mục</span>
+            <span class="rc-arrow" :class="{open:sec.comp}">›</span>
+          </div>
+          <div v-if="sec.comp" class="rc-body">
+            <table class="comp-table">
+              <thead>
+                <tr><th>STT</th><th>Năng lực</th><th>Trọng số</th><th>Điểm</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="(c,ci) in result.competency_scores" :key="ci">
+                  <td class="td-center">{{ ci+1 }}</td>
+                  <td>{{ c.name || c.competency_name }}</td>
+                  <td class="td-center">{{ c.weight }}%</td>
+                  <td class="td-center td-score" :class="c.score>=7?'s-good':c.score>=5?'s-mid':'s-low'">{{ c.score?.toFixed(1) }}</td>
+                </tr>
+                <tr class="comp-total">
+                  <td colspan="3"><strong>{{ store.lang==='en'?'TOTAL SCORE':'ĐIỂM TỔNG' }}</strong></td>
+                  <td class="td-center td-score" :class="result.overall_score>=7?'s-good':'s-mid'"><strong>{{ result.overall_score?.toFixed(1) }}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Recommendation Details -->
+        <div v-if="result.recommendation_details" class="result-card">
+          <div class="rc-header rc-h-violet" @click="toggle('rec')">
+            <span>📋 {{ store.lang==='en'?'Detailed Analysis':'Phân tích chi tiết' }}</span>
+            <span class="rc-arrow" :class="{open:sec.rec}">›</span>
+          </div>
+          <div v-if="sec.rec" class="rc-body rec-body">
+            <!-- Legacy support for string -->
+            <div v-if="typeof result.recommendation_details === 'string'" v-html="formatRec(result.recommendation_details)"></div>
+
+            <!-- Object rendering -->
+            <div v-else>
+              <p class="rd-text" style="margin-bottom: 15px;">{{ result.recommendation_details.reasoning }}</p>
+
+              <div v-if="result.recommendation_details.strengths?.length" class="rd-section">
+                <strong class="rd-label rd-label-green">Điểm mạnh</strong>
+                <ul class="rd-list">
+                  <li v-for="(s, i) in result.recommendation_details.strengths" :key="'s'+i">{{ s }}</li>
+                </ul>
+              </div>
+
+              <div v-if="result.recommendation_details.improvements?.length" class="rd-section">
+                <strong class="rd-label rd-label-yellow">Cần cải thiện</strong>
+                <ul class="rd-list">
+                  <li v-for="(s, i) in result.recommendation_details.improvements" :key="'i'+i">{{ s }}</li>
+                </ul>
+              </div>
+
+              <div v-if="result.recommendation_details.development_potential" class="rd-section">
+                <strong class="rd-label rd-label-blue">Tiềm năng phát triển</strong>
+                <p class="rd-text">{{ result.recommendation_details.development_potential }}</p>
+              </div>
+
+              <div v-if="result.recommendation_details.risk_flags?.length" class="rd-section">
+                <strong class="rd-label rd-label-red">Rủi ro cần lưu ý</strong>
+                <ul class="rd-list">
+                  <li v-for="(s, i) in result.recommendation_details.risk_flags" :key="'r'+i">{{ s }}</li>
+                </ul>
+              </div>
+
+              <div v-if="result.recommendation_details.conditions_if_renew?.length" class="rd-section">
+                <strong class="rd-label rd-label-purple">Điều kiện tái ký</strong>
+                <ul class="rd-list">
+                  <li v-for="(s, i) in result.recommendation_details.conditions_if_renew" :key="'c'+i">{{ s }}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Next Steps -->
+        <div v-if="nextStepsList.length" class="result-card">
+          <div class="rc-header rc-h-cyan" @click="toggle('nextsteps')">
+            <span>🔜 {{ t('next_steps') }} – {{ nextStepsList.length }} mục</span>
+            <span class="rc-arrow" :class="{open:sec.nextsteps}">›</span>
+          </div>
+          <div v-if="sec.nextsteps" class="rc-body">
+            <div v-for="(ns, nsi) in nextStepsList" :key="nsi" class="ns-item">
+              <div class="ns-action">
+                <span class="ns-num">{{ nsi + 1 }}</span>
+                {{ ns.action }}
+              </div>
+              <div class="ns-meta">
+                <span v-if="ns.priority" class="ns-tag" :class="'ns-'+ns.priority.toLowerCase()">{{ ns.priority }}</span>
+                <span v-if="ns.responsible" class="ns-resp">👤 {{ ns.responsible }}</span>
+                <span v-if="ns.deadline_note" class="ns-deadline">⏰ {{ ns.deadline_note }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Báo cáo ngày -->
+        <div v-if="result.bao_cao_ngay" class="result-card">
+          <div class="rc-header rc-h-teal" @click="toggle('bao_cao_ngay')">
+            <span>📅 Báo cáo ngày – {{ result.bao_cao_ngay.so_ngay_da_bc }}/{{ result.bao_cao_ngay.so_ngay_can_bc }} ngày</span>
+            <span class="rc-arrow" :class="{open:sec.bao_cao_ngay}">›</span>
+          </div>
+          <div v-if="sec.bao_cao_ngay" class="rc-body">
+            <div style="margin-bottom:12px;">
+              <div style="display:flex;justify-content:space-between;font-size:.8rem;color:#64748b;margin-bottom:4px;">
+                <span>Đã báo cáo</span>
+                <span>{{ result.bao_cao_ngay.so_ngay_da_bc }}/{{ result.bao_cao_ngay.so_ngay_can_bc }} ngày</span>
+              </div>
+              <div style="background:#e2e8f0;border-radius:4px;height:8px;">
+                <div :style="{ width: Math.min(100, Math.round((result.bao_cao_ngay.so_ngay_da_bc / result.bao_cao_ngay.so_ngay_can_bc) * 100)) + '%', height: '100%', borderRadius: '4px', background: result.bao_cao_ngay.so_ngay_da_bc >= result.bao_cao_ngay.so_ngay_can_bc ? '#10b981' : '#f59e0b' }"></div>
+
+              </div>
+            </div>
+            <div v-if="result.bao_cao_ngay.ngay_thieu_bao_cao?.length" style="margin-bottom:8px;">
+              <strong style="font-size:.8rem;color:#64748b;">Ngày thiếu báo cáo:</strong>
+              <span v-for="d in result.bao_cao_ngay.ngay_thieu_bao_cao" :key="d" style="display:inline-block;margin:2px 4px;padding:2px 8px;background:#fef3c7;border-radius:4px;font-size:.78rem;color:#92400e;">{{ d }}</span>
+            </div>
+            <div v-if="result.bao_cao_ngay.ngay_thieu_hang_muc?.length" style="margin-bottom:8px;">
+              <strong style="font-size:.8rem;color:#64748b;">Ngày thiếu hạng mục:</strong>
+              <span v-for="d in result.bao_cao_ngay.ngay_thieu_hang_muc" :key="d" style="display:inline-block;margin:2px 4px;padding:2px 8px;background:#fce7f3;border-radius:4px;font-size:.78rem;color:#9d174d;">{{ d }}</span>
+            </div>
+            <div v-if="result.bao_cao_ngay.nhan_xet" style="font-size:.85rem;color:#475569;padding:8px 12px;background:#f8fafc;border-radius:6px;">{{ result.bao_cao_ngay.nhan_xet }}</div>
+          </div>
+        </div>
+
+        <!-- Đề xuất Quản lý -->
+        <div v-if="result.danh_gia_quan_ly" class="result-card">
+          <div class="rc-header" :class="result.danh_gia_quan_ly.hop_ly ? 'rc-h-green' : 'rc-h-warn'" @click="toggle('quan_ly')">
+            <span>{{ result.danh_gia_quan_ly.hop_ly ? '✅' : '⚠️' }} Đề xuất Quản lý – {{ result.danh_gia_quan_ly.hop_ly ? 'Hợp lý' : 'Cần xem lại' }}</span>
+            <span class="rc-arrow" :class="{open:sec.quan_ly}">›</span>
+          </div>
+          <div v-if="sec.quan_ly" class="rc-body">
+            <div style="padding:12px 14px;background:#f8fafc;border-radius:8px;margin-bottom:10px;">
+              <div class="emp-field-label">Đề xuất của Quản lý</div>
+              <div style="font-size:.9rem;font-weight:600;color:#1e293b;margin-top:4px;">{{ result.danh_gia_quan_ly.de_xuat_quan_ly || '—' }}</div>
+            </div>
+            <div style="padding:12px 14px;border-radius:8px;" :style="result.danh_gia_quan_ly.hop_ly ? 'background:#f0fdf4;border:1px solid #bbf7d0' : 'background:#fff7ed;border:1px solid #fed7aa'">
+              <div class="emp-field-label">Đánh giá của 2AS</div>
+              <div style="font-size:.88rem;color:#1e293b;margin-top:4px;line-height:1.6;">{{ result.danh_gia_quan_ly.nhan_xet }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Evidence -->
+        <div v-if="result.evidence?.length" class="result-card">
+          <div class="rc-header rc-h-green" @click="toggle('evidence')">
+            <span>🔍 {{ store.lang==='en'?'Extracted Evidence':'Bằng chứng trích xuất' }} – {{ result.evidence.length }} mục</span>
+            <span class="rc-arrow" :class="{open:sec.evidence}">›</span>
+          </div>
+          <div v-if="sec.evidence" class="rc-body">
+            <div v-for="(ev,ei) in result.evidence" :key="ei" class="ev-item">
+              <div class="ev-comp">{{ ev.mapped_competency || ev.competency }}</div>
+              <div class="ev-text">{{ ev.statement || ev.evidence_text }}</div>
+              <div v-if="ev.source_document || ev.source" class="ev-src">📄 {{ ev.source_document || ev.source }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { store, t } from '../store'
+
+const inputMode = ref('default') // 'default' or 'scan'
+const evalFile = ref(null), evalFileName = ref('')
+const reportFile = ref(null), reportFileName = ref('')
+const dailyReportFile = ref(null), dailyReportFileName = ref('')
+const ngayBD = ref(''), ngayKT = ref('')
+const soNgayLamViec = computed(() => {
+  if (!ngayBD.value || !ngayKT.value) return 0
+  const start = new Date(ngayBD.value)
+  const end = new Date(ngayKT.value)
+  if (end < start) return 0
+  let count = 0
+  const cur = new Date(start)
+  while (cur <= end) {
+    const dow = cur.getDay()
+    if (dow !== 0 && dow !== 6) count++
+    cur.setDate(cur.getDate() + 1)
+  }
+  return count
+})
+const tried = ref(false), loading = ref(false)
+const result = ref(null), error = ref('')
+const progress = reactive({ step: 0, total: 5, message: 'Đang chuẩn bị...' })
+const sec = reactive({ comp: true, rec: true, evidence: false, docwarn: true, nextsteps: true, assessment: true, bao_cao_ngay: true, quan_ly: true })
+let evalName = ''
+
+// OCR Review state
+const ocrReview = ref(false)
+const ocrEvalContent = ref({})
+const ocrReportContent = ref({})
+const ocrWarnings = ref([])
+const ocrTab = ref('eval')
+const ocrViewMode = ref('preview')
+const ocrEditMode = reactive({ eval: false, report: false })
+const ocrExtractedFields = ref([])
+
+// Computed line counts not needed for JSON, but keep placeholders if used elsewhere
+const ocrEvalLineCount = computed(() => 10)
+const ocrReportLineCount = computed(() => 10)
+
+// Update extracted field value and sync back to object content
+function updateExtractedField(index, newValue) {
+  const field = ocrExtractedFields.value[index]
+  if (!field) return
+  field.value = newValue
+
+  // Sync to the JSON objects
+  if (field.source === 'eval' && ocrEvalContent.value.thong_tin_nhan_vien) {
+    if (field.key === 'Họ và tên') ocrEvalContent.value.thong_tin_nhan_vien.ho_ten = newValue
+    if (field.key === 'MSNV') ocrEvalContent.value.thong_tin_nhan_vien.msnv = newValue
+    if (field.key === 'Vị trí công việc') ocrEvalContent.value.thong_tin_nhan_vien.vi_tri = newValue
+    if (field.key === 'Phòng ban') ocrEvalContent.value.thong_tin_nhan_vien.phong_ban = newValue
+    if (field.key === 'Ngày bắt đầu HĐ') ocrEvalContent.value.thong_tin_nhan_vien.ngay_bat_dau_hd = newValue
+    if (field.key === 'Ngày hết hạn HĐ') ocrEvalContent.value.thong_tin_nhan_vien.ngay_het_han_hd = newValue
+  }
+}
+
+// Try to parse user edited JSON string
+function tryParseJson(jsonString, docType) {
+  try {
+    const obj = JSON.parse(jsonString)
+    if (docType === 'eval') ocrEvalContent.value = obj
+    if (docType === 'report') ocrReportContent.value = obj
+  } catch (e) {
+    // Ignore parse error while typing
+  }
+}
+
+// Parse extracted fields from OCR API response
+function parseExtractedFields(evalFields, reportFields) {
+  const fields = []
+  const evalF = evalFields?.fields || {}
+  const reportF = reportFields?.fields || {}
+
+  // Eval form fields
+  const evalLabels = [
+    { key: 'Họ và tên', label: 'Họ và tên CBNV' },
+    { key: 'MSNV', label: 'Mã số nhân viên (MSNV)' },
+    { key: 'Vị trí công việc', label: 'Vị trí công việc' },
+    { key: 'Phòng ban', label: 'Phòng – Ban – LL/Khối' },
+    { key: 'Ngày bắt đầu HĐ', label: 'Ngày bắt đầu HĐ gần nhất' },
+    { key: 'Ngày hết hạn HĐ', label: 'Ngày hết hạn HĐ' },
+  ]
+  for (const item of evalLabels) {
+    fields.push({
+      label: item.label,
+      value: evalF[item.key] || '',
+      key: item.key,
+      source: 'eval',
+    })
+  }
+
+  ocrExtractedFields.value = fields
+}
+
+
+// Computed for document warnings
+const docWarningsList = computed(() => {
+  if (!result.value?.document_warnings) return []
+  return result.value.document_warnings.warnings || []
+})
+const docWarningsComplete = computed(() => {
+  if (!result.value?.document_warnings) return true
+  return result.value.document_warnings.is_complete === true
+})
+
+// Validation warnings
+const validationWarningsList = computed(() => {
+  if (!result.value?.validation_warnings) return []
+  let val = result.value.validation_warnings
+  if (typeof val === 'string') {
+    try { val = JSON.parse(val) } catch(e) { val = [] }
+  }
+  return Array.isArray(val) ? val : []
+})
+const consistencyCheckWarnings = computed(() => {
+  if (!result.value?.consistency_check) return {}
+  let val = result.value.consistency_check
+  if (typeof val === 'string') {
+    try { val = JSON.parse(val) } catch(e) { val = {} }
+  }
+  return val || {}
+})
+const hasValidationWarnings = computed(() => {
+  return validationWarningsList.value.length > 0
+})
+const totalWarningsCount = computed(() => {
+  let cnt = 0
+  if (!docWarningsComplete.value) {
+    cnt += docWarningsList.value.length
+  }
+  if (validationWarningsList.value.length) cnt += validationWarningsList.value.length
+  return cnt
+})
+
+// Computed for next steps
+const nextStepsList = computed(() => {
+  if (!result.value?.next_steps) return []
+  // next_steps can be array or from recommendation_details
+  if (Array.isArray(result.value.next_steps)) return result.value.next_steps
+  // Try from recommendation_details
+  const rd = result.value.recommendation_details
+  if (rd && Array.isArray(rd.next_steps)) return rd.next_steps
+  return []
+})
+
+function proposalColor(level) {
+  if (level === 'Đồng ý') return 'green'
+  if (level === 'Cần bổ sung') return 'yellow'
+  if (level === 'Chưa đủ cơ sở') return 'orange'
+  return 'red'
+}
+function urgencyColor(level) {
+  if (level === 'Bình thường') return 'green'
+  if (level === 'Cần xử lý sớm') return 'yellow'
+  return 'red'
+}
+
+function drop(e, t) {
+  const f = e.dataTransfer.files[0]
+  if (!f) return
+  if (t === 'eval') { evalFile.value = f; evalFileName.value = f.name }
+  else if (t === 'daily') { dailyReportFile.value = f; dailyReportFileName.value = f.name }
+  else { reportFile.value = f; reportFileName.value = f.name }
+}
+function pickFile(e, t) {
+  const f = e.target.files[0]
+  if (!f) return
+  if (t === 'eval') { evalFile.value = f; evalFileName.value = f.name }
+  else if (t === 'daily') { dailyReportFile.value = f; dailyReportFileName.value = f.name }
+  else { reportFile.value = f; reportFileName.value = f.name }
+}
+function toggle(k) { sec[k] = !sec[k] }
+
+const BASE = '/api/method/cnb_2as.api.evaluation'
+
+// CSRF token cache
+let csrfToken = ''
+
+async function fetchCsrfToken() {
+  // Try window.frappe first (if Frappe JS is loaded)
+  if (window.frappe?.csrf_token) {
+    csrfToken = window.frappe.csrf_token
+    return csrfToken
+  }
+  // Try cookie
+  const c = document.cookie.split('; ').find(r => r.startsWith('csrf_token='))
+  if (c) {
+    csrfToken = decodeURIComponent(c.split('=')[1])
+    return csrfToken
+  }
+  // Dev mode: ignore_csrf is set, token not needed
+  return ''
+}
+
+function csrf() {
+  return csrfToken
+}
+
+const hdrs = () => ({ 'X-Frappe-CSRF-Token': csrf(), 'Content-Type': 'application/json', 'Accept': 'application/json' })
+
+// Wrapper for fetch that always includes credentials (session cookie)
+function apiFetch(url, opts = {}) {
+  return fetch(url, { ...opts, credentials: 'include' })
+}
+
+async function uploadFile(file) {
+  // Ensure CSRF token is available
+  if (!csrfToken) await fetchCsrfToken()
+
+  const fd = new FormData()
+  fd.append('file', file)
+  fd.append('is_private', '1')
+  fd.append('folder', 'Home')
+  const r = await apiFetch('/api/method/upload_file', {
+    method: 'POST',
+    body: fd,
+    headers: { 'X-Frappe-CSRF-Token': csrf() },
+  })
+  const j = await r.json()
+  if (!r.ok) throw new Error(j?.exception || 'Upload thất bại')
+  return j.message
+}
+
+async function doEvaluate() {
+  tried.value = true
+  if (!evalFile.value || !reportFile.value) return
+  loading.value = true; error.value = ''; result.value = null; ocrReview.value = false
+  progress.step = 1; progress.message = store.lang==='en'?'Uploading files...':'Đang upload file...'
+
+  try {
+    // Upload required files
+    const [f1, f2] = await Promise.all([uploadFile(evalFile.value), uploadFile(reportFile.value)])
+    // Upload optional daily report
+    let f3 = null
+    if (dailyReportFile.value) {
+      f3 = await uploadFile(dailyReportFile.value)
+    }
+
+    if (inputMode.value === 'scan') {
+      // Scan mode: OCR via OpenAI Vision (fast, ~10-30s)
+      progress.step = 2; progress.message = t('ocr_processing')
+
+      const r1 = await apiFetch(`${BASE}.run_evaluation_scan`, {
+        method: 'POST', headers: hdrs(),
+        body: JSON.stringify({ eval_file: f1.file_url, work_report_file: f2.file_url })
+      })
+      const j1 = await r1.json()
+      if (!r1.ok) throw new Error(j1?.exception || 'OCR thất bại')
+
+      const data = j1.message
+      evalName = data.evaluation_name
+      try {
+        ocrEvalContent.value = typeof data.ocr_eval_content === 'string' ? JSON.parse(data.ocr_eval_content || '{}') : (data.ocr_eval_content || {})
+        ocrReportContent.value = typeof data.ocr_report_content === 'string' ? JSON.parse(data.ocr_report_content || '{}') : (data.ocr_report_content || {})
+      } catch (e) {
+        console.error("JSON parse error:", e)
+        ocrEvalContent.value = {}
+        ocrReportContent.value = {}
+      }
+      ocrWarnings.value = data.all_warnings || []
+      parseExtractedFields(data.eval_fields, data.report_fields)
+      ocrViewMode.value = 'preview'
+      ocrReview.value = true
+      loading.value = false
+
+    } else {
+      // Default mode: direct evaluation
+      progress.step = 2; progress.message = store.lang==='en'?'AI is scoring...':'AI đang phân tích...'
+
+      const r1 = await apiFetch(`${BASE}.run_evaluation`, {
+        method: 'POST', headers: hdrs(),
+        body: JSON.stringify({
+          eval_file: f1.file_url,
+          work_report_file: f2.file_url,
+          daily_report_file: f3?.file_url || '',
+          ngay_bd: ngayBD.value || '',
+          ngay_kt: ngayKT.value || '',
+        })
+      })
+      const j1 = await r1.json()
+      if (!r1.ok) throw new Error(j1?.exception || 'Tạo đánh giá thất bại')
+      evalName = j1.message?.evaluation_name || j1.message?.name || j1.message
+
+      await pollForResults()
+    }
+  } catch(e) { error.value = e.message; loading.value = false }
+}
+
+async function confirmOcr() {
+  if (!evalName) return
+  loading.value = true; error.value = ''; ocrReview.value = false
+  progress.step = 1; progress.message = store.lang==='en'?'AI is analyzing...':'AI đang phân tích...'
+
+  try {
+    const r = await apiFetch(`${BASE}.confirm_ocr_and_evaluate`, {
+      method: 'POST', headers: hdrs(),
+      body: JSON.stringify({
+        evaluation_name: evalName,
+        ocr_eval_content: JSON.stringify(ocrEvalContent.value),
+        ocr_report_content: JSON.stringify(ocrReportContent.value),
+      })
+    })
+    const j = await r.json()
+    if (!r.ok) throw new Error(j?.exception || 'Xác nhận OCR thất bại')
+
+    await pollForResults()
+  } catch(e) { error.value = e.message; loading.value = false }
+}
+
+async function pollForOcrResults() {
+  progress.step = 2; progress.message = store.lang==='en'?'OCR processing in background...':'Đang OCR nền...'
+
+  let attempts = 0
+  const maxAttempts = 120 // 6 minutes max
+  while (attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 3000))
+    attempts++
+    try {
+      const r = await apiFetch(`${BASE}.get_ocr_preview`, {
+        method: 'POST', headers: hdrs(),
+        body: JSON.stringify({ evaluation_name: evalName })
+      })
+      const j = await r.json()
+      if (!r.ok) continue
+      const data = j.message
+      if (data?.status === 'OCR Ready') {
+        ocrEvalContent.value = data.ocr_eval_content || ''
+        ocrReportContent.value = data.ocr_report_content || ''
+        // Extract warnings from eval_fields + report_fields
+        const evalWarns = data.eval_fields?.warnings || []
+        const reportWarns = data.report_fields?.warnings || []
+        ocrWarnings.value = [...evalWarns, ...reportWarns]
+        parseExtractedFields(data.eval_fields, data.report_fields)
+        ocrViewMode.value = 'preview'
+        ocrReview.value = true
+        loading.value = false
+        return
+      } else if (data?.status === 'Failed') {
+        throw new Error(store.lang==='en'?'OCR processing failed':'OCR xử lý thất bại')
+      }
+    } catch(e) {
+      if (e.message.includes('OCR')) throw e
+      // Network error, keep trying
+    }
+    progress.message = store.lang==='en'?`OCR processing... (${attempts * 3}s)`:`Đang OCR... (${attempts * 3}s)`
+  }
+  throw new Error(store.lang==='en'?'OCR timeout':'OCR quá thời gian chờ')
+}
+
+async function pollForResults() {
+  progress.step = 3; progress.message = store.lang==='en'?'Waiting for results...':'Đang chờ kết quả...'
+
+  let attempts = 0
+  const maxAttempts = 60
+  while (attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 3000))
+    attempts++
+    const r2 = await apiFetch(`${BASE}.get_evaluation_result`, {
+      method: 'POST', headers: hdrs(),
+      body: JSON.stringify({ evaluation_name: evalName })
+    })
+    const j2 = await r2.json()
+    if (!r2.ok) continue
+    const data = j2.message
+    if (data?.status === 'Completed') {
+      progress.step = 5; progress.message = store.lang==='en'?'Done!':'Hoàn tất!'
+      result.value = data
+      sec.comp = true; sec.rec = true; sec.evidence = false; sec.docwarn = true; sec.nextsteps = true
+      break
+    } else if (data?.status === 'Failed') {
+      throw new Error(store.lang==='en'?'Evaluation failed':'Đánh giá thất bại')
+    }
+    progress.step = 3; progress.message = store.lang==='en'?`AI is analyzing... (${attempts})`:`AI đang phân tích... (${attempts})`
+  }
+  if (attempts >= maxAttempts) throw new Error(store.lang==='en'?'Timeout':'Quá thời gian chờ')
+  loading.value = false
+}
+
+function formatRec(text) {
+  if (!text) return ''
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>')
+    .replace(/(ĐIỂM MẠNH|CẦN CẢI THIỆN|TIỀM NĂNG PHÁT TRIỂN|RỦI RO CẦN LƯU Ý|điểm mạnh|cần cải thiện|tiềm năng|rủi ro)/gi,
+      '<span class="rec-label">$1</span>')
+}
+
+async function downloadPdf() {
+  if (!evalName) return
+  try {
+    const r = await apiFetch(`${BASE}.export_evaluation_pdf`, {
+      method: 'POST',
+      headers: { 'X-Frappe-CSRF-Token': csrf() },
+      body: new URLSearchParams({ evaluation_name: evalName })
+    })
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}))
+      throw new Error(j?.exception || 'Tải PDF thất bại')
+    }
+    const blob = await r.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `DanhGia_TaiKy_${evalName}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch(e) { error.value = e.message }
+}
+
+function onProgress(data) {
+  if (data) {
+    progress.step = data.step || progress.step
+    progress.total = data.total || progress.total
+    progress.message = data.message || progress.message
+  }
+}
+onMounted(async () => {
+  // Fetch CSRF token on page load
+  await fetchCsrfToken()
+
+  if (window.frappe?.realtime) {
+    window.frappe.realtime.on('eval_progress', onProgress)
+  }
+})
+onUnmounted(() => {
+  if (window.frappe?.realtime) {
+    window.frappe.realtime.off('eval_progress', onProgress)
+  }
+})
+</script>
+
+<style scoped>
+.app-layout { display: flex; height: 100vh; overflow: hidden; background: #f8fafc }
+
+/* ── SIDEBAR ── */
+.sidebar { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid #e2e8f0; background: #fff }
+.sb-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; border-bottom: 1px solid #e2e8f0; background: #fff }
+.sb-reload { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s; }
+.sb-reload:hover { background: #f1f5f9; color: #3b82f6; border-color: #cbd5e1; }
+.sb-back { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: #f1f5f9; color: #64748b; text-decoration: none; transition: all .2s; flex-shrink: 0 }
+.sb-logo { display: flex; align-items: center; gap: 10px }
+.sb-logo-mark { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center }
+.sb-logo-violet { background: linear-gradient(135deg,#8b5cf6,#a855f7) }
+.sb-name { font-size: .88rem; font-weight: 700; color: #1e293b }
+.sb-org { font-size: .72rem; color: #64748b }
+.sb-body { padding: 16px 16px; flex-grow: 1 }
+.sb-section { margin-bottom: 20px }
+.sb-section-title { font-size: .72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px }
+
+/* Mode Toggle */
+.mode-toggle { display: flex; gap: 6px; margin-bottom: 4px }
+.mode-btn { flex: 1; padding: 8px 6px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #64748b; font-size: .75rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; justify-content: center; transition: all .2s }
+.mode-btn:hover { border-color: rgba(139,92,246,.4); background: rgba(139,92,246,.04) }
+.mode-btn.active { border-color: #8b5cf6; background: rgba(139,92,246,.08); color: #7c3aed }
+.mode-icon { font-size: 14px }
+
+.sb-upload-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px dashed #cbd5e1; background: #f8fafc; cursor: pointer; margin-bottom: 8px; transition: all .2s }
+.sb-upload-card:hover { border-color: #8b5cf6; background: rgba(139,92,246,.04) }
+.sb-upload-card.filled { border-style: solid; border-color: #22c55e; background: rgba(34,197,94,.06) }
+.sb-upload-card.err { border-color: #ef4444; background: rgba(239,68,68,.06) }
+.sb-upload-optional { border-color: #0d9488; border-style: dashed; background: rgba(13,148,136,.04) }
+.sb-upload-optional:hover { border-color: #0d9488; background: rgba(13,148,136,.08) }
+.upc-opt-badge { font-size: .6rem; font-weight: 600; background: #0d9488; color: #fff; border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle }
+.sb-opt-divider { display: flex; align-items: center; gap: 8px; margin: 10px 0 6px; font-size: .65rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em }
+.sb-opt-divider::before, .sb-opt-divider::after { content: ''; flex: 1; height: 1px; background: #e2e8f0 }
+.sb-date-range { background: rgba(13,148,136,.05); border: 1px solid rgba(13,148,136,.2); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px }
+.sb-date-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px }
+.sb-date-row label { font-size: .7rem; font-weight: 600; color: #64748b; width: 60px; flex-shrink: 0 }
+.sb-date-input { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; font-size: .78rem; color: #334155; background: #fff; outline: none }
+.sb-date-input:focus { border-color: #0d9488; box-shadow: 0 0 0 2px rgba(13,148,136,.12) }
+.sb-days-badge { font-size: .72rem; font-weight: 600; color: #0d9488; background: rgba(13,148,136,.1); border-radius: 6px; padding: 4px 10px; text-align: center; margin-top: 4px }
+.upc-icon { font-size: 24px; flex-shrink: 0 }
+.upc-info { flex-grow: 1; min-width: 0 }
+.upc-label { font-size: .72rem; font-weight: 600; color: #64748b }
+.upc-hint { font-size: .65rem; color: #94a3b8; margin-top: 2px }
+.upc-val { font-size: .8rem; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block; field-sizing: content }
+.upc-val.ok { color: #16a34a }
+.upc-val.empty { color: #94a3b8 }
+.upc-rm { width: 24px; height: 24px; border: none; background: rgba(239,68,68,.1); color: #ef4444; border-radius: 6px; cursor: pointer; font-size: .7rem; display: flex; align-items: center; justify-content: center }
+
+.sb-err { font-size: .78rem; color: #ef4444; margin: 4px 0 }
+
+.sb-btn-primary { width: 100%; padding: 10px; border: none; border-radius: 10px; background: linear-gradient(135deg,#8b5cf6,#a855f7); color: #fff; font-weight: 600; font-size: .88rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: opacity .2s; margin-top: 8px }
+.sb-btn-primary:disabled { opacity: .5; cursor: not-allowed }
+.sb-btn-secondary { width: 100%; padding: 9px; border: 1px solid #8b5cf6; border-radius: 10px; background: #fff; color: #7c3aed; font-weight: 600; font-size: .84rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; transition: all .2s }
+.sb-btn-secondary:hover { background: rgba(139,92,246,.06) }
+
+.spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite }
+@keyframes spin { to { transform: rotate(360deg) } }
+
+.sb-badge { padding: 10px 14px; border-radius: 10px; display: flex; align-items: center; gap: 10px; margin-bottom: 12px }
+.badge-pass { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.25) }
+.badge-fail { background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25) }
+.badge-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: .9rem }
+.badge-pass .badge-icon { background: rgba(34,197,94,.15); color: #16a34a }
+.badge-fail .badge-icon { background: rgba(245,158,11,.15); color: #d97706 }
+.badge-text { font-size: .82rem; font-weight: 600; line-height: 1.3; color: #334155 }
+
+/* Mini badges for proposal/urgency */
+.sb-mini-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px }
+.sb-mini-badge { padding: 4px 10px; border-radius: 6px; font-size: .72rem; font-weight: 600 }
+.mb-green { background: rgba(34,197,94,.1); color: #16a34a; border: 1px solid rgba(34,197,94,.2) }
+.mb-yellow { background: rgba(234,179,8,.1); color: #a16207; border: 1px solid rgba(234,179,8,.2) }
+.mb-orange { background: rgba(249,115,22,.1); color: #c2410c; border: 1px solid rgba(249,115,22,.2) }
+.mb-red { background: rgba(239,68,68,.1); color: #dc2626; border: 1px solid rgba(239,68,68,.2) }
+
+.sb-counts { display: flex; gap: 8px; margin-bottom: 8px }
+.sc { flex: 1; text-align: center; padding: 8px 4px; border-radius: 8px; background: #f1f5f9 }
+.sc-val { font-size: 1.2rem; font-weight: 800 }
+.sc-val.score { color: #7c3aed }
+.sc-val.ok { color: #16a34a }
+.sc-val.warn { color: #d97706 }
+.sc-lbl { font-size: .68rem; color: #64748b; margin-top: 2px }
+
+.progress-text { font-size: .78rem; color: #64748b }
+
+/* ── RESULT PANEL ── */
+.result-panel { flex: 1; overflow-y: auto; background: #f8fafc }
+.welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 40px; text-align: center }
+.welcome-icon { margin-bottom: 20px }
+.welcome h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 10px; color: #1e293b }
+.welcome p { max-width: 500px; color: #64748b; line-height: 1.6 }
+.welcome-features { display: flex; gap: 20px; margin-top: 32px; flex-wrap: wrap; justify-content: center }
+.wf { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; background: #fff; border: 1px solid #e2e8f0; font-size: .84rem; color: #475569; font-weight: 500 }
+.wf-icon { font-size: 1.2rem }
+
+.loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 16px }
+.loading-spinner { width: 40px; height: 40px; border: 3px solid rgba(139,92,246,.15); border-top-color: #8b5cf6; border-radius: 50%; animation: spin 1s linear infinite }
+.loading-screen p { font-weight: 600; color: #334155 }
+.loading-sub { font-weight: 400 !important; font-size: .84rem; color: #64748b !important }
+.error-card { margin: 24px; padding: 16px 20px; border-radius: 10px; background: rgba(239,68,68,.06); border: 1px solid rgba(239,68,68,.15); color: #dc2626; display: flex; align-items: center; gap: 10px }
+.error-icon { font-size: 1.2rem }
+
+/* ── OCR REVIEW (Inline Edit) ── */
+.ocr-review-screen { max-width: 100% !important; padding: 30px 40px !important }
+.rpt-th-mang { width: 16%; }
+.rpt-th-mota { width: 34%; }
+
+/* Editable Cells & Inputs */
+.ocr-review-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; padding: 16px 20px; background: #fff; border-radius: 14px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,.04) }
+.ocr-review-title { display: flex; align-items: center; gap: 12px }
+.ocr-review-icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #8b5cf6, #a855f7); display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0 }
+.ocr-review-header h2 { font-size: 1rem; font-weight: 800; color: #1e293b; margin: 0 }
+.ocr-review-subtitle { font-size: .75rem; color: #64748b; margin-top: 2px }
+.ocr-confirm-btn-top { width: auto; padding: 9px 20px; white-space: nowrap; flex-shrink: 0; font-size: .82rem }
+
+/* Document Tabs */
+.ocr-doc-tabs { display: flex; gap: 4px; margin-bottom: 0 }
+.ocr-doc-tab { flex: 1; padding: 11px 14px; border: 1px solid #e2e8f0; border-bottom: none; border-radius: 10px 10px 0 0; background: #f8fafc; color: #64748b; font-size: .82rem; font-weight: 600; cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 8px; justify-content: center }
+.ocr-doc-tab:hover { background: #f1f5f9; color: #475569 }
+.ocr-doc-tab.active { background: #fff; border-color: #e2e8f0; color: #7c3aed; border-bottom-color: #fff; position: relative; z-index: 1; margin-bottom: -1px }
+.ocr-doc-tab-icon { font-size: 1rem }
+.ocr-doc-tab-label { font-weight: 700 }
+
+/* Content Card */
+.ocr-content-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 0 0 14px 14px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.03) }
+
+/* Info Section (Employee fields) */
+.ocr-info-section { padding: 16px 20px; border-bottom: 1px solid #f1f5f9 }
+.ocr-info-header { display: flex; align-items: center; gap: 8px; font-size: .78rem; font-weight: 700; color: #7c3aed; margin-bottom: 12px }
+.ocr-info-header svg { color: #8b5cf6 }
+.ocr-info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px }
+.ocr-info-row { display: flex; flex-direction: column; gap: 3px }
+.ocr-info-row.ocr-info-missing .ocr-info-input { border-color: rgba(234,179,8,.4); background: rgba(234,179,8,.04) }
+.ocr-info-label { display: flex; align-items: center; gap: 5px; font-size: .68rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .03em }
+.ocr-info-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0 }
+.ocr-info-dot.dot-ok { background: #22c55e }
+.ocr-info-dot.dot-warn { background: #f59e0b }
+.ocr-info-input { width: 100%; padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 7px; background: #fafbfc; color: #1e293b; font-size: .85rem; font-weight: 600; outline: none; transition: all .2s }
+.ocr-info-input:focus { border-color: #8b5cf6; background: #fff; box-shadow: 0 0 0 2px rgba(139,92,246,.08) }
+.ocr-info-input::placeholder { color: #cbd5e1; font-weight: 400; font-style: italic; font-size: .78rem }
+
+/* Edit Section (Textarea) */
+.ocr-edit-section { padding: 0 }
+.ocr-edit-header { display: flex; align-items: center; gap: 8px; padding: 12px 20px; font-size: .78rem; font-weight: 700; color: #475569; background: #fafbfc; border-bottom: 1px solid #f1f5f9 }
+.ocr-edit-header svg { color: #8b5cf6 }
+.ocr-toggle-edit { margin-left: auto; padding: 4px 12px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; color: #64748b; font-size: .72rem; font-weight: 600; cursor: pointer; transition: all .2s }
+.ocr-toggle-edit:hover { border-color: #8b5cf6; color: #7c3aed; background: rgba(139,92,246,.04) }
+.ocr-edit-area { width: 100%; min-height: 500px; padding: 20px; border: none; background: #fff; color: #334155; font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace; font-size: .85rem; line-height: 1.7; resize: vertical; outline: none }
+.ocr-edit-area:focus { background: #fefffe }
+.ocr-edit-area::placeholder { color: #cbd5e1 }
+
+/* Rendered View (tables, headings, etc.) */
+.ocr-rendered-view { padding: 20px 24px; max-height: 600px; overflow-y: auto; font-size: .88rem; line-height: 1.7; color: #334155 }
+.ocr-rendered-view :deep(.ocr-md-h1) { font-size: 1.15rem; font-weight: 800; color: #1e293b; margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 2px solid rgba(139,92,246,.15) }
+.ocr-rendered-view :deep(.ocr-md-h2) { font-size: 1rem; font-weight: 700; color: #334155; margin: 14px 0 8px }
+.ocr-rendered-view :deep(.ocr-md-h3) { font-size: .92rem; font-weight: 700; color: #475569; margin: 12px 0 6px }
+.ocr-rendered-view :deep(.ocr-md-h4) { font-size: .85rem; font-weight: 700; color: #64748b; margin: 10px 0 4px }
+.ocr-rendered-view :deep(.ocr-md-p) { margin: 2px 0; padding: 2px 0 }
+.ocr-rendered-view :deep(.ocr-md-hr) { border: none; border-top: 1px solid #e2e8f0; margin: 14px 0 }
+.ocr-rendered-view :deep(.ocr-md-spacer) { height: 6px }
+.ocr-rendered-view :deep(.ocr-table-wrap) { overflow-x: auto; margin: 10px 0; border-radius: 10px; border: 1px solid #e2e8f0 }
+.ocr-rendered-view :deep(.ocr-md-table) { width: 100%; border-collapse: collapse; font-size: .82rem }
+.ocr-rendered-view :deep(.ocr-md-table th) { padding: 8px 12px; background: linear-gradient(135deg, #f0ecf9, #ede9fe); font-weight: 700; color: #5b21b6; text-align: left; border-bottom: 2px solid #ddd6fe; white-space: nowrap }
+.ocr-rendered-view :deep(.ocr-md-table td) { padding: 7px 12px; border-bottom: 1px solid #f1f5f9; color: #334155 }
+.ocr-rendered-view :deep(.ocr-md-table tr:hover td) { background: rgba(139,92,246,.03) }
+.ocr-rendered-view :deep(.ocr-md-table tr:last-child td) { border-bottom: none }
+.ocr-rendered-view :deep(strong) { color: #1e293b }
+
+/* Status Bar (warnings) */
+.ocr-status-bar { padding: 12px 16px; border-radius: 10px; margin: 12px 20px 16px; transition: all .3s }
+.ocr-status-warn { background: linear-gradient(135deg, rgba(245,158,11,.06), rgba(234,179,8,.08)); border: 1px solid rgba(234,179,8,.25) }
+.ocr-status-content { display: flex; align-items: flex-start; gap: 10px }
+.ocr-status-icon { font-size: 1.1rem; flex-shrink: 0 }
+.ocr-status-text { flex: 1 }
+.ocr-status-text strong { font-size: .82rem; color: #1e293b; display: block }
+.ocr-warn-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px }
+.ocr-warn-tag { padding: 3px 8px; border-radius: 5px; background: rgba(234,179,8,.12); color: #92400e; font-size: .7rem; font-weight: 600; border: 1px solid rgba(234,179,8,.2) }
+
+/* Word Template Styles (kept for eval tab) */
+.word-template-view { padding: 40px; max-height: 800px; overflow-y: auto; background: #fff; color: #000; font-family: 'Times New Roman', Times, serif; font-size: 11pt; line-height: 1.6; box-shadow: inset 0 0 10px rgba(0,0,0,0.05); }
+.word-header { text-align: center; margin-bottom: 24px; }
+.word-header h2 { font-size: 1.25rem; font-weight: bold; margin: 0; text-transform: uppercase; color: #4338ca; }
+.word-h3 { font-size: 1.1rem; font-weight: bold; margin: 15px 0 5px; text-transform: uppercase; color: #4338ca; }
+.word-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+.word-table td, .word-table th { border: 1px solid #cbd5e1; padding: 10px 12px; vertical-align: top; }
+.word-th { font-weight: 600; text-align: left; background: #eef2ff; color: #4338ca; }
+.word-label { font-weight: bold; white-space: nowrap; width: 1%; background: #f8fafc; color: #334155; }
+.word-input { width: 100%; border: none; background: transparent; font-family: 'Times New Roman', Times, serif; font-size: 11pt; outline: none; padding: 0; field-sizing: content; }
+.word-textarea { width: 100%; min-height: 36px; border: none; background: transparent; font-family: 'Times New Roman', Times, serif; font-size: 11pt; line-height: 1.6; outline: none; padding: 2px 0; resize: vertical; overflow-y: auto; field-sizing: content; }
+.word-textarea::-webkit-scrollbar { width: 3px; }
+.word-textarea::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
+.word-textarea::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.3); }
+.word-textarea:focus, .word-input:focus { background: rgba(139, 92, 246, 0.05); }
+
+/* ── Report Tab (ScanCombined-style) ── */
+.rpt-doc { background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,.07); width: 100%; max-width: 1400px; margin: 0 auto; max-height: 800px; overflow-y: auto; }
+.rpt-title { text-align: center; font-size: 1rem; font-weight: 800; text-transform: uppercase; color: #1e293b; margin-bottom: 12px; }
+.rpt-info-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; flex-wrap: wrap; }
+.rpt-field-label { font-weight: 700; font-size: .88rem; white-space: nowrap; color: #374151; }
+.rpt-inline-input { border: none; border-bottom: 2px solid rgba(99,102,241,.3); background: transparent; outline: none; color: inherit; flex: 1; font-size: .9rem; padding: 2px 4px; min-width: 80px; }
+.rpt-inline-input:focus { border-bottom-color: #6366f1; }
+.rpt-name { font-weight: 700 !important; }
+.rpt-section-label { font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #6366f1; margin: 14px 0 4px; }
+.rpt-nq-label { color: #f59e0b; }
+.rpt-nq-note { font-size: .7rem; color: #94a3b8; margin-bottom: 6px; }
+.rpt-table-wrap { overflow-x: auto; margin-bottom: 4px; border-radius: 8px; border: 1.5px solid #e2e8f0; }
+.rpt-table { width: 100%; border-collapse: collapse; min-width: 860px; }
+.rpt-nq-table { min-width: 620px; }
+.rpt-th th { background: #f1f5f9; font-size: .67rem; font-weight: 700; text-transform: uppercase; padding: 6px 7px; border: 1px solid #d1d5db; color: #374151; text-align: center; }
+.rpt-ths { font-size: .65rem !important; }
+.rpt-thg { border-bottom: none !important; }
+.rpt-th-kh { background: rgba(99,102,241,.07) !important; color: #6366f1 !important; }
+.rpt-th-kq { background: rgba(16,185,129,.07) !important; color: #059669 !important; }
+.rpt-row td { border: 1px solid #e2e8f0; padding: 0; vertical-align: top; }
+.rpt-td-stt { width: 30px; text-align: center; font-weight: 700; color: #6366f1; padding: 7px; vertical-align: middle; }
+.rpt-td-mang { width: 110px; } .rpt-td-mota { width: 250px; } .rpt-td-num { width: 62px; } .rpt-td-bod { width: 70px; } .rpt-td-link { width: 130px; }
+.rpt-kqc { background: rgba(16,185,129,.03) !important; }
+.rpt-kqb { font-weight: 700 !important; color: #059669 !important; }
+.rpt-tc { text-align: center !important; }
+.rpt-total-row td { border: 1px solid #e2e8f0; padding: 7px; }
+.rpt-total-label { text-align: center; font-weight: 800; font-size: .8rem; background: #f8fafc; }
+.rpt-input { width: 100%; border: none; background: transparent; outline: none; color: inherit; font-size: .78rem; padding: 5px 7px; font-family: inherit; field-sizing: content; }
+.rpt-input:focus { background: rgba(99,102,241,.04); }
+.rpt-ta { width: 100%; border: none; background: transparent; outline: none; color: inherit; font-size: .77rem; padding: 5px 7px; font-family: inherit; resize: vertical; min-height: 52px; field-sizing: content; }
+.rpt-ta:focus { background: rgba(99,102,241,.04); }
+.rpt-link-ta { font-size: .71rem; color: #6366f1; }
+.rpt-xd-title { text-align: center; font-weight: 800; font-size: .8rem; text-transform: uppercase; color: #374151; margin: 14px 0 8px; }
+.rpt-xd-table { margin: 0 auto; width: 50%; min-width: 320px; border-collapse: collapse; }
+.rpt-xd-table th { background: #f1f5f9; border: 1px solid #d1d5db; padding: 6px 10px; font-size: .75rem; font-weight: 700; text-align: center; }
+.rpt-xd-table td { border: 1px solid #e2e8f0; }
+.rpt-xd-label { text-align: center; font-weight: 700; font-size: .8rem; padding: 8px; width: 66px; }
+.rpt-xd-ranking { text-align: center; vertical-align: middle; }
+.rpt-ranking-input { font-size: 1.1rem !important; font-weight: 800 !important; color: #6366f1 !important; }
+
+/* Thin scrollbar for report doc */
+.rpt-doc::-webkit-scrollbar { width: 4px; }
+.rpt-doc::-webkit-scrollbar-track { background: transparent; }
+.rpt-doc::-webkit-scrollbar-thumb { background: rgba(99,102,241,.2); border-radius: 4px; }
+.rpt-doc::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,.4); }
+
+/* Global thin scrollbar */
+.sidebar::-webkit-scrollbar, .result-panel::-webkit-scrollbar, .results-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-track, .result-panel::-webkit-scrollbar-track, .results-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb, .result-panel::-webkit-scrollbar-thumb, .results-scroll::-webkit-scrollbar-thumb { background: rgba(99,102,241,.15); border-radius: 4px; }
+.sidebar::-webkit-scrollbar-thumb:hover, .result-panel::-webkit-scrollbar-thumb:hover, .results-scroll::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,.3); }
+
+body.theme-dark .rpt-info-row { border-bottom-color: rgba(255,255,255,.08); }
+body.theme-dark .rpt-table-wrap { border-color: rgba(255,255,255,.08); }
+body.theme-dark .rpt-th th { background: #1e2030; color: #94a3b8; border-color: rgba(255,255,255,.07); }
+body.theme-dark .rpt-row td { border-color: rgba(255,255,255,.06); }
+body.theme-dark .rpt-total-row td { border-color: rgba(255,255,255,.06); }
+body.theme-dark .rpt-total-label { background: #1a1a28; color: #f1f5f9; }
+body.theme-dark .rpt-xd-title { color: #f1f5f9; }
+body.theme-dark .rpt-xd-table th { background: #1e2030; color: #94a3b8; border-color: rgba(255,255,255,.08); }
+body.theme-dark .rpt-xd-table td { border-color: rgba(255,255,255,.06); }
+body.theme-dark .rpt-nq-note { color: #64748b; }
+
+/* Confirm Bottom */
+.ocr-confirm-bottom { text-align: center; padding: 6px 0 20px }
+.ocr-confirm-btn-lg { width: auto; display: inline-flex; padding: 12px 36px; font-size: .9rem; border-radius: 10px; gap: 8px; box-shadow: 0 4px 14px rgba(139,92,246,.25); transition: all .2s }
+.ocr-confirm-btn-lg:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(139,92,246,.35); transform: translateY(-1px) }
+.ocr-confirm-hint { font-size: .72rem; color: #94a3b8; margin-top: 6px }
+
+/* ── DOCUMENT WARNINGS ── */
+.doc-complete-badge { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 8px; background: rgba(34,197,94,.06); border: 1px solid rgba(34,197,94,.2); color: #16a34a; font-weight: 600; font-size: .88rem }
+.dc-icon { font-size: 1.1rem }
+.doc-incomplete-badge { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 8px; background: rgba(234,179,8,.06); border: 1px solid rgba(234,179,8,.2); color: #92400e; font-weight: 600; font-size: .88rem; margin-bottom: 10px }
+.di-icon { font-size: 1.1rem }
+.warn-list { padding-left: 20px; margin: 0 }
+.warn-item { font-size: .84rem; color: #92400e; padding: 3px 0; line-height: 1.5 }
+.warn-count { font-size: .75rem; opacity: .7 }
+
+/* ── NEXT STEPS ── */
+.rc-h-cyan { color: #0891b2 }
+.rc-h-teal { color: #0d9488 }
+
+.ns-item { padding: 12px 0; border-bottom: 1px solid #f1f5f9 }
+.ns-item:last-child { border-bottom: none }
+.ns-action { font-size: .88rem; font-weight: 600; color: #1e293b; display: flex; align-items: flex-start; gap: 8px }
+.ns-num { width: 22px; height: 22px; border-radius: 50%; background: rgba(6,182,212,.1); color: #0891b2; display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 800; flex-shrink: 0 }
+.ns-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; padding-left: 30px }
+.ns-tag { font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; background: rgba(234,179,8,.1); color: #a16207 }
+.ns-tag.ns-cao, .ns-tag.ns-high { background: rgba(239,68,68,.1); color: #dc2626 }
+.ns-tag.ns-thấp, .ns-tag.ns-low { background: rgba(34,197,94,.1); color: #16a34a }
+.ns-resp { font-size: .75rem; color: #64748b }
+.ns-deadline { font-size: .75rem; color: #c2410c }
+
+.results-scroll { padding: 24px; max-width: 900px; margin: 0 auto }
+.result-card { border: 1px solid #e2e8f0; border-radius: 14px; margin-bottom: 16px; overflow: hidden; background: #fff }
+
+.rc-header { padding: 14px 20px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: .9rem; transition: background .2s; user-select: none; background: #fafbfc }
+.rc-header:hover { background: #f1f5f9 }
+.rc-h-blue { color: #2563eb }
+.rc-h-violet { color: #7c3aed }
+.rc-h-green { color: #16a34a }
+.rc-h-warn { color: #d97706 }
+.rc-arrow { font-size: 1.2rem; margin-left: auto; transition: transform .2s; color: #94a3b8 }
+.rc-arrow.open { transform: rotate(90deg) }
+.rc-body { padding: 0 20px 16px; border-top: 1px solid #f1f5f9 }
+
+/* Employee Info Card */
+.emp-info-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 24px; margin-bottom: 16px }
+.emp-info-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9 }
+.emp-avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg,#8b5cf6,#a855f7); display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff; font-weight: 700 }
+.emp-info-title { font-size: 15px; font-weight: 700; color: #1e293b }
+.emp-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px }
+.emp-field-label { font-size: .72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 3px }
+.emp-field-value { font-size: .88rem; font-weight: 600; color: #1e293b }
+.emp-field-empty { color: #cbd5e1; font-style: italic; font-weight: 400 }
+
+/* Competency Table */
+.comp-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: 12px }
+.comp-table th { padding: 8px 12px; text-align: left; font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; background: #f8fafc }
+.comp-table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; color: #334155 }
+.td-center { text-align: center }
+.td-score { font-weight: 800; font-size: .95rem }
+.s-good { color: #16a34a }
+.s-mid { color: #d97706 }
+.s-low { color: #dc2626 }
+.comp-total td { border-top: 2px solid rgba(139,92,246,.15); border-bottom: none; background: #faf5ff }
+
+/* Recommendation */
+.rec-body { padding-top: 12px !important; line-height: 1.8; font-size: .9rem; color: #334155 }
+.rec-body :deep(.rec-label) { display: inline-block; font-weight: 800; color: #7c3aed; margin-top: 8px }
+
+/* Section labels for recommendation_details */
+.rd-section { margin-top: 20px }
+.rd-label { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px }
+.rd-label-green { color: #16a34a }
+.rd-label-yellow { color: #ca8a04 }
+.rd-label-blue { color: #2563eb }
+.rd-label-red { color: #dc2626 }
+.rd-label-purple { color: #7c3aed }
+.rd-list { margin-top: 8px; padding-left: 20px; color: #475569; line-height: 1.6 }
+.rd-list li { margin-bottom: 4px }
+.rd-text { margin-top: 8px; color: #475569; line-height: 1.6 }
+
+/* Evidence */
+.ev-item { padding: 10px 0; border-bottom: 1px solid #f1f5f9 }
+.ev-item:last-child { border-bottom: none }
+.ev-comp { font-size: .78rem; font-weight: 700; color: #6366f1; margin-bottom: 4px }
+.ev-text { font-size: .88rem; line-height: 1.6; color: #334155 }
+.ev-src { font-size: .75rem; color: #64748b; margin-top: 4px }
+
+/* ══ COMPREHENSIVE DARK THEME ══ */
+body.theme-dark .app-layout { background: #0f0f1a; }
+body.theme-dark .sidebar { background: #14141f; border-right-color: rgba(255,255,255,.06); }
+body.theme-dark .sb-name { color: #f1f5f9; }
+body.theme-dark .mode-btn { background: rgba(99,102,241,.06); border-color: rgba(99,102,241,.15); color: #94a3b8; }
+body.theme-dark .mode-btn:hover { background: rgba(99,102,241,.12); color: #818cf8; }
+body.theme-dark .mode-btn.active { background: linear-gradient(135deg,#6366f1,#8b5cf6); color: #fff; border-color: transparent; }
+body.theme-dark .sb-upload-card { background: rgba(99,102,241,.05); border-color: rgba(99,102,241,.18); }
+body.theme-dark .sb-upload-card.filled { background: rgba(99,102,241,.08); border-color: rgba(99,102,241,.3); }
+body.theme-dark .upc-val { color: #cbd5e1; }
+body.theme-dark .upc-hint { color: #64748b; }
+body.theme-dark .sb-btn-secondary { background: transparent; color: #a5b4fc; border-color: rgba(99,102,241,.3); }
+body.theme-dark .sc { background: rgba(99,102,241,.08); }
+body.theme-dark .result-panel { background: #0f0f1a; }
+body.theme-dark .welcome h1 { color: #f1f5f9; }
+body.theme-dark .wf { background: rgba(99,102,241,.06); border-color: rgba(99,102,241,.15); color: #94a3b8; }
+body.theme-dark .result-card { background: #14141f; border-color: rgba(255,255,255,.06); }
+body.theme-dark .rc-header:hover { background: rgba(99,102,241,.06); }
+body.theme-dark .ocr-review-header { background: #14141f; border-color: rgba(255,255,255,.06); }
+body.theme-dark .ocr-review-header h2 { color: #f1f5f9; }
+body.theme-dark .ocr-doc-tab { background: rgba(99,102,241,.04); border-color: rgba(255,255,255,.06); color: #94a3b8; }
+body.theme-dark .ocr-doc-tab:hover { background: rgba(99,102,241,.08); color: #a5b4fc; }
+body.theme-dark .ocr-doc-tab.active { background: #14141f; color: #a78bfa; border-color: rgba(255,255,255,.08); border-bottom-color: #14141f; }
+body.theme-dark .ocr-content-card { background: #14141f; border-color: rgba(255,255,255,.06); }
+body.theme-dark .ocr-info-section { border-bottom-color: rgba(255,255,255,.06); }
+body.theme-dark .ocr-info-input { background: rgba(99,102,241,.06); border-color: rgba(99,102,241,.2); color: #f1f5f9; }
+body.theme-dark .ocr-info-input:focus { background: rgba(99,102,241,.1); border-color: #8b5cf6; }
+body.theme-dark .ocr-edit-header { background: rgba(99,102,241,.04); border-bottom-color: rgba(255,255,255,.06); color: #94a3b8; }
+body.theme-dark .ocr-toggle-edit { background: transparent; border-color: rgba(255,255,255,.1); color: #94a3b8; }
+body.theme-dark .ocr-edit-area { background: #0f0f1a; color: #cbd5e1; }
+body.theme-dark .ocr-rendered-view :deep(.ocr-md-h1) { color: #f1f5f9; border-bottom-color: rgba(139,92,246,.2); }
+body.theme-dark .ocr-rendered-view :deep(.ocr-md-table th) { background: rgba(139,92,246,.12); color: #a78bfa; border-bottom-color: rgba(139,92,246,.2); }
+body.theme-dark .ocr-rendered-view :deep(.ocr-md-table td) { border-bottom-color: rgba(255,255,255,.06); color: #cbd5e1; }
+body.theme-dark .ocr-rendered-view :deep(strong) { color: #f1f5f9; }
+body.theme-dark .ocr-status-text strong { color: #f1f5f9; }
+body.theme-dark .word-template-view { background: #14141f; color: #e2e8f0; }
+body.theme-dark .word-th { background: rgba(99,102,241,.06); }
+body.theme-dark .ns-item { border-bottom-color: rgba(255,255,255,.06); }
+body.theme-dark .ns-action { color: #f1f5f9; }
+body.theme-dark .rec-body { color: #cbd5e1; }
+body.theme-dark .rd-list { color: #94a3b8; }
+body.theme-dark .rd-text { color: #94a3b8; }
+body.theme-dark .ev-text { color: #cbd5e1; }
+body.theme-dark .ev-item { border-bottom-color: rgba(255,255,255,.06); }
+</style>
+

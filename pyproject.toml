@@ -1,0 +1,16 @@
+[project]
+name = "cnb_2as"
+authors = [
+    { name = "CT Group", email = "dev@ctgroup.vn" },
+]
+description = "AI Đánh Giá Nhân Sự – Thử Việc & Tái Ký Hợp Đồng"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core:buildapi"
+
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0"

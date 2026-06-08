@@ -1,0 +1,58 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2025-05-29 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "statement",
+  "mapped_competency",
+  "column_break_1",
+  "source_document",
+  "relevance_score"
+ ],
+ "fields": [
+  {
+   "fieldname": "statement",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Evidence Statement",
+   "reqd": 1
+  },
+  {
+   "fieldname": "mapped_competency",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Mapped Competency"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source_document",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Source Document"
+  },
+  {
+   "fieldname": "relevance_score",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Relevance Score (0-1)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-05-29 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CNB 2AS",
+ "name": "Evaluation Evidence",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
