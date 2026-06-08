@@ -7,6 +7,7 @@ Generates a formatted A4 PDF report optimized for B&W printing:
 light backgrounds, thin borders, clean professional layout.
 """
 
+import datetime
 import io
 import json
 import os
@@ -262,69 +263,45 @@ def _section_divider():
 	)
 
 
-def generate_pdf(eval_data):
-	"""Generate a clean, B&W-print-friendly PDF from evaluation data.
 
-	Matches the UI output with all sections:
-	1. Thông tin nhân viên
-	2. Tình trạng hồ sơ
-	3. Nhận định của 2AS & Đề xuất xử lý
-	4. Bảng năng lực
-	5. Phân tích chi tiết
-	6. Bước xử lý tiếp theo
-	7. Bằng chứng trích xuất
-	8. Kết quả kiểm tra dữ liệu
 
-	Args:
-		eval_data: Dict containing all evaluation results.
-
+def _render_pdf_header(eval_data, styles, current_time):
+	"""Render pdf header section for the PDF.
+	
 	Returns:
-		BytesIO buffer containing the generated PDF.
+		list: ReportLab story elements for this section.
 	"""
-	buffer = io.BytesIO()
-	styles = _get_styles()
-
-	doc = SimpleDocTemplate(
-		buffer,
-		pagesize=A4,
-		leftMargin=2 * cm,
-		rightMargin=2 * cm,
-		topMargin=1.8 * cm,
-		bottomMargin=1.8 * cm,
-		title="Ket Qua Danh Gia Tai Ky Hop Dong",
-		author="HR Contract Evaluation System - 2AS",
-	)
-
-	elements = []
-	page_width = A4[0] - 4 * cm  # usable width
-
-	import datetime
-	current_time = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-
-	# ============================================================
+	result = []
 	# HEADER
-	# ============================================================
 
-	elements.append(Spacer(1, 4 * mm))
-	elements.append(Paragraph(
+	result.append(Spacer(1, 4 * mm))
+	result.append(Paragraph(
 		_safe("BÁO CÁO KẾT QUẢ ĐÁNH GIÁ TÁI KÝ HỢP ĐỒNG"),
 		styles["PDFTitle"],
 	))
-	elements.append(Paragraph(
+	result.append(Paragraph(
 		_safe("Hệ thống 2AS — Đánh giá AI Tự động và Khách quan"),
 		styles["PDFSubtitle"],
 	))
-	elements.append(Paragraph(
+	result.append(Paragraph(
 		_safe(f"Mã đánh giá: {eval_data.get('name', '—')} | Thời gian xuất: {current_time}"),
 		styles["PDFSubtitle"],
 	))
-	elements.append(_section_divider())
+	result.append(_section_divider())
 
-	# ============================================================
+	return result
+
+
+def _render_employee_info(eval_data, styles, page_width):
+	"""Render employee info section for the PDF.
+	
+	Returns:
+		list: ReportLab story elements for this section.
+	"""
+	result = []
 	# 1. THÔNG TIN NHÂN VIÊN
-	# ============================================================
 
-	elements.append(Paragraph("1. THÔNG TIN NHÂN VIÊN", styles["PDFSection"]))
+	result.append(Paragraph("1. THÔNG TIN NHÂN VIÊN", styles["PDFSection"]))
 
 	col_label_w = 3.2 * cm
 	col_value_w = page_width / 2 - col_label_w
@@ -384,12 +361,20 @@ def generate_pdf(eval_data):
 		("BOTTOMPADDING", (0, 0), (-1, -1), 4),
 		("LINEBELOW", (0, 0), (-1, -1), 0.3, _CLR_BORDER_LIGHT),
 	]))
-	elements.append(info_table)
-	elements.append(Spacer(1, 4 * mm))
+	result.append(info_table)
+	result.append(Spacer(1, 4 * mm))
 
-	# ============================================================
+	return result
+
+
+def _render_data_check(eval_data, styles):
+	"""Render data check section for the PDF.
+	
+	Returns:
+		list: ReportLab story elements for this section.
+	"""
+	result = []
 	# 2. KIỂM TRA HỒ SƠ & DỮ LIỆU
-	# ============================================================
 
 	doc_warnings = eval_data.get("document_warnings")
 	if doc_warnings:
@@ -422,8 +407,8 @@ def generate_pdf(eval_data):
 			has_validation = True
 
 	if doc_warnings or has_validation:
-		elements.append(_section_divider())
-		elements.append(Paragraph("2. KIỂM TRA HỒ SƠ & DỮ LIỆU", styles["PDFSection"]))
+		result.append(_section_divider())
+		result.append(Paragraph("2. KIỂM TRA HỒ SƠ & DỮ LIỆU", styles["PDFSection"]))
 
 		# A. Tình trạng hồ sơ
 		if doc_warnings:
@@ -431,38 +416,46 @@ def generate_pdf(eval_data):
 			warnings_list = doc_warnings.get("warnings", [])
 
 			if is_complete:
-				elements.append(Paragraph(
+				result.append(Paragraph(
 					"✓ <b>Hồ sơ đầy đủ:</b> Đã điền đủ các thông tin bắt buộc.",
 					styles["PDFBody"],
 				))
 			else:
 				if warnings_list:
-					elements.append(Paragraph(
+					result.append(Paragraph(
 						f"<b>⚠ Hồ sơ cần bổ sung</b> — Có trường thông tin bị để trống:",
 						styles["PDFBody"],
 					))
-					elements.append(Spacer(1, 1 * mm))
+					result.append(Spacer(1, 1 * mm))
 					for w in warnings_list:
 						msg = _safe(w.get("message", "") if isinstance(w, dict) else str(w), 200)
-						elements.append(Paragraph("  •  " + msg, styles["PDFWarning"]))
+						result.append(Paragraph("  •  " + msg, styles["PDFWarning"]))
 				
-				elements.append(Spacer(1, 3 * mm))
+				result.append(Spacer(1, 3 * mm))
 
 		# B. Kết quả kiểm tra dữ liệu
 		if has_validation:
 			if validation_warnings:
-				elements.append(Paragraph("<b>⚠ Cảnh báo dữ liệu đầu vào:</b>", styles["PDFBody"]))
+				result.append(Paragraph("<b>⚠ Cảnh báo dữ liệu đầu vào:</b>", styles["PDFBody"]))
 				for w in validation_warnings:
 					msg = _safe(w.get("message", "") if isinstance(w, dict) else str(w), 200)
-					elements.append(Paragraph("  !  " + msg, styles["PDFWarning"]))
-				elements.append(Spacer(1, 3 * mm))
+					result.append(Paragraph("  !  " + msg, styles["PDFWarning"]))
+				result.append(Spacer(1, 3 * mm))
 
-	# ============================================================
+	return result
+
+
+def _render_assessment(eval_data, styles, page_width):
+	"""Render assessment section for the PDF.
+	
+	Returns:
+		list: ReportLab story elements for this section.
+	"""
+	result = []
 	# 3. NHẬN ĐỊNH CỦA 2AS & ĐỀ XUẤT XỬ LÝ
-	# ============================================================
 
-	elements.append(_section_divider())
-	elements.append(Paragraph("3. NHẬN ĐỊNH CỦA 2AS & ĐỀ XUẤT XỬ LÝ", styles["PDFSection"]))
+	result.append(_section_divider())
+	result.append(Paragraph("3. NHẬN ĐỊNH CỦA 2AS & ĐỀ XUẤT XỬ LÝ", styles["PDFSection"]))
 
 	overall_score = eval_data.get("overall_score", 0)
 	recommendation = eval_data.get("recommendation", "—")
@@ -500,11 +493,11 @@ def generate_pdf(eval_data):
 		("LINEBEFORE", (1, 0), (1, -1), 0.3, _CLR_BORDER_LIGHT),
 		("LINEBEFORE", (2, 0), (2, -1), 0.3, _CLR_BORDER_LIGHT),
 	]))
-	elements.append(overview_table)
-	elements.append(Spacer(1, 4 * mm))
+	result.append(overview_table)
+	result.append(Spacer(1, 4 * mm))
 
 	# Recommendation text
-	elements.append(Paragraph(
+	result.append(Paragraph(
 		"<b>Đề xuất của 2AS:</b> " + _safe(recommendation, 600),
 		styles["PDFBody"],
 	))
@@ -512,19 +505,27 @@ def generate_pdf(eval_data):
 	# Reasoning paragraph
 	reasoning = eval_data.get("recommendation_reasoning", "")
 	if reasoning:
-		elements.append(Paragraph(
+		result.append(Paragraph(
 			"<b>Lý do:</b> " + _safe(reasoning, 600),
 			styles["PDFBody"],
 		))
 
-	# ============================================================
+	return result
+
+
+def _render_competency_table(eval_data, styles, page_width):
+	"""Render competency table section for the PDF.
+	
+	Returns:
+		list: ReportLab story elements for this section.
+	"""
+	result = []
 	# 4. BẢNG NĂNG LỰC
-	# ============================================================
 
 	competency_scores = eval_data.get("competency_scores", [])
 	if competency_scores:
-		elements.append(_section_divider())
-		elements.append(Paragraph(
+		result.append(_section_divider())
+		result.append(Paragraph(
 			f"4. CHI TIẾT NĂNG LỰC ({len(competency_scores)} tiêu chí)",
 			styles["PDFSection"],
 		))
@@ -612,60 +613,68 @@ def generate_pdf(eval_data):
 				)
 
 		comp_table.setStyle(TableStyle(table_cmds))
-		elements.append(comp_table)
+		result.append(comp_table)
 
-	# ============================================================
+	return result
+
+
+def _render_detail_analysis(eval_data, styles):
+	"""Render detail analysis section for the PDF.
+	
+	Returns:
+		list: ReportLab story elements for this section.
+	"""
+	result = []
 	# 4. PHÂN TÍCH CHI TIẾT
-	# ============================================================
 
 	rec_details = eval_data.get("recommendation_details")
 	if rec_details and isinstance(rec_details, dict):
-		elements.append(_section_divider())
-		elements.append(Paragraph("4. PHÂN TÍCH CHI TIẾT", styles["PDFSection"]))
+		result.append(_section_divider())
+		result.append(Paragraph("4. PHÂN TÍCH CHI TIẾT", styles["PDFSection"]))
 
 		# Reasoning
 		rec_reasoning = rec_details.get("reasoning", "")
 		if rec_reasoning:
-			elements.append(Paragraph(
+			result.append(Paragraph(
 				_safe(rec_reasoning, 600),
 				styles["PDFBody"],
 			))
-			elements.append(Spacer(1, 2 * mm))
+			result.append(Spacer(1, 2 * mm))
 
 		# Strengths
 		strengths = rec_details.get("strengths", [])
 		if strengths:
-			elements.append(Paragraph(
+			result.append(Paragraph(
 				"<b>ĐIỂM MẠNH</b>", styles["PDFBodyBold"],
 			))
-			elements.append(Spacer(1, 1 * mm))
+			result.append(Spacer(1, 1 * mm))
 			for s in strengths[:8]:
-				elements.append(Paragraph(
+				result.append(Paragraph(
 					"  •  " + _safe(s, 300), styles["PDFBody"],
 				))
 
 		# Improvements
 		improvements = rec_details.get("improvements", [])
 		if improvements:
-			elements.append(Spacer(1, 3 * mm))
-			elements.append(Paragraph(
+			result.append(Spacer(1, 3 * mm))
+			result.append(Paragraph(
 				"<b>CẦN CẢI THIỆN</b>", styles["PDFBodyBold"],
 			))
-			elements.append(Spacer(1, 1 * mm))
+			result.append(Spacer(1, 1 * mm))
 			for s in improvements[:8]:
-				elements.append(Paragraph(
+				result.append(Paragraph(
 					"  •  " + _safe(s, 300), styles["PDFBody"],
 				))
 
 		# Development potential
 		potential = rec_details.get("development_potential", "")
 		if potential:
-			elements.append(Spacer(1, 3 * mm))
-			elements.append(Paragraph(
+			result.append(Spacer(1, 3 * mm))
+			result.append(Paragraph(
 				"<b>TIỀM NĂNG PHÁT TRIỂN</b>", styles["PDFBodyBold"],
 			))
-			elements.append(Spacer(1, 1 * mm))
-			elements.append(Paragraph(
+			result.append(Spacer(1, 1 * mm))
+			result.append(Paragraph(
 				_safe(potential, 500),
 				styles["PDFBody"],
 			))
@@ -673,32 +682,40 @@ def generate_pdf(eval_data):
 		# Risk flags
 		risks = rec_details.get("risk_flags", [])
 		if risks:
-			elements.append(Spacer(1, 3 * mm))
-			elements.append(Paragraph(
+			result.append(Spacer(1, 3 * mm))
+			result.append(Paragraph(
 				"<b>RỦI RO CẦN LƯU Ý</b>", styles["PDFBodyBold"],
 			))
-			elements.append(Spacer(1, 1 * mm))
+			result.append(Spacer(1, 1 * mm))
 			for r in risks[:5]:
-				elements.append(Paragraph(
+				result.append(Paragraph(
 					"  •  " + _safe(r, 300), styles["PDFBody"],
 				))
 
 		# Conditions if renew
 		conditions = rec_details.get("conditions_if_renew", [])
 		if conditions:
-			elements.append(Spacer(1, 3 * mm))
-			elements.append(Paragraph(
+			result.append(Spacer(1, 3 * mm))
+			result.append(Paragraph(
 				"<b>ĐIỀU KIỆN TÁI KÝ</b>", styles["PDFBodyBold"],
 			))
-			elements.append(Spacer(1, 1 * mm))
+			result.append(Spacer(1, 1 * mm))
 			for c in conditions[:5]:
-				elements.append(Paragraph(
+				result.append(Paragraph(
 					"  •  " + _safe(c, 300), styles["PDFBody"],
 				))
 
-	# ============================================================
+	return result
+
+
+def _render_next_steps(eval_data, styles):
+	"""Render next steps section for the PDF.
+	
+	Returns:
+		list: ReportLab story elements for this section.
+	"""
+	result = []
 	# 5. BƯỚC XỬ LÝ TIẾP THEO
-	# ============================================================
 
 	next_steps = eval_data.get("next_steps")
 	if next_steps:
@@ -709,8 +726,8 @@ def generate_pdf(eval_data):
 				next_steps = []
 
 	if next_steps and isinstance(next_steps, list) and len(next_steps) > 0:
-		elements.append(_section_divider())
-		elements.append(Paragraph(
+		result.append(_section_divider())
+		result.append(Paragraph(
 			f"5. BƯỚC XỬ LÝ TIẾP THEO ({len(next_steps)} mục)",
 			styles["PDFSection"],
 		))
@@ -732,27 +749,35 @@ def generate_pdf(eval_data):
 					meta_parts.append(f"Thời hạn: {deadline}")
 				meta = " | ".join(meta_parts)
 
-				elements.append(Paragraph(step_text, styles["PDFBody"]))
+				result.append(Paragraph(step_text, styles["PDFBody"]))
 				if meta:
-					elements.append(Paragraph(
+					result.append(Paragraph(
 						f"    <i>{meta}</i>",
 						styles["PDFSmall"],
 					))
-				elements.append(Spacer(1, 1 * mm))
+				result.append(Spacer(1, 1 * mm))
 			else:
-				elements.append(Paragraph(
+				result.append(Paragraph(
 					f"<b>{idx}.</b> " + _safe(str(step), 300),
 					styles["PDFBody"],
 				))
 
-	# ============================================================
+	return result
+
+
+def _render_evidence(eval_data, styles):
+	"""Render evidence section for the PDF.
+	
+	Returns:
+		list: ReportLab story elements for this section.
+	"""
+	result = []
 	# 6. BẰNG CHỨNG TRÍCH XUẤT
-	# ============================================================
 
 	evidence_list = eval_data.get("evidence", [])
 	if evidence_list:
-		elements.append(_section_divider())
-		elements.append(Paragraph(
+		result.append(_section_divider())
+		result.append(Paragraph(
 			f"6. BẰNG CHỨNG TRÍCH XUẤT ({len(evidence_list)} mục)",
 			styles["PDFSection"],
 		))
@@ -770,24 +795,85 @@ def generate_pdf(eval_data):
 				suffix_parts.append(f"({source})")
 			suffix = " — " + " ".join(suffix_parts) if suffix_parts else ""
 
-			elements.append(Paragraph(
+			result.append(Paragraph(
 				prefix + statement + suffix,
 				styles["PDFBody"],
 			))
 
-	# ============================================================
-	# FOOTER NOTE
-	# ============================================================
+	return result
 
-	elements.append(Spacer(1, 12 * mm))
-	elements.append(_section_divider())
-	elements.append(Paragraph(
+
+def _render_footer(styles):
+	"""Render footer section for the PDF.
+	
+	Returns:
+		list: ReportLab story elements for this section.
+	"""
+	result = []
+	# FOOTER NOTE
+
+	result.append(Spacer(1, 12 * mm))
+	result.append(_section_divider())
+	result.append(Paragraph(
 		_safe(
 			"Báo cáo được tạo tự động bởi Hệ thống 2AS — Đánh giá AI. "
 			"Kết quả mang tính tham khảo và cần được xem xét bởi cấp quản lý trước khi quyết định."
 		),
 		styles["PDFFooter"],
 	))
+
+	return result
+
+
+def generate_pdf(eval_data):
+	"""Generate a clean, B&W-print-friendly PDF from evaluation data.
+
+	Matches the UI output with all sections:
+	1. Thông tin nhân viên
+	2. Tình trạng hồ sơ
+	3. Nhận định của 2AS & Đề xuất xử lý
+	4. Bảng năng lực
+	5. Phân tích chi tiết
+	6. Bước xử lý tiếp theo
+	7. Bằng chứng trích xuất
+	8. Kết quả kiểm tra dữ liệu
+
+	Args:
+		eval_data: Dict containing all evaluation results.
+
+	Returns:
+		BytesIO buffer containing the generated PDF.
+	"""
+	buffer = io.BytesIO()
+	styles = _get_styles()
+
+	doc = SimpleDocTemplate(
+		buffer,
+		pagesize=A4,
+		leftMargin=2 * cm,
+		rightMargin=2 * cm,
+		topMargin=1.8 * cm,
+		bottomMargin=1.8 * cm,
+		title="Ket Qua Danh Gia Tai Ky Hop Dong",
+		author="HR Contract Evaluation System - 2AS",
+	)
+
+	page_width = A4[0] - 4 * cm  # usable width
+
+	current_time = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+
+	# ============================================================
+	
+	elements = []
+	elements.extend(_render_pdf_header(eval_data, styles, current_time))
+	elements.extend(_render_employee_info(eval_data, styles, page_width))
+	elements.extend(_render_data_check(eval_data, styles))
+	elements.extend(_render_assessment(eval_data, styles, page_width))
+	elements.extend(_render_competency_table(eval_data, styles, page_width))
+	elements.extend(_render_detail_analysis(eval_data, styles))
+	elements.extend(_render_next_steps(eval_data, styles))
+	elements.extend(_render_evidence(eval_data, styles))
+	elements.extend(_render_footer(styles))
 
 	def _add_page_number(canvas, doc):
 		"""Draw page number on the bottom right corner."""
@@ -809,13 +895,13 @@ def generate_pdf(eval_data):
 	return buffer
 
 
+
 def generate_thu_viec_pdf(eval_data):
 	"""Generate a professional PDF for Thu Viec evaluation.
 
 	Layout: Header CT Group → Thông tin NV → Status badge → Tổng quan
 	        → 7 tiêu chí 2AS → Đề xuất xử lý → Việc cần làm → Footer
 	"""
-	import datetime
 	buffer = io.BytesIO()
 	_register_vietnamese_font()
 	styles = _get_styles()
@@ -1037,7 +1123,6 @@ def generate_thu_viec_pdf(eval_data):
 	doc.build(elements, onFirstPage=_page_num, onLaterPages=_page_num)
 	buffer.seek(0)
 	return buffer
-	import datetime
 	buffer = io.BytesIO()
 	styles = _get_styles()
 

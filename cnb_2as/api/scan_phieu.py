@@ -11,6 +11,16 @@ from datetime import date
 from pathlib import Path
 
 import frappe
+from cnb_2as.services.prompts import (
+    _MERGE_PROMPT,
+    _EXTRACT_PROMPT,
+    _ANALYZE_PROMPT,
+    VISION_JSON_PROMPT,
+    HOI_NHAP_PROMPT,
+    KPI_PROMPT,
+    SAN_PHAM_PROMPT,
+)
+
 from openai import OpenAI
 
 # ── OpenAI client ──────────────────────────────────────────────────────────────
@@ -422,30 +432,6 @@ def _read_docx_structured(file_bytes: bytes) -> dict[str, str]:
 # MERGE – Kết hợp CTPAI skeleton + Vision handwriting
 # ══════════════════════════════════════════════════════════════════════════════
 
-_MERGE_PROMPT = """Bạn nhận được 2 nguồn OCR của CÙNG 1 tài liệu scan:
-
-SOURCE A – OCR API (chữ in tốt, cấu trúc bảng chính xác, nhưng chữ VIẾT TAY bị đọc sai → thành ký tự vô nghĩa):
----
-{ocr_text}
----
-
-SOURCE B – GPT-4o Vision (đọc được CẢ chữ in lẫn chữ viết tay, nhưng cấu trúc bảng có thể kém hơn):
----
-{vision_text}
----
-
-NHIỆM VỤ: Tạo ra 1 markdown DUYÊN NHẤT từ 2 nguồn trên.
-QUY TẮC:
-1. Dùng CẤU TRÚC BẢNG từ Source A (số cột, header, layout chính xác hơn)
-2. Với nội dung CHỮ IN: ưu tiên Source A (chính xác hơn)
-3. Với CÁC Ô bị garbled trong Source A (ký tự vô nghĩa, lẫn ký tự lạ, quá ngắn vô nghĩa như "& hyd", "Chi doy", "naN", ký tự Nhật/Hàn...): THAY bằng nội dung tương ứng từ Source B
-4. Nếu Source B cũng không rõ → để nguyên ô Source A, thêm [?] cuối
-5. Giữ tiếng Việt có dấu (Source B thường tốt hơn về dấu tiếng Việt)
-6. Với ô HOD viết tay: thêm prefix [HT] (handwritten) trước nội dung đã merge
-7. KHÔNG thêm bất kỳ giải thích hay comment nào — chỉ trả về markdown thuần
-
-Trả về MARKDOWN THUẦN (không wrap trong code block)."""
-
 
 def _merge_ocr_vision(ocr_text: str, vision_text: str) -> str:
     """
@@ -527,85 +513,6 @@ def _extract_text(file_bytes: bytes, filename: str) -> tuple[str, str]:
 # ══════════════════════════════════════════════════════════════════════════════
 # AI Prompts
 # ══════════════════════════════════════════════════════════════════════════════
-
-_EXTRACT_PROMPT = """Bạn là AI chuyên đọc phiếu đánh giá thử việc CT Group. Trích xuất đầy đủ các trường sau. Trả về JSON thuần, không markdown. Nếu không tìm thấy → để "". KHÔNG bịa đặt.
-
-{
-  "ho_ten": "",
-  "ma_nhan_su": "",
-  "chuc_danh": "",
-  "phong_ban": "",
-  "cong_ty": "",
-  "ngay_nhan_viec": "",
-  "ngay_het_han": "",
-  "thoi_gian_thu_viec": "",
-  "loai_hop_dong": "",
-
-  "ten_hod": "",
-  "ma_hod": "",
-  "chuc_danh_hod": "",
-  "don_vi_hod": "",
-
-  "nhan_xet_1_nv": "", "nhan_xet_1_hod": "",
-  "nhan_xet_2_nv": "", "nhan_xet_2_hod": "",
-  "nhan_xet_3_nv": "", "nhan_xet_3_hod": "",
-  "nhan_xet_4_nv": "", "nhan_xet_4_hod": "",
-  "nhan_xet_5_nv": "", "nhan_xet_5_hod": "",
-
-  "kpi_tuan_1_ty_le": "", "kpi_tuan_2_ty_le": "", "kpi_tuan_3_ty_le": "", "kpi_tuan_4_ty_le": "",
-  "kpi_tuan_5_ty_le": "", "kpi_tuan_6_ty_le": "", "kpi_tuan_7_ty_le": "", "kpi_tuan_8_ty_le": "",
-  "diem_tbc_kpi_nv": "", "diem_tbc_kpi_hod": "",
-
-  "cong_viec_duoc_giao": "",
-  "ty_le_hoan_thanh_16": "",
-  "nhiem_vu_1_noi_dung": "", "nhiem_vu_1_ket_qua": "", "nhiem_vu_1_ty_le": "", "nhiem_vu_1_hod": "",
-  "nhiem_vu_2_noi_dung": "", "nhiem_vu_2_ket_qua": "", "nhiem_vu_2_ty_le": "", "nhiem_vu_2_hod": "",
-  "nhiem_vu_3_noi_dung": "", "nhiem_vu_3_ket_qua": "", "nhiem_vu_3_ty_le": "", "nhiem_vu_3_hod": "",
-  "nhiem_vu_4_noi_dung": "", "nhiem_vu_4_ket_qua": "", "nhiem_vu_4_ty_le": "", "nhiem_vu_4_hod": "",
-
-  "san_pham_1": "", "so_luong_file_1": "", "link_dinh_kem_1": "", "vi_pham_upload_1": "", "kpi_sp_tuan_1": "",
-  "san_pham_2": "", "so_luong_file_2": "", "link_dinh_kem_2": "", "vi_pham_upload_2": "", "kpi_sp_tuan_2": "",
-  "san_pham_3": "", "so_luong_file_3": "", "link_dinh_kem_3": "", "vi_pham_upload_3": "", "kpi_sp_tuan_3": "",
-  "san_pham_4": "", "so_luong_file_4": "", "link_dinh_kem_4": "", "vi_pham_upload_4": "", "kpi_sp_tuan_4": "",
-  "san_pham_5": "", "so_luong_file_5": "", "link_dinh_kem_5": "", "vi_pham_upload_5": "", "kpi_sp_tuan_5": "",
-  "san_pham_6": "", "so_luong_file_6": "", "link_dinh_kem_6": "", "vi_pham_upload_6": "", "kpi_sp_tuan_6": "",
-  "san_pham_7": "", "so_luong_file_7": "", "link_dinh_kem_7": "", "vi_pham_upload_7": "", "kpi_sp_tuan_7": "",
-  "san_pham_8": "", "so_luong_file_8": "", "link_dinh_kem_8": "", "vi_pham_upload_8": "", "kpi_sp_tuan_8": "",
-
-  "hoi_nhap_1_nv": "", "hoi_nhap_1_hod": "",
-  "hoi_nhap_2_nv": "", "hoi_nhap_2_hod": "",
-  "hoi_nhap_3_nv": "", "hoi_nhap_3_hod": "",
-  "hoi_nhap_4_nv": "", "hoi_nhap_4_hod": "",
-  "hoi_nhap_5_nv": "", "hoi_nhap_5_hod": "",
-  "hoi_nhap_6_nv": "", "hoi_nhap_6_hod": "",
-  "hoi_nhap_7_nv": "", "hoi_nhap_7_hod": "",
-  "hoi_nhap_7_1_nv": "", "hoi_nhap_7_1_hod": "",
-  "hoi_nhap_7_2_nv": "", "hoi_nhap_7_2_hod": "",
-  "hoi_nhap_7_3_nv": "", "hoi_nhap_7_3_hod": "",
-  "hoi_nhap_7_4_nv": "", "hoi_nhap_7_4_hod": "",
-  "hoi_nhap_7_5_nv": "", "hoi_nhap_7_5_hod": "",
-  "hoi_nhap_8_nv": "", "hoi_nhap_8_hod": "",
-  "hoi_nhap_9_nv": "", "hoi_nhap_9_hod": "",
-
-  "ket_luan": "",
-  "de_xuat_ky_hd": "",
-  "de_xuat_tang_thu_nhap": "",
-  "de_nghi_phoi_hop": "",
-  "y_kien_hod": "",
-  "y_kien_rtd": "",
-  "ngay_ky": "",
-  "ten_hod_ky": ""
-}
-
-GHI CHÚ QUAN TRỌNG:
-- kpi_tuan_N_ty_le: chỉ điền những tuần CÓ trong tài liệu — không bịa tuần trống. Ví dụ: hợp đồng 4 tuần thì chỉ có kpi_tuan_1..4_ty_le, còn lại để "".
-- nhiem_vu_X_ty_le: lấy đúng từ cột % KẾ BÊN dòng nhiệm vụ X trong bảng 1.6, KHÔNG lấy từ dòng/cột khác
-- kpi_sp_tuan_X: % KPI cột kế bên hàng 2.X sản phẩm nghiệm thu tuần X
-- Tất cả _nv / _hod: lấy NGUYÊN VĂN, không tóm tắt
-- Ô trống → ""
-
-VĂN BẢN TÀI LIỆU:
-"""
 
 
 
@@ -796,110 +703,34 @@ def _build_xml_from_fields(fields: dict) -> str:
     )
 
 
-_ANALYZE_PROMPT = """Bạn là 2AS – AI Đánh Giá Nhân Sự CT Group.
-Phân tích hồ sơ đánh giá thử việc và đưa ra đề xuất xử lý.
-
-DỮ LIỆU NHÂN VIÊN (đã xác nhận):
-{confirmed_fields_json}
-
-Ngày hiện tại: {today}
-
-══ XÁC ĐỊNH SỐ TUẦN THỰC TẾN ══
-- Đếm số tuần thực tế dựa vào các field kpi_tuan_N_ty_le có giá trị (không rỗng)
-- Ví dụ: nếu kpi_tuan_1..4_ty_le có giá trị, kpi_tuan_5..8_ty_le rỗng → hợp đồng 4 tuần
-- CHỈ đánh giá những tuần CÓ trong phiếu. TUYỆT ĐỐI KHÔNG cảnh báo tuần 5–8 nếu hợp đồng chỉ có 4 tuần
-- Tương tự với nhiem_vu_X: chỉ đánh giá những nhiệm vụ X có nhiem_vu_X_noi_dung không rỗng
-- Tương tự với san_pham_X: chỉ đánh giá những tuần có san_pham_X không rỗng
-
-══ PHÂN TÍCH THEO 6 TIÊU CHÍ ══
-1. KẾT QUẢ CÔNG VIỆC – Có số liệu/kết quả cụ thể? Đạt mục tiêu? (chỉ tính các tuần thực tế có trong phiếu)
-2. THÁI ĐỘ / KỶ LUẬT – Vi phạm nội quy? Ý thức chuyên cần?
-3. NĂNG LỰC CHUYÊN MÔN – Thể hiện nền tảng & tiềm năng phát triển? (thử việc → không đòi thành thạo ngay; đánh giá thái độ học, tốc độ tiến bộ, chủ động giải quyết vấn đề)
-4. MỨC ĐỘ PHÙ HỢP – Phù hợp vị trí, văn hóa, team?
-5. NHẬN XÉT QUẢN LÝ – Đủ rõ ràng, có căn cứ?
-6. TÌNH TRẠNG HỐ SƠ & THỚI HẠN – Đủ thông tin? Đúng hạn?
-
-══ MỨC ĐỀ XUẤT ══
-- ĐỒNG Ý KÝ HĐLĐ: Đủ căn cứ, không cảnh báo nghiêm trọng
-- CẦN BỔ SUNG: Thiếu thông tin, cần làm rõ
-- GIA HẠN THỮc VIỆC: Chưa đủ điều kiện, cần thêm thời gian
-- KHÔNG ĐỀ XUẤT: Vi phạm nghiêm trọng hoặc không đạt
-
-CẢNH BÁO BẮT BUỘC:
-- Ngày hết hạn < hôm nay → TRỄ HẠN
-- Ngày hết hạn ≤ 7 ngày → SẮP HẾT HẠN
-- Thiếu y_kien_hod → cảnh báo
-- Thiếu ket_luan → cảnh báo
-- KHÔNG cảnh báo các tuần KPI/nhiệm vụ/sản phẩm trống nếu chúsng nằm ngoài phạm vi hợp đồng thực tế
-
-Trả về JSON thuần:
-{
-  "so_tuan_thuc_te": 4,
-  "de_xuat": "ĐỒNG Ý KÝ HĐLĐ | CẦN BỔ SUNG | GIA HẠN THỮc VIỆC | KHÔNG ĐỀ XUẤT",
-  "mau_de_xuat": "green | amber | amber | red",
-  "tong_quan": "Nhận xét tổng quan 2-3 câu, nêu rõ hợp đồng có bao nhiêu tuần",
-  "phan_tich": [
-    {"tieu_chi": "KẾT QUẢ CÔNG VIỆC", "danh_gia": "Đạt | Chưa đạt | Không đủ dữ liệu", "nhan_xet": "..."},
-    {"tieu_chi": "THÁI ĐỘ / KỶ LUẬT", "danh_gia": "...", "nhan_xet": "..."},
-    {"tieu_chi": "NĂNG LỰC CHUYÊN MÔN", "danh_gia": "...", "nhan_xet": "..."},
-    {"tieu_chi": "MỨC ĐỘ PHÙ HỢP", "danh_gia": "...", "nhan_xet": "..."},
-    {"tieu_chi": "NHẬN XÉT QUẢN LÝ", "danh_gia": "...", "nhan_xet": "..."},
-    {"tieu_chi": "TÌNH TRẠNG HỐ SƠ", "danh_gia": "...", "nhan_xet": "..."}
-  ],
-  "canh_bao": ["Cảnh báo 1 nếu có"],
-  "uu_diem": ["Điểm tốt 1"],
-  "viec_can_lam": [
-    {"thu_tu": 1, "noi_dung": "Việc cần làm CỤ THỂ #1 (BẮT BUỘC – luôn đề xuất ít nhất 3 việc dù đề xuất là ĐỒNG Ý hay không)", "uu_tien": "cao"},
-    {"thu_tu": 2, "noi_dung": "Việc cần làm CỤ THỂ #2", "uu_tien": "trung"},
-    {"thu_tu": 3, "noi_dung": "Việc cần làm CỤ THỂ #3", "uu_tien": "thap"}
-  ],
-  "alert_deadline": false,
-  "so_ngay_con_lai": null
-}
-"""
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ENDPOINT 1 – scan_extract
 # ══════════════════════════════════════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True)
-def scan_extract():
+def _scan_extract_docx(file_bytes, filename, client):
     """
-    POST /api/method/cnb_2as.api.scan_phieu.scan_extract
-    Form-data: scan_file (PDF / DOCX / ảnh / HTML)
+    Extract fields from DOCX using batch OpenAI calls (5-section strategy).
 
-    Approach MỚI: PDF/ảnh → GPT-4o Vision trực tiếp → JSON fields
-    (Bỏ OCR text làm trung gian → không bị mất data do truncation)
+    Returns:
+        tuple: (fields dict, raw_text str)
     """
-    file_obj = frappe.request.files.get("scan_file")
-    if not file_obj:
-        frappe.throw("Thiếu file (field: scan_file)")
 
-    filename = file_obj.filename
-    file_bytes = file_obj.read()
-    if not file_bytes:
-        frappe.throw("File rỗng")
-
-    fname = filename.lower()
-    client = _get_client()
-    method_note = ""
     fields = {}
     raw_text = ""
 
-    # ── DOCX → Batch extraction theo 5 section ──────────────────────────────
-    if fname.endswith(".docx"):
-        method_note = "DOCX – batch extraction (5 section)"
-        frappe.logger("cnb_scan").info(f"[SCAN] DOCX structured batch: {filename}")
+    method_note = "DOCX – batch extraction (5 section)"
+    frappe.logger("cnb_scan").info(f"[SCAN] DOCX structured batch: {filename}")
 
-        sections = _read_docx_structured(file_bytes)
-        if not sections:
-            raw_text = _read_docx_text(file_bytes)
-        else:
-            raw_text = "\n\n".join(f"=== {k} ===\n{v}" for k, v in sections.items())
+    sections = _read_docx_structured(file_bytes)
+    if not sections:
+        raw_text = _read_docx_text(file_bytes)
+    else:
+        raw_text = "\n\n".join(f"=== {k} ===\n{v}" for k, v in sections.items())
 
-        BATCH_PROMPTS = {
-            "A_thong_tin": """Trích xuất THONG TIN CHUNG + PHẦN I từ phần này. Trả JSON thuần:
+    BATCH_PROMPTS = {
+        "A_thong_tin": """Trích xuất THONG TIN CHUNG + PHẦN I từ phần này. Trả JSON thuần:
 {
   "ho_ten":"","ma_nhan_su":"","chuc_danh":"","phong_ban":"","cong_ty":"",
   "ngay_nhan_viec":"","ngay_het_han":"","thoi_gian_thu_viec":"","loai_hop_dong":"",
@@ -911,7 +742,7 @@ def scan_extract():
   "nhan_xet_5_nv":"","nhan_xet_5_hod":""
 }
 Lấy NGUYÊN VĂN, không tóm tắt. Ô trống → "".""",
-            "B_kpi": """Trích xuất PHẦN II KPI từ phần này. Trả JSON thuần:
+        "B_kpi": """Trích xuất PHẦN II KPI từ phần này. Trả JSON thuần:
 {
   "kpi_tuan_1_ty_le":"","kpi_tuan_2_ty_le":"","kpi_tuan_3_ty_le":"","kpi_tuan_4_ty_le":"",
   "kpi_tuan_5_ty_le":"","kpi_tuan_6_ty_le":"","kpi_tuan_7_ty_le":"","kpi_tuan_8_ty_le":"",
@@ -927,7 +758,7 @@ Lấy NGUYÊN VĂN, không tóm tắt. Ô trống → "".""",
   "nhiem_vu_8_noi_dung":"","nhiem_vu_8_ket_qua":"","nhiem_vu_8_ty_le":"","nhiem_vu_8_hod":""
 }
 Đọc tất cả tuần có trong tài liệu. % KPI theo từng tuần (1.1-1.8). NGUYÊN VĂN không tóm tắt.""",
-            "C_san_pham": """Trích xuất SẢN PHẨM NGHIỆM THU từng tuần từ phần này. Trả JSON thuần:
+        "C_san_pham": """Trích xuất SẢN PHẨM NGHIỆM THU từng tuần từ phần này. Trả JSON thuần:
 {
   "san_pham_1":"","so_luong_file_1":"","link_dinh_kem_1":"","vi_pham_upload_1":"","kpi_sp_tuan_1":"",
   "san_pham_2":"","so_luong_file_2":"","link_dinh_kem_2":"","vi_pham_upload_2":"","kpi_sp_tuan_2":"",
@@ -939,7 +770,7 @@ Lấy NGUYÊN VĂN, không tóm tắt. Ô trống → "".""",
   "san_pham_8":"","so_luong_file_8":"","link_dinh_kem_8":"","vi_pham_upload_8":"","kpi_sp_tuan_8":""
 }
 Lấy NGUYÊN VĂN toàn bộ tên sản phẩm và link. Ô trống → "".""",
-            "D_hoi_nhap": """Trích xuất PHẦN III HỘI NHẬP (9 câu) từ phần này. Trả JSON thuần:
+        "D_hoi_nhap": """Trích xuất PHẦN III HỘI NHẬP (9 câu) từ phần này. Trả JSON thuần:
 {
   "hoi_nhap_1_nv":"","hoi_nhap_1_hod":"",
   "hoi_nhap_2_nv":"","hoi_nhap_2_hod":"",
@@ -957,712 +788,441 @@ Lấy NGUYÊN VĂN toàn bộ tên sản phẩm và link. Ô trống → "".""",
   "hoi_nhap_9_nv":"","hoi_nhap_9_hod":""
 }
 Lấy NGUYÊN VĂN toàn bộ câu trả lời, không tóm tắt. Ô trống → "".""",
-            "E_ket_luan": """Trích xuất KẾT LUẬN và ĐỀ XUẤT từ phần này. Trả JSON thuần:
+        "E_ket_luan": """Trích xuất KẾT LUẬN và ĐỀ XUẤT từ phần này. Trả JSON thuần:
 {
   "ket_luan":"","de_xuat_ky_hd":"","de_xuat_tang_thu_nhap":"",
   "de_nghi_phoi_hop":"","y_kien_hod":"","y_kien_rtd":"",
   "ngay_ky":"","ten_hod_ky":""
 }
 Lấy NGUYÊN VĂN. Ô trống → ""."""
-        }
+    }
 
-        DOCX_APPENDABLE = {
-            'cong_viec_duoc_giao',
-            # Nhiem vu 1.6 - APPEND toan bo (noi_dung + ket_qua + ty_le + hod)
-            'nhiem_vu_1_noi_dung','nhiem_vu_1_ket_qua','nhiem_vu_1_ty_le','nhiem_vu_1_hod',
-            'nhiem_vu_2_noi_dung','nhiem_vu_2_ket_qua','nhiem_vu_2_ty_le','nhiem_vu_2_hod',
-            'nhiem_vu_3_noi_dung','nhiem_vu_3_ket_qua','nhiem_vu_3_ty_le','nhiem_vu_3_hod',
-            'nhiem_vu_4_noi_dung','nhiem_vu_4_ket_qua','nhiem_vu_4_ty_le','nhiem_vu_4_hod',
-            'nhiem_vu_5_noi_dung','nhiem_vu_5_ket_qua','nhiem_vu_5_ty_le','nhiem_vu_5_hod',
-            'nhiem_vu_6_noi_dung','nhiem_vu_6_ket_qua','nhiem_vu_6_ty_le','nhiem_vu_6_hod',
-            'nhiem_vu_7_noi_dung','nhiem_vu_7_ket_qua','nhiem_vu_7_ty_le','nhiem_vu_7_hod',
-            'nhiem_vu_8_noi_dung','nhiem_vu_8_ket_qua','nhiem_vu_8_ty_le','nhiem_vu_8_hod',
-            'nhan_xet_1_nv','nhan_xet_2_nv','nhan_xet_3_nv','nhan_xet_4_nv','nhan_xet_5_nv',
-            'nhan_xet_1_hod','nhan_xet_2_hod','nhan_xet_3_hod','nhan_xet_4_hod','nhan_xet_5_hod',
-            'san_pham_1','san_pham_2','san_pham_3','san_pham_4',
-            'san_pham_5','san_pham_6','san_pham_7','san_pham_8',
-            'nhiem_vu_tuan_1','nhiem_vu_tuan_2','nhiem_vu_tuan_3','nhiem_vu_tuan_4',
-            'nhiem_vu_tuan_5','nhiem_vu_tuan_6','nhiem_vu_tuan_7','nhiem_vu_tuan_8',
-            'link_dinh_kem_1','link_dinh_kem_2','link_dinh_kem_3','link_dinh_kem_4',
-            'link_dinh_kem_5','link_dinh_kem_6','link_dinh_kem_7','link_dinh_kem_8',
-            'hoi_nhap_1_nv','hoi_nhap_2_nv','hoi_nhap_3_nv','hoi_nhap_4_nv',
-            'hoi_nhap_5_nv','hoi_nhap_6_nv','hoi_nhap_7_nv',
-            'hoi_nhap_7_1_nv','hoi_nhap_7_2_nv','hoi_nhap_7_3_nv',
-            'hoi_nhap_7_4_nv','hoi_nhap_7_5_nv',
-            'hoi_nhap_8_nv','hoi_nhap_9_nv',
-        }
+    DOCX_APPENDABLE = {
+        'cong_viec_duoc_giao',
+        # Nhiem vu 1.6 - APPEND toan bo (noi_dung + ket_qua + ty_le + hod)
+        'nhiem_vu_1_noi_dung','nhiem_vu_1_ket_qua','nhiem_vu_1_ty_le','nhiem_vu_1_hod',
+        'nhiem_vu_2_noi_dung','nhiem_vu_2_ket_qua','nhiem_vu_2_ty_le','nhiem_vu_2_hod',
+        'nhiem_vu_3_noi_dung','nhiem_vu_3_ket_qua','nhiem_vu_3_ty_le','nhiem_vu_3_hod',
+        'nhiem_vu_4_noi_dung','nhiem_vu_4_ket_qua','nhiem_vu_4_ty_le','nhiem_vu_4_hod',
+        'nhiem_vu_5_noi_dung','nhiem_vu_5_ket_qua','nhiem_vu_5_ty_le','nhiem_vu_5_hod',
+        'nhiem_vu_6_noi_dung','nhiem_vu_6_ket_qua','nhiem_vu_6_ty_le','nhiem_vu_6_hod',
+        'nhiem_vu_7_noi_dung','nhiem_vu_7_ket_qua','nhiem_vu_7_ty_le','nhiem_vu_7_hod',
+        'nhiem_vu_8_noi_dung','nhiem_vu_8_ket_qua','nhiem_vu_8_ty_le','nhiem_vu_8_hod',
+        'nhan_xet_1_nv','nhan_xet_2_nv','nhan_xet_3_nv','nhan_xet_4_nv','nhan_xet_5_nv',
+        'nhan_xet_1_hod','nhan_xet_2_hod','nhan_xet_3_hod','nhan_xet_4_hod','nhan_xet_5_hod',
+        'san_pham_1','san_pham_2','san_pham_3','san_pham_4',
+        'san_pham_5','san_pham_6','san_pham_7','san_pham_8',
+        'nhiem_vu_tuan_1','nhiem_vu_tuan_2','nhiem_vu_tuan_3','nhiem_vu_tuan_4',
+        'nhiem_vu_tuan_5','nhiem_vu_tuan_6','nhiem_vu_tuan_7','nhiem_vu_tuan_8',
+        'link_dinh_kem_1','link_dinh_kem_2','link_dinh_kem_3','link_dinh_kem_4',
+        'link_dinh_kem_5','link_dinh_kem_6','link_dinh_kem_7','link_dinh_kem_8',
+        'hoi_nhap_1_nv','hoi_nhap_2_nv','hoi_nhap_3_nv','hoi_nhap_4_nv',
+        'hoi_nhap_5_nv','hoi_nhap_6_nv','hoi_nhap_7_nv',
+        'hoi_nhap_7_1_nv','hoi_nhap_7_2_nv','hoi_nhap_7_3_nv',
+        'hoi_nhap_7_4_nv','hoi_nhap_7_5_nv',
+        'hoi_nhap_8_nv','hoi_nhap_9_nv',
+    }
 
-        def _merge_docx(base: dict, new: dict) -> dict:
-            for k, v in new.items():
-                if k == "confidence" or not v:
-                    continue
-                if k in DOCX_APPENDABLE:
-                    existing = base.get(k, '')
-                    if existing:
-                        nv = str(v).strip()
-                        if nv and nv not in existing:
-                            base[k] = existing.rstrip() + '\n' + nv
-                    else:
-                        base[k] = v
-                elif isinstance(v, dict) and isinstance(base.get(k), dict):
-                    for kk, vv in v.items():
-                        if vv and not base[k].get(kk):
-                            base[k][kk] = vv
-                elif k not in base or not base[k]:
-                    base[k] = v
-            return base
-
-        if not sections:
-            sections = {"A_thong_tin": raw_text}
-
-        for sec_key, sec_text in sections.items():
-            if not sec_text.strip():
+    def _merge_docx(base: dict, new: dict) -> dict:
+        for k, v in new.items():
+            if k == "confidence" or not v:
                 continue
-            prompt = BATCH_PROMPTS.get(sec_key)
-            if not prompt:
-                continue
-            batch_text = sec_text[:60000]
-            frappe.logger("cnb_scan").info(f"[SCAN] DOCX batch {sec_key}: {len(batch_text)} chars")
-            try:
-                resp = client.chat.completions.create(
-                    model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                    messages=[{"role": "user", "content": prompt + "\n\nNỘI DUNG:\n" + batch_text}],
-                    temperature=0,
-                    max_tokens=16000,
-                    response_format={"type": "json_object"},
-                )
-                partial = json.loads(resp.choices[0].message.content or "{}")
-                fields = _merge_docx(fields, partial)
-            except Exception as e:
-                frappe.logger("cnb_scan").warning(f"[SCAN] DOCX batch {sec_key} lỗi: {e}")
-
-    # ── HTML → đọc text → extract 1 call ────────────────────────────────────
-    elif fname.endswith((".html", ".htm")):
-        raw_text = _read_html_text(file_bytes)
-        method_note = "HTML – đọc trực tiếp"
-        if raw_text.strip():
-            try:
-                resp = client.chat.completions.create(
-                    model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                    messages=[{"role": "user", "content": _EXTRACT_PROMPT + raw_text[:80000]}],
-                    temperature=0,
-                    max_tokens=8000,
-                    response_format={"type": "json_object"},
-                )
-                fields = json.loads(resp.choices[0].message.content or "{}")
-            except Exception as e:
-                frappe.logger("cnb_scan").warning(f"[SCAN] HTML extract lỗi: {e}")
-
-    # ── PDF / ảnh → GPT-4o Vision TRỰC TIẾP → JSON (không qua OCR text) ──────
-    elif fname.endswith((".pdf", ".png", ".jpg", ".jpeg", ".bmp", ".webp")):
-
-        method_note = "GPT-4o Vision → JSON trực tiếp"
-        frappe.logger("cnb_scan").info(f"[SCAN] Direct Vision→JSON: {filename}")
-
-        # Build image parts
-        if fname.endswith(".pdf"):
-            page_images = _pdf_to_images(file_bytes)
-        else:
-            ext = fname.rsplit(".", 1)[-1]
-            mime_map = {"jpg":"jpeg","jpeg":"jpeg","png":"png","bmp":"bmp","webp":"webp"}
-            page_images = [file_bytes]  # single image
-
-        if not page_images:
-            frappe.throw(f"Không thể đọc file '{filename}'. Vui lòng kiểm tra định dạng.")
-
-        frappe.logger("cnb_scan").info(f"[SCAN] {len(page_images)} trang → Vision batches")
-
-        # Prompt cho Vision → JSON trực tiếp
-        VISION_JSON_PROMPT = """Bạn đang xem ảnh PHIẾU ĐÁNH GIÁ HOÀN THÀNH THỬ VIỆC (CTG-GO-NLCD-QT16-BM01) của CT Group.
-Đọc TOÀN BỘ nội dung — kể cả chữ nhỏ, chữ ở lề, góc trang. Điền vào JSON bên dưới.
-
-=== QUY TẮC BẮT BUỘC ===
-1. Chữ in → đọc nguyên văn
-2. Chữ viết tay → đọc nguyên văn (KHÔNG thêm "[VT]" hay ghi chú)
-3. Ô trống → ""
-4. URL / tên file → giữ NGUYÊN VĂN đầy đủ
-5. KHÔNG tóm tắt, KHÔNG rút gọn — lấy NGUYÊN VĂN toàn bộ
-6. Nếu câu trả lời trải sang trang sau thì đọc tiếp → ghi tất cả vào đây
-
-=== CẤU TRÚC PHIẾU ===
-
-A. THÔNG TIN CHUNG (bảng trang 1):
-  Cột CBNV: ho_ten, ma_nhan_su, chuc_danh, phong_ban, cong_ty, ngay_nhan_viec, ngay_het_han
-  Cột HOD (viết tay): ten_hod, ma_hod, chuc_danh_hod, don_vi_hod
-
-
-B. PHẦN I – NHẬN XÉT CHUNG (5 câu, 2 cột NV + HOD):
-  Câu 1 "Những điểm làm tốt": nhan_xet_1_nv / nhan_xet_1_hod (viết tay)
-  Câu 2 "Kỹ năng đáp ứng":    nhan_xet_2_nv / nhan_xet_2_hod
-  Câu 3 "Hoạt động tham gia": nhan_xet_3_nv / nhan_xet_3_hod
-  Câu 4 "Điểm cần cải thiện": nhan_xet_4_nv / nhan_xet_4_hod
-  Câu 5 "Kỹ năng cần nâng cao": nhan_xet_5_nv / nhan_xet_5_hod
-
-C. PHẦN II – KPI & SẢN PHẨM:
-  1.1–1.8: kpi_tuan_1_ty_le .. kpi_tuan_8_ty_le (số %, cột NV) — đọc TẤT CẢ tuần có trong phiếu
-  1.5 TBC: diem_tbc_kpi_nv (NV điền) / diem_tbc_kpi_hod (HOD viết tay)
-
-  1.6 CÔNG VIỆC ĐƯỢC GIAO (trải nhiều trang, đọc TOÀN BỘ):
-      cong_viec_duoc_giao: toàn bộ nội dung — nhiệm vụ 1-4 + kết quả thực tế từng nhiệm vụ (nguyên văn, không tóm tắt)
-      ty_le_hoan_thanh_16: % hoàn thành chung của bảng 1.6 nếu có
-      ⚠️ THÊM per-task: Mỗi nhiệm vụ trong bảng 1.6 phải được đọc vào:
-        nhiem_vu_1_noi_dung / nhiem_vu_1_ket_qua / nhiem_vu_1_ty_le (% hoàn thành) / nhiem_vu_1_hod (HOD nhận xét)
-        nhiem_vu_2_noi_dung / nhiem_vu_2_ket_qua / nhiem_vu_2_ty_le / nhiem_vu_2_hod
-        nhiem_vu_3_noi_dung / nhiem_vu_3_ket_qua / nhiem_vu_3_ty_le / nhiem_vu_3_hod
-        nhiem_vu_4_noi_dung / nhiem_vu_4_ket_qua / nhiem_vu_4_ty_le / nhiem_vu_4_hod
-
-  2.1–2.8 SẢN PHẨM NGHIỆM THU mỗi tuần (có bao nhiêu tuần thì đọc bấy nhiêu, tối đa 8):
-    san_pham_X: tên sản phẩm (danh sách, NGUYÊN VĂN đầy đủ)
-    so_luong_file_X: số file
-    link_dinh_kem_X: danh sách tên file đính kèm (mỗi file 1 dòng, giữ nguyên)
-    vi_pham_upload_X: số lần + ngày vi phạm
-    kpi_sp_tuan_X: % KPI tuần đó
-
-
-D. PHẦN III – HỘI NHẬP (9 câu, trải trang 9-19):
-  ⚠️ Các câu trả lời RẤT DÀI, trải nhiều trang — đọc NGUYÊN VĂN không tóm tắt!
-  Câu 1 "Sứ mệnh Tập đoàn":      hoi_nhap_1_nv / hoi_nhap_1_hod
-  Câu 2 "Sứ mệnh bản thân":      hoi_nhap_2_nv / hoi_nhap_2_hod
-  Câu 3 "Tầm nhìn Tập đoàn":     hoi_nhap_3_nv / hoi_nhap_3_hod
-  Câu 4 "Tầm nhìn bản thân":     hoi_nhap_4_nv / hoi_nhap_4_hod
-  Câu 5 "Văn hóa cốt lõi":       hoi_nhap_5_nv / hoi_nhap_5_hod
-  Câu 6 "Giá trị cốt lõi":       hoi_nhap_6_nv / hoi_nhap_6_hod
-  Câu 7 "Phù hợp văn hóa làm việc" (gồm 7.1-7.5):
-    hoi_nhap_7_nv / hoi_nhap_7_hod (phần tổng)
-    hoi_nhap_7_1_nv / hoi_nhap_7_1_hod: Văn hóa Hiệu quả
-    hoi_nhap_7_2_nv / hoi_nhap_7_2_hod: Văn hóa Tốc độ
-    hoi_nhap_7_3_nv / hoi_nhap_7_3_hod: Văn hóa Kỷ luật
-    hoi_nhap_7_4_nv / hoi_nhap_7_4_hod: Văn hóa Học tập (số giờ tự học, đào tạo, đóng góp)
-    hoi_nhap_7_5_nv / hoi_nhap_7_5_hod: Văn hóa Chính trực
-  Câu 8 "Văn hóa kinh doanh":    hoi_nhap_8_nv / hoi_nhap_8_hod
-  Câu 9 "Đóng góp khác":         hoi_nhap_9_nv / hoi_nhap_9_hod
-
-E. KẾT LUẬN (trang cuối):
-  Tick chọn 1 trong 4 → ket_luan:
-    "Đạt yêu cầu" | "Không đạt - không khắc phục" | "Không đạt - có thể khắc phục" | "Không đạt tại đơn vị này"
-  HOD đề xuất ký HĐ: de_xuat_ky_hd
-  HOD tăng thu nhập: de_xuat_tang_thu_nhap
-  Đề nghị phối hợp: de_nghi_phoi_hop
-  Ý kiến HOD: y_kien_hod / RTD: y_kien_rtd / Ngày ký: ngay_ky / Tên HOD ký: ten_hod_ky
-
-TRẢ VỀ JSON THUẦN (KHÔNG markdown):
-{
-  "ho_ten": "",
-  "ma_nhan_su": "",
-  "chuc_danh": "",
-  "phong_ban": "",
-  "cong_ty": "",
-  "ngay_nhan_viec": "",
-  "ngay_het_han": "",
-  "thoi_gian_thu_viec": "",
-  "loai_hop_dong": "",
-  "ten_hod": "",
-  "ma_hod": "",
-  "chuc_danh_hod": "",
-  "don_vi_hod": "",
-  "nhan_xet_1_nv": "",
-  "nhan_xet_1_hod": "",
-  "nhan_xet_2_nv": "",
-  "nhan_xet_2_hod": "",
-  "nhan_xet_3_nv": "",
-  "nhan_xet_3_hod": "",
-  "nhan_xet_4_nv": "",
-  "nhan_xet_4_hod": "",
-  "nhan_xet_5_nv": "",
-  "nhan_xet_5_hod": "",
-  "kpi_tuan_1_ty_le": "",
-  "kpi_tuan_2_ty_le": "",
-  "kpi_tuan_3_ty_le": "",
-  "kpi_tuan_4_ty_le": "",
-  "kpi_tuan_5_ty_le": "",
-  "kpi_tuan_6_ty_le": "",
-  "kpi_tuan_7_ty_le": "",
-  "kpi_tuan_8_ty_le": "",
-  "diem_tbc_kpi_nv": "",
-  "diem_tbc_kpi_hod": "",
-  "cong_viec_duoc_giao": "",
-  "ty_le_hoan_thanh_16": "",
-  "nhiem_vu_1_noi_dung": "", "nhiem_vu_1_ket_qua": "", "nhiem_vu_1_ty_le": "", "nhiem_vu_1_hod": "",
-  "nhiem_vu_2_noi_dung": "", "nhiem_vu_2_ket_qua": "", "nhiem_vu_2_ty_le": "", "nhiem_vu_2_hod": "",
-  "nhiem_vu_3_noi_dung": "", "nhiem_vu_3_ket_qua": "", "nhiem_vu_3_ty_le": "", "nhiem_vu_3_hod": "",
-  "nhiem_vu_4_noi_dung": "", "nhiem_vu_4_ket_qua": "", "nhiem_vu_4_ty_le": "", "nhiem_vu_4_hod": "",
-  "san_pham_1": "", "so_luong_file_1": "", "link_dinh_kem_1": "", "vi_pham_upload_1": "", "kpi_sp_tuan_1": "",
-  "san_pham_2": "", "so_luong_file_2": "", "link_dinh_kem_2": "", "vi_pham_upload_2": "", "kpi_sp_tuan_2": "",
-  "san_pham_3": "", "so_luong_file_3": "", "link_dinh_kem_3": "", "vi_pham_upload_3": "", "kpi_sp_tuan_3": "",
-  "san_pham_4": "", "so_luong_file_4": "", "link_dinh_kem_4": "", "vi_pham_upload_4": "", "kpi_sp_tuan_4": "",
-  "san_pham_5": "", "so_luong_file_5": "", "link_dinh_kem_5": "", "vi_pham_upload_5": "", "kpi_sp_tuan_5": "",
-  "san_pham_6": "", "so_luong_file_6": "", "link_dinh_kem_6": "", "vi_pham_upload_6": "", "kpi_sp_tuan_6": "",
-  "san_pham_7": "", "so_luong_file_7": "", "link_dinh_kem_7": "", "vi_pham_upload_7": "", "kpi_sp_tuan_7": "",
-  "san_pham_8": "", "so_luong_file_8": "", "link_dinh_kem_8": "", "vi_pham_upload_8": "", "kpi_sp_tuan_8": "",
-  "hoi_nhap_1_nv": "",
-  "hoi_nhap_1_hod": "",
-  "hoi_nhap_2_nv": "",
-  "hoi_nhap_2_hod": "",
-  "hoi_nhap_3_nv": "",
-  "hoi_nhap_3_hod": "",
-  "hoi_nhap_4_nv": "",
-  "hoi_nhap_4_hod": "",
-  "hoi_nhap_5_nv": "",
-  "hoi_nhap_5_hod": "",
-  "hoi_nhap_6_nv": "",
-  "hoi_nhap_6_hod": "",
-  "hoi_nhap_7_nv": "",
-  "hoi_nhap_7_hod": "",
-  "hoi_nhap_7_1_nv": "", "hoi_nhap_7_1_hod": "",
-  "hoi_nhap_7_2_nv": "", "hoi_nhap_7_2_hod": "",
-  "hoi_nhap_7_3_nv": "", "hoi_nhap_7_3_hod": "",
-  "hoi_nhap_7_4_nv": "", "hoi_nhap_7_4_hod": "",
-  "hoi_nhap_7_5_nv": "", "hoi_nhap_7_5_hod": "",
-  "hoi_nhap_8_nv": "",
-  "hoi_nhap_8_hod": "",
-  "hoi_nhap_9_nv": "",
-  "hoi_nhap_9_hod": "",
-  "ket_luan": "",
-  "de_xuat_ky_hd": "",
-  "de_xuat_tang_thu_nhap": "",
-  "de_nghi_phoi_hop": "",
-  "y_kien_hod": "",
-  "y_kien_rtd": "",
-  "ngay_ky": "",
-  "ten_hod_ky": ""
-}"""
-
-        def _build_image_part(img_bytes: bytes) -> dict:
-            b64 = base64.b64encode(img_bytes).decode()
-            return {
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"}
-            }
-
-        # Các field dài trải nhiều trang → APPEND thay vì first-wins
-        APPENDABLE = {
-            'cong_viec_duoc_giao',
-            # Nhiệm vụ 1.6 — APPEND toàn bộ (nội dung + kết quả + % + HOD)
-            # 1.6 có thể trải 3-4 trang, cần append cả ty_le và hod
-            'nhiem_vu_1_noi_dung','nhiem_vu_1_ket_qua','nhiem_vu_1_ty_le','nhiem_vu_1_hod',
-            'nhiem_vu_2_noi_dung','nhiem_vu_2_ket_qua','nhiem_vu_2_ty_le','nhiem_vu_2_hod',
-            'nhiem_vu_3_noi_dung','nhiem_vu_3_ket_qua','nhiem_vu_3_ty_le','nhiem_vu_3_hod',
-            'nhiem_vu_4_noi_dung','nhiem_vu_4_ket_qua','nhiem_vu_4_ty_le','nhiem_vu_4_hod',
-            'nhiem_vu_5_noi_dung','nhiem_vu_5_ket_qua','nhiem_vu_5_ty_le','nhiem_vu_5_hod',
-            'nhiem_vu_6_noi_dung','nhiem_vu_6_ket_qua','nhiem_vu_6_ty_le','nhiem_vu_6_hod',
-            'nhiem_vu_7_noi_dung','nhiem_vu_7_ket_qua','nhiem_vu_7_ty_le','nhiem_vu_7_hod',
-            'nhiem_vu_8_noi_dung','nhiem_vu_8_ket_qua','nhiem_vu_8_ty_le','nhiem_vu_8_hod',
-            # Nhận xét chung (5 câu NV + HOD)
-            'nhan_xet_1_nv','nhan_xet_2_nv','nhan_xet_3_nv',
-            'nhan_xet_4_nv','nhan_xet_5_nv',
-            'nhan_xet_1_hod','nhan_xet_2_hod','nhan_xet_3_hod',
-            'nhan_xet_4_hod','nhan_xet_5_hod',
-            # Sản phẩm (trải nhiều trang)
-            'san_pham_1','san_pham_2','san_pham_3','san_pham_4',
-            'san_pham_5','san_pham_6','san_pham_7','san_pham_8',
-            'link_dinh_kem_1','link_dinh_kem_2','link_dinh_kem_3','link_dinh_kem_4',
-            'link_dinh_kem_5','link_dinh_kem_6','link_dinh_kem_7','link_dinh_kem_8',
-            # Hội nhập (9 câu, trải 11 trang)
-            'hoi_nhap_1_nv','hoi_nhap_2_nv','hoi_nhap_3_nv','hoi_nhap_4_nv',
-            'hoi_nhap_5_nv','hoi_nhap_6_nv','hoi_nhap_7_nv',
-            'hoi_nhap_7_1_nv','hoi_nhap_7_2_nv','hoi_nhap_7_3_nv',
-            'hoi_nhap_7_4_nv','hoi_nhap_7_5_nv',
-            'hoi_nhap_8_nv','hoi_nhap_9_nv',
-            # HOD hội nhập
-            'hoi_nhap_1_hod','hoi_nhap_2_hod','hoi_nhap_3_hod','hoi_nhap_4_hod',
-            'hoi_nhap_5_hod','hoi_nhap_6_hod','hoi_nhap_7_hod',
-            'hoi_nhap_7_1_hod','hoi_nhap_7_2_hod','hoi_nhap_7_3_hod',
-            'hoi_nhap_7_4_hod','hoi_nhap_7_5_hod',
-            'hoi_nhap_8_hod','hoi_nhap_9_hod',
-        }
-
-        def _merge_fields(base: dict, new: dict) -> dict:
-            """Merge batch JSON vào base:
-            - APPENDABLE fields: nối thêm nội dung mới (nhiều trang)
-            - Các field khác: first-wins (chỉ lấy giá trị đầu tiên non-empty)
-            """
-            for k, v in new.items():
-                if k == "confidence":
-                    continue
-                if not v:  # bỏ qua giá trị rỗng
-                    continue
-                if k in APPENDABLE:
-                    existing = base.get(k, '')
-                    if existing:
-                        # Nối vào nếu nội dung mới khác (tránh duplicate)
-                        new_v = str(v).strip()
-                        if new_v and new_v not in existing:
-                            base[k] = existing.rstrip() + '\n' + new_v
-                    else:
-                        base[k] = v
-                elif isinstance(v, dict) and isinstance(base.get(k), dict):
-                    for kk, vv in v.items():
-                        if vv and not base[k].get(kk):
-                            base[k][kk] = vv
-                elif k not in base or not base[k]:
+            if k in DOCX_APPENDABLE:
+                existing = base.get(k, '')
+                if existing:
+                    nv = str(v).strip()
+                    if nv and nv not in existing:
+                        base[k] = existing.rstrip() + '\n' + nv
+                else:
                     base[k] = v
-            return base
+            elif isinstance(v, dict) and isinstance(base.get(k), dict):
+                for kk, vv in v.items():
+                    if vv and not base[k].get(kk):
+                        base[k][kk] = vv
+            elif k not in base or not base[k]:
+                base[k] = v
+        return base
 
-        fields = {}
-        total_pages = len(page_images)
+    if not sections:
+        sections = {"A_thong_tin": raw_text}
 
-        # ── Prompt chuyên biệt cho phần Hội Nhập (trang 9 trở đi) ──────────────
-        HOI_NHAP_PROMPT = """Bạn đang xem các trang cuối phần II và/hoặc PHẦN III – MỨC ĐỘ HỘI NHẬP của PHIẾU ĐÁNH GIÁ THỬ VIỆC CT Group.
-
-NHIỆM VỤ: Đọc TOÀN BỘ và điền NGUYÊN VĂN không tóm tắt vào đúng field.
-Các câu trả lời RẤT DÀI và TRẢI NHIỀU TRANG — ghi tất cả vào đây.
-
-CÁC CÂU HỎI VÀ FIELD TƯƠNG ỨNG:
-  Câu 1 → hoi_nhap_1_nv: "Ứng viên hiểu gì về Sứ mệnh của Tập đoàn?"
-  Câu 2 → hoi_nhap_2_nv: "Sứ mệnh của bản thân ứng viên là gì?"
-  Câu 3 → hoi_nhap_3_nv: "Ứng viên hiểu gì về Tầm nhìn của Tập đoàn? (2025 & 2052)"
-  Câu 4 → hoi_nhap_4_nv: "Tầm nhìn bản thân ứng viên là gì?"
-  Câu 5 → hoi_nhap_5_nv: "Ứng viên hiểu gì về Văn hóa cốt lõi của Tập đoàn?"
-  Câu 6 → hoi_nhap_6_nv: "Giá trị cốt lõi bản thân ứng viên là gì?"
-  Câu 7 → hoi_nhap_7_nv: "Sự phù hợp với Văn hóa làm việc của Tập đoàn?"
-    + hoi_nhap_7_1_nv: Văn hóa Hiệu quả (7.1)
-    + hoi_nhap_7_2_nv: Văn hóa Tốc độ (7.2)
-    + hoi_nhap_7_3_nv: Văn hóa Kỷ luật (7.3)
-    + hoi_nhap_7_4_nv: Văn hóa Học tập (7.4) — số giờ, đóng góp
-    + hoi_nhap_7_5_nv: Văn hóa Chính trực (7.5)
-  Câu 8 → hoi_nhap_8_nv: "Ứng viên hiểu gì về Văn hóa kinh doanh của Tập đoàn?"
-  Câu 9 → hoi_nhap_9_nv: "Các đóng góp khác trong thời gian hội nhập?"
-
-NẾU GẶP TRANG CHUYỂN TIẾP (vừa có sản phẩm cuối vừa có câu hỏi đầu tiên):
-  → Đọc cả sản phẩm (san_pham_X, link_dinh_kem_X) VÀ câu hỏi hội nhập đầu tiên.
-
-NẾU TRANG NÀY CHỈ CÓ PHẦN TIẾP THEO của câu trả lời (không có số thứ tự câu hỏi mới):
-  → Nhìn vào nội dung để xác định thuộc câu hỏi nào và điền vào đúng field đó.
-  → Ví dụ: nếu thấy tiếp tục nói về "sứ mệnh CT Group" thì là hoi_nhap_1_nv.
-
-HOD viết tay nhận xét → hoi_nhap_X_hod tương ứng.
-Phần kết luận cuối cùng → ket_luan, de_xuat_ky_hd, ten_hod_ky, ngay_ky.
-
-TRẢ VỀ JSON THUẦN:
-{
-  "hoi_nhap_1_nv": "", "hoi_nhap_1_hod": "",
-  "hoi_nhap_2_nv": "", "hoi_nhap_2_hod": "",
-  "hoi_nhap_3_nv": "", "hoi_nhap_3_hod": "",
-  "hoi_nhap_4_nv": "", "hoi_nhap_4_hod": "",
-  "hoi_nhap_5_nv": "", "hoi_nhap_5_hod": "",
-  "hoi_nhap_6_nv": "", "hoi_nhap_6_hod": "",
-  "hoi_nhap_7_nv": "", "hoi_nhap_7_hod": "",
-  "hoi_nhap_7_1_nv": "", "hoi_nhap_7_1_hod": "",
-  "hoi_nhap_7_2_nv": "", "hoi_nhap_7_2_hod": "",
-  "hoi_nhap_7_3_nv": "", "hoi_nhap_7_3_hod": "",
-  "hoi_nhap_7_4_nv": "", "hoi_nhap_7_4_hod": "",
-  "hoi_nhap_7_5_nv": "", "hoi_nhap_7_5_hod": "",
-  "hoi_nhap_8_nv": "", "hoi_nhap_8_hod": "",
-  "hoi_nhap_9_nv": "", "hoi_nhap_9_hod": "",
-  "ket_luan": "", "de_xuat_ky_hd": "", "de_xuat_tang_thu_nhap": "",
-  "de_nghi_phoi_hop": "", "y_kien_hod": "", "y_kien_rtd": "",
-  "ngay_ky": "", "ten_hod_ky": "",
-  "san_pham_1": "", "so_luong_file_1": "", "link_dinh_kem_1": "", "vi_pham_upload_1": "", "kpi_sp_tuan_1": "",
-  "san_pham_2": "", "so_luong_file_2": "", "link_dinh_kem_2": "", "vi_pham_upload_2": "", "kpi_sp_tuan_2": "",
-  "san_pham_3": "", "so_luong_file_3": "", "link_dinh_kem_3": "", "vi_pham_upload_3": "", "kpi_sp_tuan_3": "",
-  "san_pham_4": "", "so_luong_file_4": "", "link_dinh_kem_4": "", "vi_pham_upload_4": "", "kpi_sp_tuan_4": "",
-  "san_pham_5": "", "so_luong_file_5": "", "link_dinh_kem_5": "", "vi_pham_upload_5": "", "kpi_sp_tuan_5": "",
-  "san_pham_6": "", "so_luong_file_6": "", "link_dinh_kem_6": "", "vi_pham_upload_6": "", "kpi_sp_tuan_6": "",
-  "san_pham_7": "", "so_luong_file_7": "", "link_dinh_kem_7": "", "vi_pham_upload_7": "", "kpi_sp_tuan_7": "",
-  "san_pham_8": "", "so_luong_file_8": "", "link_dinh_kem_8": "", "vi_pham_upload_8": "", "kpi_sp_tuan_8": ""
-}"""
-
-        # ── Smart batching ────────────────────────────────────────────────────
-        # Trang 1-8: batch 2 trang (thông tin chung, KPI, sản phẩm)
-        # Trang 9+:  batch 4 trang với HOI_NHAP_PROMPT chuyên biệt
-        SPLIT_PAGE = 8   # từ trang 9 trở đi là hội nhập
-        HN_BATCH   = 4   # 4 trang/batch cho hội nhập
-
-        def _call_batch(imgs, prompt, label):
-            parts = [_build_image_part(img) for img in imgs]
-            msg_content = [{"type": "text", "text": prompt}, *parts]
-            try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "user", "content": msg_content}],
-                    temperature=0,
-                    max_tokens=16000,
-                    response_format={"type": "json_object"},
-                )
-                txt = resp.choices[0].message.content or "{}"
-                return txt, json.loads(txt)
-            except Exception as e:
-                frappe.logger("cnb_scan").warning(f"[SCAN] Batch {label} lỗi: {e}")
-                return "{}", {}
-
-        # ── Phase 0: Detect section trên từng trang (cheap – detail:low) ────────
-        DETECT_PROMPT = (
-            'Nhìn vào trang phiếu đánh giá thử việc CT Group này. '
-            'Trả về JSON: {"section": "...", "page_label": "..."}\n'
-            'section phải là 1 trong: "A_thong_tin", "I_nhan_xet", "II_kpi", '
-            '"II_san_pham", "III_hoi_nhap", "C_ket_luan"\n'
-            'page_label: số trang in trên phiếu, nếu không thấy để "".\n\n'
-            'QUY TẮC (ưu tiên từ trên xuống):\n'
-            '1. Thấy "HỘI NHẬP"/"Sứ mệnh"/"Tầm nhìn"/"Văn hóa"/"7.1"/"III." → III_hoi_nhap\n'
-            '2. Tick chọn "ĐẠT"/"Không đạt"/"RTD"/"Kết luận" → C_ket_luan\n'
-            '3. Thấy "Sản phẩm nghiệm thu"/cột "Link đính kèm"/"Tên sản phẩm" → II_san_pham\n'
-            '4. Thấy "1.1"/"1.2"/"1.3"/"1.4"/"1.5"/"1.6"/"1.7"/"1.8"/"1.9"/"1.10"/'
-            '"Điểm TBC"/"KPI"/"Công việc được giao"/"PHẦN II" → II_kpi\n'
-            '5. Thấy bảng nhiều hàng với cột "Kết quả thực tế" + cột "%" '
-            '(dù không có header 1.10 — đây là trang tiếp theo của 1.10) → II_kpi\n'
-            '6. Thấy "PHẦN I"/"Nhận xét chung" → I_nhan_xet\n'
-            '7. Bảng thông tin (họ tên, ngày nhận việc, bộ phận) → A_thong_tin\n'
-            '⚠️ Bảng 1.10 trải nhiều trang: trang tiếp theo không có header '
-            'nhưng có dòng nhiệm vụ + cột % → vẫn là II_kpi, KHÔNG phải II_san_pham.'
-        )
-
-        def _detect_section(img_bytes):
-            b64 = base64.b64encode(img_bytes).decode()
-            part = {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "low"}}
-            try:
-                r = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "user", "content": [{"type": "text", "text": DETECT_PROMPT}, part]}],
-                    temperature=0, max_tokens=60,
-                    response_format={"type": "json_object"},
-                )
-                d = json.loads(r.choices[0].message.content or "{}")
-                return d.get("section", "II_kpi"), d.get("page_label", "")
-            except Exception:
-                return "II_kpi", ""
-
-        # Detect section cho từng trang
-        page_sections = []
-        for idx, img in enumerate(page_images):
-            sec, lbl = _detect_section(img)
-            page_sections.append(sec)
-            frappe.logger("cnb_scan").info(f"[SCAN] Page {idx+1} → section={sec} label={lbl}")
-
-        # ── Prompt chuyên biệt cho KPI (1.1–1.6) ───────────────────────────────
-        
+    for sec_key, sec_text in sections.items():
+        if not sec_text.strip():
+            continue
+        prompt = BATCH_PROMPTS.get(sec_key)
+        if not prompt:
+            continue
+        batch_text = sec_text[:60000]
+        frappe.logger("cnb_scan").info(f"[SCAN] DOCX batch {sec_key}: {len(batch_text)} chars")
+        try:
+            resp = client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                messages=[{"role": "user", "content": prompt + "\n\nNỘI DUNG:\n" + batch_text}],
+                temperature=0,
+                max_tokens=16000,
+                response_format={"type": "json_object"},
+            )
+            partial = json.loads(resp.choices[0].message.content or "{}")
+            fields = _merge_docx(fields, partial)
+        except Exception as e:
+            frappe.logger("cnb_scan").warning(f"[SCAN] DOCX batch {sec_key} lỗi: {e}")
 
 
-        # ── Prompt chuyên biệt cho KPI (1.1–1.10) ───────────────────────────────
-        KPI_PROMPT = """Bạn đang xem trang PHẦN II – KPI của PHIẾU ĐÁNH GIÁ THỬ VIỆC CT Group.
+    return fields, raw_text
 
-NHIỆM VỤ CHÍNH: Đọc chính xác % và nội dung nhiệm vụ.
 
-QUY TẮC:
-1. NGUYÊN VĂN — không tóm tắt, không bỏ sót
-2. Ô trống → ""
-3. % phải đọc từ CỘT % KẾ BÊN TƯƠNG ỨNG của từng dòng
+def _scan_extract_html(file_bytes, client):
+    """
+    Extract fields from HTML using a single OpenAI call.
 
-CÁC MỤC CẦN ĐỌC:
+    Returns:
+        tuple: (fields dict, raw_text str)
+    """
 
-[KPI TỪNG TUẦN] — hàng đánh số 1.1 / 1.2 / ... tương ứng Tuần thứ 1, 2, ...:
-  - Mỗi hàng có CỘT % riêng kế bên → đọc ĐÚNG CỘT ĐÓ
-  - kpi_tuan_1_ty_le → % cột kế bên hàng tuần 1 (1.1)
-  - kpi_tuan_2_ty_le → % cột kế bên hàng tuần 2 (1.2)
-  - tương tự đến kpi_tuan_8_ty_le (tối đa 8 tuần)
-  - Chỉ điền những tuần CÓ trong phiếu, để trống các tuần không có
+    fields = {}
 
-[ĐIỂM TBC] — hàng "Điểm trung bình" hoặc "Điểm TBC" (ký hiệu 1.5/1.9/1.X tuỳ phiếu):
-  - diem_tbc_kpi_nv → % TBC nhân viên ghi
-  - diem_tbc_kpi_hod → HOD viết tay vào ô TBC
+    raw_text = _read_html_text(file_bytes)
+    method_note = "HTML – đọc trực tiếp"
+    if raw_text.strip():
+        try:
+            resp = client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                messages=[{"role": "user", "content": _EXTRACT_PROMPT + raw_text[:80000]}],
+                temperature=0,
+                max_tokens=8000,
+                response_format={"type": "json_object"},
+            )
+            fields = json.loads(resp.choices[0].message.content or "{}")
+        except Exception as e:
+            frappe.logger("cnb_scan").warning(f"[SCAN] HTML extract lỗi: {e}")
 
-[CÔNG VIỆC ĐƯỢC GIAO] — có thể ký hiệu là 1.6 HOẶC 1.10 tuỳ phiếu:
-  Bảng liệt kê TỪNG NHIỆM VỤ + kết quả + % hoàn thành.
 
-  LAYOUT HAI CỘT PHỔ BIẾN:
-    Cột trái: Nội dung nhiệm vụ (dạng "+ Nhiệm vụ X: ...")
-    Cột phải: Kết quả thực tế: XX% (ví dụ "Kết quả thực tế: 90%")
-  HOẶC bảng 4 cột: Nhiệm vụ | Kết quả thực tế | % hoàn thành | HOD nhận xét
+    return fields, raw_text
 
-  ĐỌC TUẦN TỰ từng nhiệm vụ, map vào:
-    nhiem_vu_1_noi_dung = nội dung nhiệm vụ 1 (NGUYÊN VĂN đầy đủ)
-    nhiem_vu_1_ket_qua  = kết quả thực tế NV1 (nếu có cột/phần riêng)
-    nhiem_vu_1_ty_le    = % NV1 — tìm "Kết quả thực tế: X%" hoặc cột % kề dòng đó
-    nhiem_vu_1_hod      = HOD nhận xét NV1
-    (tương tự nhiem_vu_2 → nhiem_vu_8, điền bao nhiêu NV có bấy nhiêu)
 
-  cong_viec_duoc_giao = toàn bộ nội dung phần 1.6/1.10 (nguyên văn, gộp hết)
-  ty_le_hoan_thanh_16 = % TỔNG hoàn thành chung (nếu có dòng tổng)
+def _scan_extract_pdf_image(file_bytes, filename, client):
+    """
+    Extract fields from PDF/image using GPT-4o Vision with smart batching.
 
-  NGUYÊN TẮC:
-  - nhiem_vu_X_ty_le: lấy % ở cột phải cùng dòng/khối NV X
-    VD: dòng NV1 có "Kết quả thực tế: 90%" ở cột phải → nhiem_vu_1_ty_le = "90%"
-  - KHÔNG để trống nếu thấy % ở cột phải cùng dòng NV đó
-  - Đọc NGUYÊN VĂN đầy đủ, không tóm tắt, không bỏ NV nào
+    Returns:
+        tuple: (fields dict, raw_text str)
+    """
 
-[SẢN PHẨM NGHIỆM THU TUẦN] — bảng đánh số 2.1 / 2.2 / ... (nếu có trong trang):
-  Bảng 2.X thường có các cột: STT | Sản phẩm / Nhiệm vụ | Số lượng file | Link đính kèm | Vi phạm | % KPI
+    fields = {}
+    raw_text = ""
 
-  QUY TẮC ĐỌC TỪNG CỘT (theo đúng cột, không lẫn lộn):
-  - san_pham_X   = nội dung ô "Sản phẩm" hoặc "Sản phẩm:" tuần X (NGUYÊN VĂN toàn bộ)
-  - nhiem_vu_tuan_X = nội dung "Nhiệm vụ đặt ra:" tuần X (NGUYÊN VĂN, "" nếu không có)
-  - so_luong_file_X = số ở CỘT "Số lượng file" tuần X (chỉ là số, VD: "3", "0")
-  - link_dinh_kem_X = nội dung ô CỘT "Link đính kèm" tuần X:
-      * Nếu có URL (http://... / https://...) → copy NGUYÊN VĂN toàn bộ URL, mỗi link 1 dòng
-      * Nếu có tên file → copy NGUYÊN VĂN đầy đủ
-      * Nếu ô trống hoặc chỉ có "-" → ""
-      * ⚠️ KHÔNG nhầm với cột "Số lượng file" — link KHÔNG phải số "0", "1", "2"...
-  - vi_pham_upload_X = số lần vi phạm + ngày cụ thể tuần X
-  - kpi_sp_tuan_X   = % ở CỘT % KPI kế bên hàng 2.X (VD: "90%")
 
-  Nếu trang không có bảng 2.X → để trống san_pham_X, link_dinh_kem_X, nhiem_vu_tuan_X.
-  ⚠️ TUYỆT ĐỐI: link ≠ số nguyên. Nếu chỉ thấy số như "0" ở cột link → để "" (ô trống, không phải link).
+    method_note = "GPT-4o Vision → JSON trực tiếp"
+    frappe.logger("cnb_scan").info(f"[SCAN] Direct Vision→JSON: {filename}")
 
-TRẢ VỀ JSON THUẦN:
-{
-  "kpi_tuan_1_ty_le":"","kpi_tuan_2_ty_le":"","kpi_tuan_3_ty_le":"","kpi_tuan_4_ty_le":"",
-  "kpi_tuan_5_ty_le":"","kpi_tuan_6_ty_le":"","kpi_tuan_7_ty_le":"","kpi_tuan_8_ty_le":"",
-  "diem_tbc_kpi_nv":"","diem_tbc_kpi_hod":"",
-  "cong_viec_duoc_giao":"","ty_le_hoan_thanh_16":"",
-  "nhiem_vu_1_noi_dung":"","nhiem_vu_1_ket_qua":"","nhiem_vu_1_ty_le":"","nhiem_vu_1_hod":"",
-  "nhiem_vu_2_noi_dung":"","nhiem_vu_2_ket_qua":"","nhiem_vu_2_ty_le":"","nhiem_vu_2_hod":"",
-  "nhiem_vu_3_noi_dung":"","nhiem_vu_3_ket_qua":"","nhiem_vu_3_ty_le":"","nhiem_vu_3_hod":"",
-  "nhiem_vu_4_noi_dung":"","nhiem_vu_4_ket_qua":"","nhiem_vu_4_ty_le":"","nhiem_vu_4_hod":"",
-  "nhiem_vu_5_noi_dung":"","nhiem_vu_5_ket_qua":"","nhiem_vu_5_ty_le":"","nhiem_vu_5_hod":"",
-  "nhiem_vu_6_noi_dung":"","nhiem_vu_6_ket_qua":"","nhiem_vu_6_ty_le":"","nhiem_vu_6_hod":"",
-  "nhiem_vu_7_noi_dung":"","nhiem_vu_7_ket_qua":"","nhiem_vu_7_ty_le":"","nhiem_vu_7_hod":"",
-  "nhiem_vu_8_noi_dung":"","nhiem_vu_8_ket_qua":"","nhiem_vu_8_ty_le":"","nhiem_vu_8_hod":"",
-  "san_pham_1":"","nhiem_vu_tuan_1":"","so_luong_file_1":"","link_dinh_kem_1":"","vi_pham_upload_1":"","kpi_sp_tuan_1":"",
-  "san_pham_2":"","nhiem_vu_tuan_2":"","so_luong_file_2":"","link_dinh_kem_2":"","vi_pham_upload_2":"","kpi_sp_tuan_2":"",
-  "san_pham_3":"","nhiem_vu_tuan_3":"","so_luong_file_3":"","link_dinh_kem_3":"","vi_pham_upload_3":"","kpi_sp_tuan_3":"",
-  "san_pham_4":"","nhiem_vu_tuan_4":"","so_luong_file_4":"","link_dinh_kem_4":"","vi_pham_upload_4":"","kpi_sp_tuan_4":"",
-  "san_pham_5":"","nhiem_vu_tuan_5":"","so_luong_file_5":"","link_dinh_kem_5":"","vi_pham_upload_5":"","kpi_sp_tuan_5":"",
-  "san_pham_6":"","nhiem_vu_tuan_6":"","so_luong_file_6":"","link_dinh_kem_6":"","vi_pham_upload_6":"","kpi_sp_tuan_6":"",
-  "san_pham_7":"","nhiem_vu_tuan_7":"","so_luong_file_7":"","link_dinh_kem_7":"","vi_pham_upload_7":"","kpi_sp_tuan_7":"",
-  "san_pham_8":"","nhiem_vu_tuan_8":"","so_luong_file_8":"","link_dinh_kem_8":"","vi_pham_upload_8":"","kpi_sp_tuan_8":""
-}"""
+    # Build image parts
+    if fname.endswith(".pdf"):
+        page_images = _pdf_to_images(file_bytes)
+    else:
+        ext = fname.rsplit(".", 1)[-1]
+        mime_map = {"jpg":"jpeg","jpeg":"jpeg","png":"png","bmp":"bmp","webp":"webp"}
+        page_images = [file_bytes]  # single image
 
-        # ── Prompt chuyên biệt cho Sản Phẩm (2.1–2.8) ──────────────────────────
-        SAN_PHAM_PROMPT = """Bạn đang xem trang PHẦN II – SẢN PHẨM NGHIỆM THU của PHIẾU ĐÁNH GIÁ THỬ VIỆC CT Group.
+    if not page_images:
+        frappe.throw(f"Không thể đọc file '{filename}'. Vui lòng kiểm tra định dạng.")
 
-NHIỆM VỤ: Đọc đầy đủ thông tin từng tuần (2.1 → 2.8).
+    frappe.logger("cnb_scan").info(f"[SCAN] {len(page_images)} trang → Vision batches")
 
-QUY TẮC:
-1. NGUYÊN VĂN — không tóm tắt, không rút gọn
-2. Đọc TẤT CẢ tuần có trong trang (có thể có 1 đến nhiều tuần)
-3. Mỗi tuần 2.X tương ứng với các field san_pham_X, so_luong_file_X, link_dinh_kem_X, vi_pham_upload_X, kpi_sp_tuan_X
-4. Tên file / link → giữ NGUYÊN VĂN đầy đủ
-5. Ô trống → ""
+    # Prompt cho Vision → JSON trực tiếp
 
-CẤU TRÚC TỪNG TUẦN (ví dụ tuần 1 = hàng 2.1):
-  san_pham_1:        tên sản phẩm / danh sách file nộp (NGUYÊN VĂN từ ô "Sản phẩm:")
-  nhiem_vu_tuan_1:   nội dung "Nhiệm vụ đặt ra:" trong cùng hàng 2.1 (NGUYÊN VĂN, để "" nếu không có)
-  so_luong_file_1:   số lượng file
-  link_dinh_kem_1:   TOÀN BỘ link / tên file đính kèm — ghi NGUYÊN VĂN ĐẦYĐỦ từng cái, mỗi link/file 1 dòng, KHÔNG bỏ sót, KHÔNG rút ngắn
-  vi_pham_upload_1:  số lần vi phạm upload + ngày cụ thể
-  kpi_sp_tuan_1:     % KPI tuần đó — đọc từ CỘT % KẾ BÊN hàng 2.1
-
-(tương tự cho tuần 2→8)
-
-TRẢ VỀ JSON THUẦN:
-{
-  "san_pham_1":"","nhiem_vu_tuan_1":"","so_luong_file_1":"","link_dinh_kem_1":"","vi_pham_upload_1":"","kpi_sp_tuan_1":"",
-  "san_pham_2":"","nhiem_vu_tuan_2":"","so_luong_file_2":"","link_dinh_kem_2":"","vi_pham_upload_2":"","kpi_sp_tuan_2":"",
-  "san_pham_3":"","nhiem_vu_tuan_3":"","so_luong_file_3":"","link_dinh_kem_3":"","vi_pham_upload_3":"","kpi_sp_tuan_3":"",
-  "san_pham_4":"","nhiem_vu_tuan_4":"","so_luong_file_4":"","link_dinh_kem_4":"","vi_pham_upload_4":"","kpi_sp_tuan_4":"",
-  "san_pham_5":"","nhiem_vu_tuan_5":"","so_luong_file_5":"","link_dinh_kem_5":"","vi_pham_upload_5":"","kpi_sp_tuan_5":"",
-  "san_pham_6":"","nhiem_vu_tuan_6":"","so_luong_file_6":"","link_dinh_kem_6":"","vi_pham_upload_6":"","kpi_sp_tuan_6":"",
-  "san_pham_7":"","nhiem_vu_tuan_7":"","so_luong_file_7":"","link_dinh_kem_7":"","vi_pham_upload_7":"","kpi_sp_tuan_7":"",
-  "san_pham_8":"","nhiem_vu_tuan_8":"","so_luong_file_8":"","link_dinh_kem_8":"","vi_pham_upload_8":"","kpi_sp_tuan_8":""
-}"""
-
-        # Map section → group_type
-        HOI_NHAP_SECS  = {"III_hoi_nhap", "C_ket_luan"}
-        KPI_SECS       = {"II_kpi"}
-        SAN_PHAM_SECS  = {"II_san_pham"}
-
-        def _sec_to_type(sec: str) -> str:
-            if sec in HOI_NHAP_SECS: return "hoi_nhap"
-            if sec in KPI_SECS:      return "kpi"
-            if sec in SAN_PHAM_SECS: return "san_pham"
-            return "general"
-
-        # Batch sizes theo loại
-        # kpi: tăng lên 3 trang — 1.6 có thể trải 3-4 trang, cần đủ context bảng
-        BATCH_SIZES = {"hoi_nhap": 3, "kpi": 4, "san_pham": 4, "general": 2}
-        PROMPT_MAP  = {
-            "hoi_nhap": HOI_NHAP_PROMPT,
-            "kpi":      KPI_PROMPT,
-            "san_pham": SAN_PHAM_PROMPT,
-            "general":  VISION_JSON_PROMPT,
+    def _build_image_part(img_bytes: bytes) -> dict:
+        b64 = base64.b64encode(img_bytes).decode()
+        return {
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"}
         }
 
-        # Smooth Pass 1: trang general kẹt giữa 2 hoi_nhap → III_hoi_nhap
-        #                  trang GENERAL kẹt giữa 2 kpi → kpi (KHÔNG kéo san_pham vào kpi)
-        for idx in range(1, len(page_sections) - 1):
-            prev_t = _sec_to_type(page_sections[idx-1])
-            cur_t  = _sec_to_type(page_sections[idx])
-            nxt_t  = _sec_to_type(page_sections[idx+1])
-            if cur_t == "general" and prev_t == "hoi_nhap" and nxt_t == "hoi_nhap":
-                page_sections[idx] = "III_hoi_nhap"
-                frappe.logger("cnb_scan").info(f"[SCAN] Page {idx+1} re-classified → III_hoi_nhap (sandwich)")
-            elif cur_t == "general" and prev_t == "kpi" and nxt_t == "kpi":
-                page_sections[idx] = "II_kpi"
-                frappe.logger("cnb_scan").info(f"[SCAN] Page {idx+1} re-classified → II_kpi (sandwich general)")
+    # Các field dài trải nhiều trang → APPEND thay vì first-wins
+    APPENDABLE = {
+        'cong_viec_duoc_giao',
+        # Nhiệm vụ 1.6 — APPEND toàn bộ (nội dung + kết quả + % + HOD)
+        # 1.6 có thể trải 3-4 trang, cần append cả ty_le và hod
+        'nhiem_vu_1_noi_dung','nhiem_vu_1_ket_qua','nhiem_vu_1_ty_le','nhiem_vu_1_hod',
+        'nhiem_vu_2_noi_dung','nhiem_vu_2_ket_qua','nhiem_vu_2_ty_le','nhiem_vu_2_hod',
+        'nhiem_vu_3_noi_dung','nhiem_vu_3_ket_qua','nhiem_vu_3_ty_le','nhiem_vu_3_hod',
+        'nhiem_vu_4_noi_dung','nhiem_vu_4_ket_qua','nhiem_vu_4_ty_le','nhiem_vu_4_hod',
+        'nhiem_vu_5_noi_dung','nhiem_vu_5_ket_qua','nhiem_vu_5_ty_le','nhiem_vu_5_hod',
+        'nhiem_vu_6_noi_dung','nhiem_vu_6_ket_qua','nhiem_vu_6_ty_le','nhiem_vu_6_hod',
+        'nhiem_vu_7_noi_dung','nhiem_vu_7_ket_qua','nhiem_vu_7_ty_le','nhiem_vu_7_hod',
+        'nhiem_vu_8_noi_dung','nhiem_vu_8_ket_qua','nhiem_vu_8_ty_le','nhiem_vu_8_hod',
+        # Nhận xét chung (5 câu NV + HOD)
+        'nhan_xet_1_nv','nhan_xet_2_nv','nhan_xet_3_nv',
+        'nhan_xet_4_nv','nhan_xet_5_nv',
+        'nhan_xet_1_hod','nhan_xet_2_hod','nhan_xet_3_hod',
+        'nhan_xet_4_hod','nhan_xet_5_hod',
+        # Sản phẩm (trải nhiều trang)
+        'san_pham_1','san_pham_2','san_pham_3','san_pham_4',
+        'san_pham_5','san_pham_6','san_pham_7','san_pham_8',
+        'link_dinh_kem_1','link_dinh_kem_2','link_dinh_kem_3','link_dinh_kem_4',
+        'link_dinh_kem_5','link_dinh_kem_6','link_dinh_kem_7','link_dinh_kem_8',
+        # Hội nhập (9 câu, trải 11 trang)
+        'hoi_nhap_1_nv','hoi_nhap_2_nv','hoi_nhap_3_nv','hoi_nhap_4_nv',
+        'hoi_nhap_5_nv','hoi_nhap_6_nv','hoi_nhap_7_nv',
+        'hoi_nhap_7_1_nv','hoi_nhap_7_2_nv','hoi_nhap_7_3_nv',
+        'hoi_nhap_7_4_nv','hoi_nhap_7_5_nv',
+        'hoi_nhap_8_nv','hoi_nhap_9_nv',
+        # HOD hội nhập
+        'hoi_nhap_1_hod','hoi_nhap_2_hod','hoi_nhap_3_hod','hoi_nhap_4_hod',
+        'hoi_nhap_5_hod','hoi_nhap_6_hod','hoi_nhap_7_hod',
+        'hoi_nhap_7_1_hod','hoi_nhap_7_2_hod','hoi_nhap_7_3_hod',
+        'hoi_nhap_7_4_hod','hoi_nhap_7_5_hod',
+        'hoi_nhap_8_hod','hoi_nhap_9_hod',
+    }
 
-        # Pass 2 - kpi → kpi nếu gặp general sau kpi (NV5-7 trải nhiều trang)
-        for idx in range(1, len(page_sections)):
-            prev_t = _sec_to_type(page_sections[idx-1])
-            cur_t  = _sec_to_type(page_sections[idx])
-            if prev_t == "kpi" and cur_t == "general":
-                page_sections[idx] = "II_kpi"
-                frappe.logger("cnb_scan").info(f"[SCAN] Page {idx+1} re-classified → II_kpi (forward-prop)")
+    def _merge_fields(base: dict, new: dict) -> dict:
+        """Merge batch JSON vào base:
+        - APPENDABLE fields: nối thêm nội dung mới (nhiều trang)
+        - Các field khác: first-wins (chỉ lấy giá trị đầu tiên non-empty)
+        """
+        for k, v in new.items():
+            if k == "confidence":
+                continue
+            if not v:  # bỏ qua giá trị rỗng
+                continue
+            if k in APPENDABLE:
+                existing = base.get(k, '')
+                if existing:
+                    # Nối vào nếu nội dung mới khác (tránh duplicate)
+                    new_v = str(v).strip()
+                    if new_v and new_v not in existing:
+                        base[k] = existing.rstrip() + '\n' + new_v
+                else:
+                    base[k] = v
+            elif isinstance(v, dict) and isinstance(base.get(k), dict):
+                for kk, vv in v.items():
+                    if vv and not base[k].get(kk):
+                        base[k][kk] = vv
+            elif k not in base or not base[k]:
+                base[k] = v
+        return base
 
-        # Pass 3 - Zone-based fill (thay forward-prop san_pham → kpi):
-        # Phát hiện vùng san_pham = [first_sp, last_sp].
-        # Mọi trang kpi/general NẰM TRONG vùng đó → reclassify thành san_pham.
-        # Điều này ổn định hơn forward-prop vì detect có thể sai ±1 trang.
-        sp_indices = [i for i, s in enumerate(page_sections) if _sec_to_type(s) == "san_pham"]
-        if sp_indices:
-            first_sp = min(sp_indices)
-            last_sp  = max(sp_indices)
-            for idx in range(first_sp, last_sp + 1):
-                if _sec_to_type(page_sections[idx]) == "kpi":
-                    page_sections[idx] = "II_san_pham"
-                    frappe.logger("cnb_scan").info(
-                        f"[SCAN] Page {idx+1} re-classified → II_san_pham (zone-fill [{first_sp+1}-{last_sp+1}])"
-                    )
+    fields = {}
+    total_pages = len(page_images)
 
-        # Nhóm trang liên tiếp cùng loại thành batches
-        groups = []
-        i = 0
-        while i < total_pages:
-            cur_type = _sec_to_type(page_sections[i])
-            bs = BATCH_SIZES[cur_type]
-            batch_imgs = []
-            grp_start  = i + 1
-            while i < total_pages and len(batch_imgs) < bs:
-                if _sec_to_type(page_sections[i]) != cur_type:
-                    break
-                batch_imgs.append(page_images[i])
-                i += 1
-            groups.append({"type": cur_type, "imgs": batch_imgs, "start": grp_start})
+    # ── Prompt chuyên biệt cho phần Hội Nhập (trang 9 trở đi) ──────────────
 
-        # ── Bridge batch: KPI_PROMPT chạy thêm trên vùng giáp ranh kpi→san_pham ──
-        # Bảng 1.10 (nhiệm vụ + %) thường nằm ngay sau vùng kpi → bị detect là
-        # san_pham → SAN_PHAM_PROMPT xử lý sai → nhiem_vu_X_ty_le trống.
-        # Bridge batch = [trang kpi cuối + 3 trang sp đầu] chạy KPI_PROMPT trước
-        # để capture đủ % hoàn thành từng nhiệm vụ.
-        _sp_idx  = [j for j, s in enumerate(page_sections) if _sec_to_type(s) == "san_pham"]
-        _kpi_idx = [j for j, s in enumerate(page_sections) if _sec_to_type(s) == "kpi"]
-        if _sp_idx and _kpi_idx:
-            _first_sp = min(_sp_idx)
-            _kpi_before = [k for k in _kpi_idx if k < _first_sp]
-            if _kpi_before:
-                _bridge_start = max(_kpi_before)          # trang kpi cuối trước san_pham
-                _bridge_end   = min(_first_sp + 3, total_pages)  # +3 trang sp đầu
-                bridge_imgs   = [page_images[j] for j in range(_bridge_start, _bridge_end)]
-                bridge_pg_s   = _bridge_start + 1
-                bridge_pg_e   = _bridge_end
+    # ── Smart batching ────────────────────────────────────────────────────
+    # Trang 1-8: batch 2 trang (thông tin chung, KPI, sản phẩm)
+    # Trang 9+:  batch 4 trang với HOI_NHAP_PROMPT chuyên biệt
+    SPLIT_PAGE = 8   # từ trang 9 trở đi là hội nhập
+    HN_BATCH   = 4   # 4 trang/batch cho hội nhập
+
+    def _call_batch(imgs, prompt, label):
+        parts = [_build_image_part(img) for img in imgs]
+        msg_content = [{"type": "text", "text": prompt}, *parts]
+        try:
+            resp = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": msg_content}],
+                temperature=0,
+                max_tokens=16000,
+                response_format={"type": "json_object"},
+            )
+            txt = resp.choices[0].message.content or "{}"
+            return txt, json.loads(txt)
+        except Exception as e:
+            frappe.logger("cnb_scan").warning(f"[SCAN] Batch {label} lỗi: {e}")
+            return "{}", {}
+
+    # ── Phase 0: Detect section trên từng trang (cheap – detail:low) ────────
+    DETECT_PROMPT = (
+        'Nhìn vào trang phiếu đánh giá thử việc CT Group này. '
+        'Trả về JSON: {"section": "...", "page_label": "..."}\n'
+        'section phải là 1 trong: "A_thong_tin", "I_nhan_xet", "II_kpi", '
+        '"II_san_pham", "III_hoi_nhap", "C_ket_luan"\n'
+        'page_label: số trang in trên phiếu, nếu không thấy để "".\n\n'
+        'QUY TẮC (ưu tiên từ trên xuống):\n'
+        '1. Thấy "HỘI NHẬP"/"Sứ mệnh"/"Tầm nhìn"/"Văn hóa"/"7.1"/"III." → III_hoi_nhap\n'
+        '2. Tick chọn "ĐẠT"/"Không đạt"/"RTD"/"Kết luận" → C_ket_luan\n'
+        '3. Thấy "Sản phẩm nghiệm thu"/cột "Link đính kèm"/"Tên sản phẩm" → II_san_pham\n'
+        '4. Thấy "1.1"/"1.2"/"1.3"/"1.4"/"1.5"/"1.6"/"1.7"/"1.8"/"1.9"/"1.10"/'
+        '"Điểm TBC"/"KPI"/"Công việc được giao"/"PHẦN II" → II_kpi\n'
+        '5. Thấy bảng nhiều hàng với cột "Kết quả thực tế" + cột "%" '
+        '(dù không có header 1.10 — đây là trang tiếp theo của 1.10) → II_kpi\n'
+        '6. Thấy "PHẦN I"/"Nhận xét chung" → I_nhan_xet\n'
+        '7. Bảng thông tin (họ tên, ngày nhận việc, bộ phận) → A_thong_tin\n'
+        '⚠️ Bảng 1.10 trải nhiều trang: trang tiếp theo không có header '
+        'nhưng có dòng nhiệm vụ + cột % → vẫn là II_kpi, KHÔNG phải II_san_pham.'
+    )
+
+    def _detect_section(img_bytes):
+        b64 = base64.b64encode(img_bytes).decode()
+        part = {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "low"}}
+        try:
+            r = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": [{"type": "text", "text": DETECT_PROMPT}, part]}],
+                temperature=0, max_tokens=60,
+                response_format={"type": "json_object"},
+            )
+            d = json.loads(r.choices[0].message.content or "{}")
+            return d.get("section", "II_kpi"), d.get("page_label", "")
+        except Exception:
+            return "II_kpi", ""
+
+    # Detect section cho từng trang
+    page_sections = []
+    for idx, img in enumerate(page_images):
+        sec, lbl = _detect_section(img)
+        page_sections.append(sec)
+        frappe.logger("cnb_scan").info(f"[SCAN] Page {idx+1} → section={sec} label={lbl}")
+
+    # ── Prompt chuyên biệt cho KPI (1.1–1.6) ───────────────────────────────
+
+
+
+    # ── Prompt chuyên biệt cho KPI (1.1–1.10) ───────────────────────────────
+
+    # ── Prompt chuyên biệt cho Sản Phẩm (2.1–2.8) ──────────────────────────
+
+    # Map section → group_type
+    HOI_NHAP_SECS  = {"III_hoi_nhap", "C_ket_luan"}
+    KPI_SECS       = {"II_kpi"}
+    SAN_PHAM_SECS  = {"II_san_pham"}
+
+    def _sec_to_type(sec: str) -> str:
+        if sec in HOI_NHAP_SECS: return "hoi_nhap"
+        if sec in KPI_SECS:      return "kpi"
+        if sec in SAN_PHAM_SECS: return "san_pham"
+        return "general"
+
+    # Batch sizes theo loại
+    # kpi: tăng lên 3 trang — 1.6 có thể trải 3-4 trang, cần đủ context bảng
+    BATCH_SIZES = {"hoi_nhap": 3, "kpi": 4, "san_pham": 4, "general": 2}
+    PROMPT_MAP  = {
+        "hoi_nhap": HOI_NHAP_PROMPT,
+        "kpi":      KPI_PROMPT,
+        "san_pham": SAN_PHAM_PROMPT,
+        "general":  VISION_JSON_PROMPT,
+    }
+
+    # Smooth Pass 1: trang general kẹt giữa 2 hoi_nhap → III_hoi_nhap
+    #                  trang GENERAL kẹt giữa 2 kpi → kpi (KHÔNG kéo san_pham vào kpi)
+    for idx in range(1, len(page_sections) - 1):
+        prev_t = _sec_to_type(page_sections[idx-1])
+        cur_t  = _sec_to_type(page_sections[idx])
+        nxt_t  = _sec_to_type(page_sections[idx+1])
+        if cur_t == "general" and prev_t == "hoi_nhap" and nxt_t == "hoi_nhap":
+            page_sections[idx] = "III_hoi_nhap"
+            frappe.logger("cnb_scan").info(f"[SCAN] Page {idx+1} re-classified → III_hoi_nhap (sandwich)")
+        elif cur_t == "general" and prev_t == "kpi" and nxt_t == "kpi":
+            page_sections[idx] = "II_kpi"
+            frappe.logger("cnb_scan").info(f"[SCAN] Page {idx+1} re-classified → II_kpi (sandwich general)")
+
+    # Pass 2 - kpi → kpi nếu gặp general sau kpi (NV5-7 trải nhiều trang)
+    for idx in range(1, len(page_sections)):
+        prev_t = _sec_to_type(page_sections[idx-1])
+        cur_t  = _sec_to_type(page_sections[idx])
+        if prev_t == "kpi" and cur_t == "general":
+            page_sections[idx] = "II_kpi"
+            frappe.logger("cnb_scan").info(f"[SCAN] Page {idx+1} re-classified → II_kpi (forward-prop)")
+
+    # Pass 3 - Zone-based fill (thay forward-prop san_pham → kpi):
+    # Phát hiện vùng san_pham = [first_sp, last_sp].
+    # Mọi trang kpi/general NẰM TRONG vùng đó → reclassify thành san_pham.
+    # Điều này ổn định hơn forward-prop vì detect có thể sai ±1 trang.
+    sp_indices = [i for i, s in enumerate(page_sections) if _sec_to_type(s) == "san_pham"]
+    if sp_indices:
+        first_sp = min(sp_indices)
+        last_sp  = max(sp_indices)
+        for idx in range(first_sp, last_sp + 1):
+            if _sec_to_type(page_sections[idx]) == "kpi":
+                page_sections[idx] = "II_san_pham"
                 frappe.logger("cnb_scan").info(
-                    f"[SCAN] Bridge KPI batch: trang {bridge_pg_s}–{bridge_pg_e} "
-                    f"(bảng 1.10 boundary)"
+                    f"[SCAN] Page {idx+1} re-classified → II_san_pham (zone-fill [{first_sp+1}-{last_sp+1}])"
                 )
-                _btxt, _bpart = _call_batch(bridge_imgs, PROMPT_MAP["kpi"],
-                                             f"trang {bridge_pg_s}–{bridge_pg_e} [kpi-bridge]")
-                raw_text += f"\n\n=== trang {bridge_pg_s}–{bridge_pg_e} [kpi-bridge] ===\n" + _btxt
-                fields = _merge_fields(fields, _bpart)
 
-        # ── Phase 1+2: Extract từng group với prompt chuyên biệt ─────────────
-        for grp in groups:
-            prompt = PROMPT_MAP[grp["type"]]
-            pg_s   = grp["start"]
-            pg_e   = grp["start"] + len(grp["imgs"]) - 1
-            label  = f"trang {pg_s}–{pg_e}/{total_pages} [{grp['type']}]"
-            frappe.logger("cnb_scan").info(f"[SCAN] Extract: {label}")
-            txt, partial = _call_batch(grp["imgs"], prompt, label)
-            raw_text += f"\n\n=== {label} ===\n" + txt
-            fields = _merge_fields(fields, partial)
+    # Nhóm trang liên tiếp cùng loại thành batches
+    groups = []
+    i = 0
+    while i < total_pages:
+        cur_type = _sec_to_type(page_sections[i])
+        bs = BATCH_SIZES[cur_type]
+        batch_imgs = []
+        grp_start  = i + 1
+        while i < total_pages and len(batch_imgs) < bs:
+            if _sec_to_type(page_sections[i]) != cur_type:
+                break
+            batch_imgs.append(page_images[i])
+            i += 1
+        groups.append({"type": cur_type, "imgs": batch_imgs, "start": grp_start})
 
+    # ── Bridge batch: KPI_PROMPT chạy thêm trên vùng giáp ranh kpi→san_pham ──
+    # Bảng 1.10 (nhiệm vụ + %) thường nằm ngay sau vùng kpi → bị detect là
+    # san_pham → SAN_PHAM_PROMPT xử lý sai → nhiem_vu_X_ty_le trống.
+    # Bridge batch = [trang kpi cuối + 3 trang sp đầu] chạy KPI_PROMPT trước
+    # để capture đủ % hoàn thành từng nhiệm vụ.
+    _sp_idx  = [j for j, s in enumerate(page_sections) if _sec_to_type(s) == "san_pham"]
+    _kpi_idx = [j for j, s in enumerate(page_sections) if _sec_to_type(s) == "kpi"]
+    if _sp_idx and _kpi_idx:
+        _first_sp = min(_sp_idx)
+        _kpi_before = [k for k in _kpi_idx if k < _first_sp]
+        if _kpi_before:
+            _bridge_start = max(_kpi_before)          # trang kpi cuối trước san_pham
+            _bridge_end   = min(_first_sp + 3, total_pages)  # +3 trang sp đầu
+            bridge_imgs   = [page_images[j] for j in range(_bridge_start, _bridge_end)]
+            bridge_pg_s   = _bridge_start + 1
+            bridge_pg_e   = _bridge_end
+            frappe.logger("cnb_scan").info(
+                f"[SCAN] Bridge KPI batch: trang {bridge_pg_s}–{bridge_pg_e} "
+                f"(bảng 1.10 boundary)"
+            )
+            _btxt, _bpart = _call_batch(bridge_imgs, PROMPT_MAP["kpi"],
+                                         f"trang {bridge_pg_s}–{bridge_pg_e} [kpi-bridge]")
+            raw_text += f"\n\n=== trang {bridge_pg_s}–{bridge_pg_e} [kpi-bridge] ===\n" + _btxt
+            fields = _merge_fields(fields, _bpart)
+
+    # ── Phase 1+2: Extract từng group với prompt chuyên biệt ─────────────
+    for grp in groups:
+        prompt = PROMPT_MAP[grp["type"]]
+        pg_s   = grp["start"]
+        pg_e   = grp["start"] + len(grp["imgs"]) - 1
+        label  = f"trang {pg_s}–{pg_e}/{total_pages} [{grp['type']}]"
+        frappe.logger("cnb_scan").info(f"[SCAN] Extract: {label}")
+        txt, partial = _call_batch(grp["imgs"], prompt, label)
+        raw_text += f"\n\n=== {label} ===\n" + txt
+        fields = _merge_fields(fields, partial)
+
+    return fields, raw_text
+
+
+def scan_extract():
+    """
+    POST /api/method/cnb_2as.api.scan_phieu.scan_extract
+    Form-data: scan_file (PDF / DOCX / ảnh / HTML)
+
+    Routes to appropriate branch by file extension:
+    - .docx         → _scan_extract_docx  (5-section batch)
+    - .html/.htm    → _scan_extract_html  (single call)
+    - .pdf / images → _scan_extract_pdf_image (Vision + smart batching)
+    """
+    file_obj = frappe.request.files.get("scan_file")
+    if not file_obj:
+        frappe.throw("Thiếu file (field: scan_file)")
+
+    filename = file_obj.filename
+    file_bytes = file_obj.read()
+    if not file_bytes:
+        frappe.throw("File rỗng")
+
+    fname = filename.lower()
+    client = _get_client()
+    method_note = ""
+
+    if fname.endswith(".docx"):
+        method_note = "DOCX – batch extraction (5 section)"
+        fields, raw_text = _scan_extract_docx(file_bytes, filename, client)
+    elif fname.endswith((".html", ".htm")):
+        method_note = "HTML – đọc trực tiếp"
+        fields, raw_text = _scan_extract_html(file_bytes, client)
+    elif fname.endswith((".pdf", ".png", ".jpg", ".jpeg", ".bmp", ".webp")):
+        method_note = "GPT-4o Vision → JSON trực tiếp"
+        fields, raw_text = _scan_extract_pdf_image(file_bytes, filename, client)
     else:
         frappe.throw(f"Định dạng file không hỗ trợ: {filename}")
 
@@ -1693,6 +1253,7 @@ TRẢ VỀ JSON THUẦN:
         "xml_output": xml_output,
         **deadline_info,
     }
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════

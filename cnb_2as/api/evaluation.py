@@ -13,6 +13,22 @@ import json
 import frappe
 from frappe.handler import upload_file as frappe_upload_file
 
+from cnb_2as.services.agents import run_evaluation_pipeline
+from cnb_2as.services.document_parser import (
+    check_eval_docx_completeness,
+    check_report_xlsx_completeness,
+    count_working_days,
+    extract_fields_from_markdown,
+    get_file_path_from_url,
+    parse_daily_report,
+    parse_file,
+    validate_cross_document_consistency,
+    validate_xlsx_kpi_ratio,
+    validate_xlsx_product_links,
+)
+from cnb_2as.services.ocr_service import ocr_pdf_to_json
+from cnb_2as.services.pdf_generator import generate_pdf
+
 
 @frappe.whitelist(methods=["POST"])
 def upload_eval_file():
@@ -99,10 +115,6 @@ def run_evaluation_scan(eval_file, work_report_file):
 	Returns:
 		Dict with evaluation name, OCR content for review, and field warnings.
 	"""
-	from cnb_2as.services.document_parser import (
-		extract_fields_from_markdown,
-		get_file_path_from_url,
-	)
 
 	if not eval_file:
 		frappe.throw("Vui lòng upload file Đánh giá tái ký (PDF scan)")
@@ -135,7 +147,6 @@ def run_evaluation_scan(eval_file, work_report_file):
 		eval_file_path = get_file_path_from_url(eval_file)
 		report_file_path = get_file_path_from_url(work_report_file)
 
-		from cnb_2as.services.ocr_service import ocr_pdf_to_json
 
 		# OCR both files (OpenAI Vision is fast, ~10-30s each)
 		ocr_eval = ocr_pdf_to_json(eval_file_path, doc_type="eval")
@@ -285,7 +296,6 @@ def get_ocr_preview(evaluation_name):
 
 	eval_doc = frappe.get_doc("Employee Evaluation", evaluation_name)
 
-	from cnb_2as.services.document_parser import extract_fields_from_markdown
 
 	eval_fields = extract_fields_from_markdown(
 		eval_doc.ocr_eval_content or "", doc_type="eval"
@@ -314,8 +324,6 @@ def process_evaluation_from_ocr(evaluation_name):
 	Args:
 		evaluation_name: Name of the Employee Evaluation document.
 	"""
-	from cnb_2as.services.agents import run_evaluation_pipeline
-	from cnb_2as.services.document_parser import extract_fields_from_markdown
 
 	try:
 		eval_doc = frappe.get_doc("Employee Evaluation", evaluation_name)
@@ -335,10 +343,6 @@ def process_evaluation_from_ocr(evaluation_name):
 			frappe.throw("Nội dung OCR báo cáo công việc rỗng")
 
 		# Run direct file completeness checks (if original files exist)
-		from cnb_2as.services.document_parser import (
-			check_eval_docx_completeness,
-			check_report_xlsx_completeness,
-		)
 		doc_warnings = []
 		if eval_doc.eval_file:
 			try:
@@ -416,18 +420,6 @@ def process_evaluation(evaluation_name, daily_report_file="", ngay_bd="", ngay_k
 		ngay_bd: Start date string for daily report range.
 		ngay_kt: End date string for daily report range.
 	"""
-	from cnb_2as.services.agents import run_evaluation_pipeline
-	from cnb_2as.services.document_parser import (
-		count_working_days,
-		extract_fields_from_markdown,
-		parse_daily_report,
-		parse_file,
-		validate_cross_document_consistency,
-		validate_xlsx_kpi_ratio,
-		validate_xlsx_product_links,
-	)
-
-
 	try:
 		eval_doc = frappe.get_doc("Employee Evaluation", evaluation_name)
 
@@ -496,10 +488,6 @@ def process_evaluation(evaluation_name, daily_report_file="", ngay_bd="", ngay_k
 		so_ngay_can_bc = str(count_working_days(ngay_bd, ngay_kt)) if ngay_bd and ngay_kt else ""
 
 		# Run document completeness check directly from file structure
-		from cnb_2as.services.document_parser import (
-			check_eval_docx_completeness,
-			check_report_xlsx_completeness,
-		)
 		doc_warnings = []
 		try:
 			doc_warnings += check_eval_docx_completeness(eval_doc.eval_file)
@@ -809,7 +797,6 @@ def export_evaluation_pdf(evaluation_name):
 	if eval_data.get("status") != "Completed":
 		frappe.throw("Chỉ có thể xuất PDF khi đánh giá đã hoàn thành")
 
-	from cnb_2as.services.pdf_generator import generate_pdf
 
 	pdf_buffer = generate_pdf(eval_data)
 
