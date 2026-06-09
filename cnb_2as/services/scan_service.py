@@ -62,7 +62,12 @@ def _get_client() -> OpenAI:
     return _client
 
 
+# ── Session namespace ──────────────────────────────────────────────────────────
+_NS = "cnb_scan_phieu"
+
+
 def _save_session(sid: str, data: dict):
+
     frappe.cache().set_value(f"{_NS}:{sid}", json.dumps(data, ensure_ascii=False), expires_in_sec=3600)
 
 
@@ -463,6 +468,7 @@ def _scan_extract_pdf_image(file_bytes, filename, client):
     frappe.logger("cnb_scan").info(f"[SCAN] Direct Vision→JSON: {filename}")
 
     # Build image parts
+    fname = filename.lower()
     if fname.endswith(".pdf"):
         page_images = _pdf_to_images(file_bytes)
     else:

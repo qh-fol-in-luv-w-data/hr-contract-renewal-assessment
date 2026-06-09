@@ -52,6 +52,7 @@ from cnb_2as.services.thu_viec_parsers import (
     _extract_nhanvien_from_docx,
     _parse_xlsx,
     _extract_nhanvien_from_xlsx,
+    _extract_sections,
 )
 
 from cnb_2as.services.prompts import (
@@ -59,6 +60,13 @@ from cnb_2as.services.prompts import (
     _CHAT_SYSTEM,
 )
 
+
+# ── Session constants ─────────────────────────────────────────────────────────
+_SESSION_PREFIX = "cnb_thu_viec_session:"
+_SESSION_TTL    = 86400  # 24 giờ
+
+# ── Tiêu chí được phép (7 mã) ─────────────────────────────────────────────────
+_ALLOWED_CRITERIA = {"W1", "W2", "W3", "E1", "E2", "E3", "X1"}
 
 # ── OpenAI client ─────────────────────────────────────────────────────────────
 _client: OpenAI | None = None
@@ -636,13 +644,16 @@ def _save_session(session_id: str, data: dict) -> None:
     frappe.cache().set_value(key, json.dumps(data, ensure_ascii=False, default=str), expires_in_sec=_SESSION_TTL)
 
 
-def _build_review_prompt(eval_type, docx_parsed, xlsx_parsed):
+def _build_review_prompt(eval_type, docx_parsed, xlsx_parsed,
+                          daily_report_text: str = "", so_ngay_can_bc: str = ""):
     """Build the OpenAI user message prompt for thu-viec/hoc-viec review.
 
     Args:
         eval_type: "thu_viec" | "hoc_viec"
         docx_parsed: parsed DOCX dict (full_text, sections)
         xlsx_parsed: parsed XLSX dict (kpi_rows, full_text)
+        daily_report_text: extracted text from daily report file (optional)
+        so_ngay_can_bc: number of working days required as string (optional)
 
     Returns:
         str: formatted prompt string for the OpenAI user message
@@ -733,6 +744,28 @@ Ví dụ: Word "Xây dựng AI Agent chấm điểm CV" ↔ Excel STT 2 "AI ch�
 Trả về JSON theo đúng schema.
 """
 
+    # ── Nhúc thêm phần báo cáo ngày nếu có ─────────────────────────────────────
+    if daily_report_text and daily_report_text.strip():
+        so_ngay_label = f"(cần có: {so_ngay_can_bc} ngày làm việc)" if so_ngay_can_bc else ""
+        user_msg += f"""
+
+═══ FILE BÁO CÁO NGÀY {so_ngay_label} ═══
+{daily_report_text[:8000]}
+
+YÊu CẦU KIỂM TRA BÁO CÁO NGÀY:
+- Đếm số ngày đã có báo cáo (so_ngay_da_bc)
+- So sánh với số ngày cần báo cáo {so_ngay_can_bc or "(tính từ phạm vi thử việc)"} (so_ngay_can_bc)
+- Liệt kê ngày thiếu báo cáo hoàn toàn (ngay_thieu_bao_cao)
+- Liệt kê ngày có báo cáo nhưng thiếu hạng mục cần thiết (ngay_thieu_hang_muc)
+- Điền số ngày đầy đủ hạng mục (so_ngay_du_hang_muc)
+- Nhan_xet ngắn gọn về kểt quả báo cáo ngày
+"""
+    else:
+        user_msg += """
+
+═══ BÁO CÁO NGÀY ═══
+Không có file báo cáo ngày — đặt bao_cao_ngay = null trong kết quả.
+"""
 
     return user_msg
 

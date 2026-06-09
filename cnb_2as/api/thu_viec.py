@@ -105,8 +105,6 @@ _SESSION_TTL = 86400  # 24 giờ
 _SESSION_PREFIX = "ats_session:"
 
 
-# Chỉ cho phép đúng 7 mã tiêu chí này. Mọi mã khác đều bị lọc cứng.
-_ALLOWED_CRITERIA = {"W1", "W2", "W3", "E1", "E2", "E3", "X1"}
 
 
 
@@ -511,23 +509,49 @@ def review_files():
             frappe.throw("Còn lỗi ở file Excel. Vui lòng upload lại file Excel đã chỉnh sửa.")
 
     # ── Xây dựng prompt ──────────────────────────────────────────────────────────────────
-    user_msg = _build_review_prompt(eval_type, docx_parsed, xlsx_parsed)
+    user_msg = _build_review_prompt(eval_type, docx_parsed, xlsx_parsed,
+                                     daily_report_text=daily_report_text,
+                                     so_ngay_can_bc=so_ngay_can_bc_str)
     # ── Gọi OpenAI ────────────────────────────────────────────────────────────
 
     client = _get_client()
-    resp = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-        messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": user_msg},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.1,
-        max_tokens=8000,
-    )
+    try:
+        resp = client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": user_msg},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            max_tokens=14000,
+        )
+    except Exception as openai_err:
+        err_str = str(openai_err)
+        if "insufficient_quota" in err_str or "429" in err_str:
+            frappe.throw(
+                "❌ API OpenAI đã hết quota (429). "
+                "Vui lòng nạp thêm credits tại platform.openai.com/billing "
+                "hoặc liên hệ admin để đổi API key."
+            )
+        elif "authentication" in err_str.lower() or "401" in err_str:
+            frappe.throw("❌ API key OpenAI không hợp lệ. Vui lòng kiểm tra lại cấu hình.")
+        else:
+            frappe.throw(f"❌ Lỗi khi gọi OpenAI: {err_str[:200]}")
     result = json.loads(resp.choices[0].message.content)
     result = _filter_result(result)  # Xóa bất kỳ E1 nào AI tự sinh ra
     _log_tokens(resp, "review_files")
+
+    # ── Debug: log sự có mặt của các field quan trọng ──────────────────────────
+    _logger = frappe.logger("cnb_review", allow_site=True)
+    _logger.info(
+        f"[RESULT_FIELDS] bang_ty_trong={'CÓ' if result.get('bang_ty_trong') else 'THIẾU'} "
+        f"| bao_cao_ngay={'CÓ' if result.get('bao_cao_ngay') else 'THIẾU'} "
+        f"| danh_gia_quan_ly={'CÓ' if result.get('danh_gia_quan_ly') else 'THIẾU'} "
+        f"| daily_text_len={len(daily_report_text)} "
+        f"| total_tokens={resp.usage.total_tokens if resp.usage else '?'}"
+    )
+
 
     # Lưu vào session (Redis cache – dùng chung giữa các worker)
     sess["review"] = result
@@ -604,7 +628,7 @@ def review_files():
             str((docx_parsed.get("nhan_vien_info") or {}).get("ngay_het_han_thu_viec", ""))
         ),
         "bang_ty_trong": result.get("bang_ty_trong", None),
-        "bao_cao_ngay": result.get("bao_cao_ngay", None) if daily_report_text else None,
+        "bao_cao_ngay": result.get("bao_cao_ngay", None),
         "danh_gia_quan_ly": result.get("danh_gia_quan_ly", None),
         "eval_type": eval_type,
     }

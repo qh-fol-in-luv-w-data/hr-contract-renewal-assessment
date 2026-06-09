@@ -4,7 +4,7 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [vue()],
-  base: '/assets/cnb_2as/frontend/',
+  base: '/',
   build: {
     outDir: resolve(__dirname, '../cnb_2as/public/frontend'),
     emptyOutDir: true,

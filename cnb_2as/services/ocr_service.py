@@ -357,24 +357,7 @@ Trả về JSON với cấu trúc:
 		elapsed = time.time() - start_time
 		print(f"[OCR] done: {filename} — {elapsed:.1f}s, {len(result_json)} chars, {total_tokens} tokens, {len(page_results)} page(s)")
 
-		# ── Log cost ──
-		try:
-			import sys
-			note_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "note")
-			if note_dir not in sys.path:
-				sys.path.insert(0, note_dir)
-			from openai_cost_tracker import log_api_call
-			log_api_call(
-				service=f"ocr_{doc_type}",
-				model=model,
-				input_tokens=int(total_tokens * 0.7),  # approximate split
-				output_tokens=int(total_tokens * 0.3),
-				image_count=len(base64_images),
-				detail="high",
-				file_name=filename,
-			)
-		except Exception as cost_err:
-			print(f"[CostTracker] Warning: {cost_err}")
+		# Cost tracking removed (openai_cost_tracker module not available)
 
 		return result_json
 
@@ -536,24 +519,8 @@ Trả về JSON:
 	elapsed = time.time() - start_time
 	print(f"[OCR-Daily] Xong: {len(bao_cao_list)} ngày, {elapsed:.1f}s, {total_tokens} tokens")
 
-	# Log cost
-	try:
-		import sys as _sys
-		note_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "note")
-		if note_dir not in _sys.path:
-			_sys.path.insert(0, note_dir)
-		from openai_cost_tracker import log_api_call
-		log_api_call(
-			service="ocr_daily_report",
-			model=model,
-			input_tokens=int(total_tokens * 0.7),
-			output_tokens=int(total_tokens * 0.3),
-			image_count=len(img_entries),
-			detail="high",
-			file_name=os.path.basename(file_path),
-		)
-	except Exception as cost_err:
-		print(f"[CostTracker] Warning: {cost_err}")
+	# Cost tracking removed (openai_cost_tracker module not available)
+
 
 	return result_json
 

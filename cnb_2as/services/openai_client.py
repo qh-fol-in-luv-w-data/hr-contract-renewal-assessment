@@ -72,23 +72,8 @@ def chat_completion_json(system_prompt, user_prompt, model="gpt-4o"):
 
 		content = response.choices[0].message.content
 
-		# ── Log cost ──
-		try:
-			import os, sys
-			note_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "note")
-			if note_dir not in sys.path:
-				sys.path.insert(0, note_dir)
-			from openai_cost_tracker import log_api_call
-			usage = response.usage
-			if usage:
-				log_api_call(
-					service="ai_evaluation",
-					model=model,
-					input_tokens=usage.prompt_tokens,
-					output_tokens=usage.completion_tokens,
-				)
-		except Exception:
-			pass
+		# Cost tracking removed (openai_cost_tracker module not available)
+
 
 		return json.loads(content)
 

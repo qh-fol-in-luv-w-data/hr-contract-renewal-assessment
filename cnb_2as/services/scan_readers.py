@@ -47,6 +47,14 @@ from openai import OpenAI
 _client = None
 
 
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        key = os.getenv("OPENAI_API_KEY", "") or getattr(frappe.conf, "openai_api_key", "")
+        if not key:
+            frappe.throw("Chưa cấu hình OPENAI_API_KEY")
+        _client = OpenAI(api_key=key)
+    return _client
 
 
 

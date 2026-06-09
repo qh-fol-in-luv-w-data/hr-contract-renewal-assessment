@@ -158,7 +158,93 @@ QUAN TRỌNG:
 
 
 
+def _extract_sections(full_text: str) -> dict:
+    """
+    Trích xuất các phần quan trọng từ text Word để AI dễ cross-check:
+    - nhiem_vu_thuc_hien: phần mô tả công việc đã làm
+    - kpi_tuan: toàn bộ phần KPI tuần (tất cả các tuần)
+    - tuan_{n}: nội dung riêng của từng tuần (Tuần 1 → 8)
+    - so_tuan: số tuần phát hiện được
+    """
+    import re as _re_sec
+    text_lower = full_text.lower()
+    sections = {}
+
+    kw_nhiem_vu = [
+        "các công việc ứng viên đã thực hiện được",
+        "công việc ứng viên đã thực hiện",
+        "nhiệm vụ đã thực hiện",
+        "công việc đã thực hiện",
+        "các công việc đã làm",
+        "nội dung công việc đã thực hiện",
+        "các đầu việc đã thực hiện",
+        "kết quả công việc",
+        "nhiệm vụ, kết quả thực tế",
+    ]
+    for kw in kw_nhiem_vu:
+        idx = text_lower.find(kw)
+        if idx != -1:
+            sections["nhiem_vu_thuc_hien"] = full_text[max(0, idx - 50):idx + 5000]
+            break
+
+    kw_kpi_tuan = [
+        "kpi tuần", "kết quả kpi tuần", "báo cáo kpi tuần",
+        "tuần 1", "tuần thứ 1", "tuần thứnhất",
+        "nhiệm vụ đặt ra", "sản phẩm đặt ra",
+        "kế hoạch tuần",
+    ]
+    kpi_tuan_start = -1
+    for kw in kw_kpi_tuan:
+        idx = text_lower.find(kw)
+        if idx != -1:
+            kpi_tuan_start = max(0, idx - 50)
+            break
+
+    if kpi_tuan_start != -1:
+        sections["kpi_tuan"] = full_text[kpi_tuan_start:kpi_tuan_start + 12000]
+
+    tuan_patterns = [
+        r"tu\w*n\s*(?:th\w*\s*)?(\d+)",
+        r"tu\w*n\s*(?:th\w*\s*)?(?:nh\w*t|m\w*t)\b",
+        r"week\s*(\d+)",
+    ]
+    word_to_num = {
+        "nhất": 1, "một": 1, "hai": 2, "ba": 3, "bốn": 4,
+        "năm": 5, "sáu": 6, "bảy": 7, "tám": 8, "chín": 9,
+    }
+
+    tuan_positions = []
+    seen_nums = set()
+    for pattern in tuan_patterns:
+        for m in _re_sec.finditer(pattern, text_lower, _re_sec.UNICODE):
+            g1 = m.group(1) if m.lastindex and m.group(1) else None
+            if g1 and g1.isdigit():
+                tuan_num = int(g1)
+            else:
+                matched_word = m.group(0).split()[-1]
+                tuan_num = word_to_num.get(matched_word, None)
+            if tuan_num and 1 <= tuan_num <= 8 and tuan_num not in seen_nums:
+                seen_nums.add(tuan_num)
+                tuan_positions.append((tuan_num, m.start()))
+
+    tuan_positions.sort(key=lambda x: x[1])
+
+    kpi_end = kpi_tuan_start + 12000 if kpi_tuan_start != -1 else len(full_text)
+    for i, (tuan_num, start) in enumerate(tuan_positions):
+        if i + 1 < len(tuan_positions):
+            end = tuan_positions[i + 1][1]
+        else:
+            end = min(start + 3000, kpi_end)
+        sections[f"tuan_{tuan_num}"] = full_text[start:end].strip()
+
+    sections["so_tuan"] = len(tuan_positions)
+    sections["ds_tuan"] = sorted(seen_nums)
+
+    return sections
+
+
 def _parse_pdf_for_docx(data: bytes) -> dict:
+
     """Parse PDF file and return a dict compatible with _parse_docx output.
     Extracts text from all pages and builds a minimal structure.
     """
