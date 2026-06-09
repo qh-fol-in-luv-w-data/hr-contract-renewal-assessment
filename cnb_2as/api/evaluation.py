@@ -355,13 +355,19 @@ def process_evaluation_from_ocr(evaluation_name):
 			except Exception:
 				pass
 
+		# OCR flow không có daily report — khởi tạo các biến optional với giá trị rỗng
+		daily_report_content = ""
+		ngay_bd = ""
+		ngay_kt = ""
+		so_ngay_can_bc = ""
+
 		# Run AI pipeline
 		result = run_evaluation_pipeline(
 			eval_content=eval_content,
 			work_report_content=work_report_content,
 			daily_report_content=daily_report_content,
-			ngay_bd=ngay_bd or "",
-			ngay_kt=ngay_kt or "",
+			ngay_bd=ngay_bd,
+			ngay_kt=ngay_kt,
 			so_ngay_can_bc=so_ngay_can_bc,
 		)
 
@@ -498,10 +504,14 @@ def process_evaluation(evaluation_name, daily_report_file="", ngay_bd="", ngay_k
 		except Exception:
 			pass
 
-		# Run AI pipeline
+		# Run AI pipeline (truyền đầy đủ daily report params)
 		result = run_evaluation_pipeline(
 			eval_content=eval_content,
 			work_report_content=work_report_content,
+			daily_report_content=daily_report_content,
+			ngay_bd=ngay_bd or "",
+			ngay_kt=ngay_kt or "",
+			so_ngay_can_bc=so_ngay_can_bc,
 		)
 
 		# Merge: code-based warnings (accurate) + AI-based warnings (smart)
@@ -752,6 +762,9 @@ def get_evaluation_result(evaluation_name):
 			result["extracted_info"] = raw.get("extracted_info", {})
 			result["bao_cao_ngay"] = raw.get("bao_cao_ngay", None)
 			result["danh_gia_quan_ly"] = raw.get("danh_gia_quan_ly", None)
+			result["danh_gia_hop_dong"] = raw.get("danh_gia_hop_dong", None)
+			result["danh_gia_de_xuat_nhan_su"] = raw.get("danh_gia_de_xuat_nhan_su", None)
+			result["jd_goi_y"] = raw.get("jd_goi_y", None)
 		except json.JSONDecodeError:
 			pass
 
@@ -812,6 +825,6 @@ def export_evaluation_pdf(evaluation_name):
 	filename = f"DanhGia_{safe_name}_{evaluation_name}.pdf"
 
 	frappe.local.response.filename = filename
-	frappe.local.response.filecontent = pdf_buffer.read()
-	frappe.local.response.type = "download"
+	frappe.local.response.filecontent = pdf_buffer.getvalue()
+	frappe.local.response.type = "pdf"
 

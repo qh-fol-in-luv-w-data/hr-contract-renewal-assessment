@@ -90,16 +90,19 @@
           <div v-if="dailyReportFile" class="daily-date-range">
             <div class="ddr-row">
               <label class="ddr-label">Từ ngày</label>
-              <input type="date" v-model="ngayBD" class="ddr-input" />
+              <input type="text" v-model="ngayBD" class="ddr-input" placeholder="dd/mm/yyyy" maxlength="10"
+                @input="e => ngayBD = fmtDateInput(e.target.value)"/>
             </div>
             <div class="ddr-row">
               <label class="ddr-label">Đến ngày</label>
-              <input type="date" v-model="ngayKT" class="ddr-input" />
+              <input type="text" v-model="ngayKT" class="ddr-input" placeholder="dd/mm/yyyy" maxlength="10"
+                @input="e => ngayKT = fmtDateInput(e.target.value)"/>
             </div>
             <div v-if="ngayBD && ngayKT && soNgayLamViec > 0" class="ddr-calc">
               📅 <b>{{ soNgayLamViec }}</b> ngày làm việc (đã trừ T7, CN)
             </div>
           </div>
+
 
           <p v-if="tried&&(!docxFile||!xlsxFile)" class="sb-err">{{ t('need_2_files') }}</p>
 
@@ -114,7 +117,7 @@
         <div v-if="scanStep===2" class="sb-section">
           <div class="sb-section-title">📊 {{ t('scan_result') }}</div>
           <div v-if="scanPhieuResult" class="sb-result-block">
-            <div class="srb-title">📋 {{ t('scan_phieu') }}</div>
+            <div class="srb-title">📋 {{ evalType==='hoc_viec' ? '🎓 Học việc' : '🎯 Thử việc' }}</div>
             <div class="srb-badge" :class="scanPhieuResult.mau_de_xuat==='green'?'srb-green':scanPhieuResult.mau_de_xuat==='red'?'srb-red':'srb-amber'">{{ scanPhieuResult.de_xuat || '...' }}</div>
           </div>
           <div v-if="scanMonths.length" class="sb-result-block">
@@ -266,16 +269,21 @@
 
             <!-- Sản phẩm dynamic tuần -->
             <div class="phieu-section-head">2. SẢN PHẨM NGHIỆM THU ({{ nTuan }} TUẦN)</div>
-            <div v-for="i in nTuan" :key="'sp'+i" class="sp-card">
-              <div class="sp-head">Tuần {{ i }} <span class="sp-kpi" :class="kpiClass(scanEf[`kpi_sp_tuan_${i}`])">{{ scanEf[`kpi_sp_tuan_${i}`] || '—' }}</span></div>
+            <div v-for="i in nTuan" :key="'sp'+i" class="sp-card" :class="{' sp-empty': !scanEf[`san_pham_${i}`] && !scanEf[`kpi_sp_tuan_${i}`]}">
+              <div class="sp-head">
+                Tuần {{ i }}
+                <span class="sp-kpi" :class="kpiClass(scanEf[`kpi_sp_tuan_${i}`])">{{ scanEf[`kpi_sp_tuan_${i}`] || '—' }}</span>
+                <span v-if="!scanEf[`san_pham_${i}`]" class="sp-missing-badge">⚠ Thiếu sản phẩm</span>
+              </div>
               <table class="phieu-table" style="margin-top:6px">
                 <tbody>
-                  <tr><td class="pl" style="width:24%">Sản phẩm</td><td colspan="2"><textarea class="pe-ta" v-model="scanEf[`san_pham_${i}`]" rows="2"></textarea></td></tr>
-                  <tr><td class="pl">Số lượng file</td><td><input class="pe-input" v-model="scanEf[`so_luong_file_${i}`]" style="width:80px"/></td><td class="pl" style="width:30%">% KPI: <input class="pe-input" v-model="scanEf[`kpi_sp_tuan_${i}`]" style="width:60px;display:inline"/></td></tr>
+                  <tr><td class="pl" style="width:24%">Sản phẩm</td><td colspan="2"><textarea class="pe-ta" :class="{' pe-warn': !scanEf[`san_pham_${i}`]}" v-model="scanEf[`san_pham_${i}`]" rows="2" :placeholder="`Tuần ${i}: Nhập mô tả sản phẩm...`"></textarea></td></tr>
+                  <tr><td class="pl">Số lượng file</td><td><input class="pe-input" v-model="scanEf[`so_luong_file_${i}`]" style="width:80px" placeholder="0"/></td><td class="pl" style="width:30%">% KPI: <input class="pe-input" :class="{' pe-warn': !scanEf[`kpi_sp_tuan_${i}`]}" v-model="scanEf[`kpi_sp_tuan_${i}`]" style="width:60px;display:inline" placeholder="0%"/></td></tr>
                   <tr><td class="pl">🔗 Link đính kèm</td><td colspan="2"><textarea class="pe-ta" style="color:#60a5fa;font-family:monospace;font-size:.78rem" v-model="scanEf[`link_dinh_kem_${i}`]" rows="2"></textarea></td></tr>
                 </tbody>
               </table>
             </div>
+
 
             <!-- Phần III – Hội nhập -->
             <div class="phieu-section-head">PHẦN III: MỨC ĐỘ HỘI NHẬP</div>
@@ -682,24 +690,43 @@
         <!-- ── Đánh giá đề xuất của Quản lý ─────────────────────── -->
         <div v-if="result?.danh_gia_quan_ly" class="result-card">
           <div class="rc-header" :class="result.danh_gia_quan_ly.hop_ly ? 'rc-h-green' : 'rc-h-warn'" @click="toggle('quanly')">
-            <span>👔 Đề xuất của Quản lý</span>
-            <span class="dx-chip" :class="result.danh_gia_quan_ly.hop_ly ? 'chip-pass' : 'chip-extend'">{{ result.danh_gia_quan_ly.hop_ly ? '✅ Hợp lý' : '⚠️ Cần xem xét' }}</span>
+            <span>👔 Đánh giá đề xuất quản lý</span>
+            <span class="dx-chip" :class="result.danh_gia_quan_ly.hop_ly ? 'chip-pass' : 'chip-extend'">{{ result.danh_gia_quan_ly.muc_do_dong_y || (result.danh_gia_quan_ly.hop_ly ? '✅ Đồng ý' : '⚠️ Cần xem xét') }}</span>
             <span class="rc-arrow" :class="{open:sec.quanly}">›</span>
           </div>
           <div v-if="sec.quanly" class="rc-body">
+            <!-- Đề xuất gốc của quản lý -->
             <div class="dx-ai-row">
-              <div class="dx-ai-block">
-                <div class="dxg-label">Đề xuất của Quản lý</div>
-                <div class="dx-ly-do" style="font-weight:600">{{ result.danh_gia_quan_ly.de_xuat_quan_ly || '—' }}</div>
+              <div class="dx-ai-block" style="flex:2">
+                <div class="dxg-label">Đề xuất của Quản lý / TBP / HOD</div>
+                <div class="dx-ly-do" style="font-weight:600;font-style:italic;color:#1e3a5f">{{ result.danh_gia_quan_ly.de_xuat_quan_ly || '—' }}</div>
               </div>
-              <div class="dx-ai-block">
-                <div class="dxg-label">AI nhận định</div>
-                <div class="dx-ai-badge" :class="result.danh_gia_quan_ly.hop_ly ? 'dxb-pass' : 'dxb-fail'">{{ result.danh_gia_quan_ly.hop_ly ? '✅ Hợp lý' : '⚠️ Không hợp lý' }}</div>
+              <div class="dx-ai-block" style="flex:1">
+                <div class="dxg-label">Mức độ đồng ý</div>
+                <div class="dx-ai-badge" :class="result.danh_gia_quan_ly.hop_ly ? 'dxb-pass' : 'dxb-fail'">
+                  {{ result.danh_gia_quan_ly.muc_do_dong_y || (result.danh_gia_quan_ly.hop_ly ? '✅ Đồng ý hoàn toàn' : '⚠️ Không đồng ý') }}
+                </div>
               </div>
             </div>
-            <div v-if="result.danh_gia_quan_ly.nhan_xet" style="margin-top:10px">
-              <div class="dxg-label">Nhận xét của AI</div>
-              <div class="dx-ly-do">{{ result.danh_gia_quan_ly.nhan_xet }}</div>
+            <!-- Lý do chính -->
+            <div v-if="result.danh_gia_quan_ly.ly_do_chinh" style="margin-top:10px;padding:10px 12px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:6px">
+              <div class="dxg-label">Lý do chính</div>
+              <div class="dx-ly-do" style="font-weight:600;color:#0c4a6e">{{ result.danh_gia_quan_ly.ly_do_chinh }}</div>
+            </div>
+            <!-- Phân tích chi tiết -->
+            <div v-if="result.danh_gia_quan_ly.phan_tich_chi_tiet" style="margin-top:10px">
+              <div class="dxg-label">Phân tích chi tiết</div>
+              <div class="dx-ly-do" style="line-height:1.75;color:#374151">{{ result.danh_gia_quan_ly.phan_tich_chi_tiet }}</div>
+            </div>
+            <!-- Nhận xét tổng thể -->
+            <div v-if="result.danh_gia_quan_ly.nhan_xet" style="margin-top:10px;padding:10px 12px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
+              <div class="dxg-label">Nhận xét của chuyên gia</div>
+              <div class="dx-ly-do" style="color:#334155">{{ result.danh_gia_quan_ly.nhan_xet }}</div>
+            </div>
+            <!-- Khuyến nghị xử lý -->
+            <div v-if="result.danh_gia_quan_ly.khuyen_nghi_xu_ly" style="margin-top:10px;padding:10px 12px;background:#fefce8;border-left:3px solid #eab308;border-radius:6px">
+              <div class="dxg-label">Khuyến nghị xử lý</div>
+              <div class="dx-ly-do" style="font-weight:600;color:#78350f">{{ result.danh_gia_quan_ly.khuyen_nghi_xu_ly }}</div>
             </div>
           </div>
         </div>
@@ -713,12 +740,12 @@
           </div>
           <div v-if="sec.next" class="rc-body">
             <div v-for="(s, si) in nextStepsAI" :key="si" class="ns-item" :class="{done:s.done,'ns-urgent-item':s.urgent}" @click="s.done=!s.done">
-              <span class="ns-check">{{ s.done ? '✅' : '☐' }}</span>
+              <span class="ns-num">{{ si+1 }}</span>
               <div style="flex:1">
                 <div class="ns-title">{{ s.title }}</div>
                 <div v-if="s.mo_ta" class="ns-sub">{{ s.mo_ta }}</div>
               </div>
-              <span v-if="s.urgent" class="ns-urgent">⚡ Gấp</span>
+              <span v-if="s.urgent" class="ns-urgent">Gấp</span>
             </div>
             <div v-if="!nextStepsAI.length" class="ns-empty">AI chưa tạo danh sách việc cần làm</div>
             <div class="ns-footer">
@@ -728,6 +755,14 @@
           </div>
         </div>
 
+        <!-- ── Gợi ý JD ── -->
+        <JdGoiY
+          v-if="result?.jd_goi_y"
+          :jd="result.jd_goi_y"
+          :expanded="sec.jd"
+          @toggle="sec.jd = !sec.jd"
+        />
+
       </div>
     </main>
   </div>
@@ -735,6 +770,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import JdGoiY from '../components/JdGoiY.vue'
 import { store, t } from '../store'
 
 const docxFile = ref(null), xlsxFile = ref(null)
@@ -744,7 +780,7 @@ const tried = ref(false), loading = ref(false)
 const result = ref(null), error = ref('')
 const fromScan = ref(false)
 const inputMode = ref('default')
-const sec = reactive({ issues: true, kpi: false, good: false, as2: false, warn2as: false, dexuat: true, next: true, tytrong: true, daily: true, quanly: true })
+const sec = reactive({ issues: true, kpi: false, good: false, as2: false, warn2as: false, dexuat: true, next: true, tytrong: true, daily: true, quanly: true, jd: true })
 
 // ── AI-generated output accessors ───────────────────────────────────
 const aiDx = computed(() => result.value?.de_xuat_xu_ly || {})
@@ -752,11 +788,26 @@ const aiHan = computed(() => result.value?.canh_bao_han || {})
 const nextStepsAI = ref([])
 
 // ── Tính số ngày làm việc (trừ T7, CN) ────────────────────────────
+// Parse dd/mm/yyyy hoặc yyyy-mm-dd → Date
+function parseDMY(s) {
+  if (!s) return null
+  const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (m1) return new Date(+m1[3], +m1[2] - 1, +m1[1])
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (m2) return new Date(+m2[1], +m2[2] - 1, +m2[3])
+  return null
+}
+// Auto-format khi gõ: thêm / sau dd và mm
+function fmtDateInput(v) {
+  const digits = v.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return digits.slice(0,2) + '/' + digits.slice(2)
+  return digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4)
+}
 const soNgayLamViec = computed(() => {
-  if (!ngayBD.value || !ngayKT.value) return 0
-  const start = new Date(ngayBD.value)
-  const end = new Date(ngayKT.value)
-  if (end < start) return 0
+  const start = parseDMY(ngayBD.value)
+  const end = parseDMY(ngayKT.value)
+  if (!start || !end || end < start) return 0
   let count = 0
   const cur = new Date(start)
   while (cur <= end) {
@@ -766,6 +817,7 @@ const soNgayLamViec = computed(() => {
   }
   return count
 })
+
 
 // ── Check sessionStorage on mount (from ScanCombined) ───────────────────
 onMounted(() => {
@@ -944,7 +996,9 @@ async function doScan() {
   const tasks = []
 
   if (docxFile.value) {
-    const fd = new FormData(); fd.append('scan_file', docxFile.value)
+    const fd = new FormData()
+    fd.append('scan_file', docxFile.value)
+    fd.append('eval_type', evalType.value)
     tasks.push(
       callScanApi('/api/method/cnb_2as.api.scan_phieu.scan_extract', fd)
         .then(async d => {
@@ -995,11 +1049,37 @@ async function sendScanToEval() {
       months: scanMonths.value,
       shared: scanShared.value,
       cv_list: cvList.value,
+      eval_type: evalType.value,
+      so_ngay_can_bc: soNgayLamViec.value || 0,
+      ngay_bd: ngayBD.value ? (parseDMY(ngayBD.value)?.toISOString().slice(0,10) || ngayBD.value) : '',
+      ngay_kt: ngayKT.value ? (parseDMY(ngayKT.value)?.toISOString().slice(0,10) || ngayKT.value) : '',
     }
+
+    let fetchBody, fetchHeaders
+    if (dailyReportFile.value) {
+      // Có file → dùng FormData để backend parse .xlsx/.docx đúng cách
+      const fd = new FormData()
+      fd.append('ef', JSON.stringify(payload.ef))
+      fd.append('months', JSON.stringify(payload.months))
+      fd.append('shared', JSON.stringify(payload.shared))
+      fd.append('cv_list', JSON.stringify(payload.cv_list))
+      fd.append('eval_type', payload.eval_type)
+      fd.append('so_ngay_can_bc', String(payload.so_ngay_can_bc))
+      fd.append('ngay_bd', payload.ngay_bd)
+      fd.append('ngay_kt', payload.ngay_kt)
+      fd.append('daily_report_file', dailyReportFile.value)
+      fetchBody = fd
+      fetchHeaders = { 'X-Frappe-CSRF-Token': csrf() }
+    } else {
+      // Không có file → dùng JSON như cũ
+      fetchBody = JSON.stringify(payload)
+      fetchHeaders = { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': csrf() }
+    }
+
     const resp = await fetch(`${BASE}.review_from_scan`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': csrf() },
-      body: JSON.stringify(payload),
+      headers: fetchHeaders,
+      body: fetchBody,
     })
     const j = await resp.json()
     if (!resp.ok) throw new Error(j?.exception || j?.message || `HTTP ${resp.status}`)
@@ -1008,6 +1088,7 @@ async function sendScanToEval() {
     loadNextSteps(result.value)  // populate viec_can_lam
     // Mở sections kết quả để user thấy ngay bên dưới form scan
     sec.dexuat = true; sec.next = true; sec.as2 = true
+    sec.tytrong = true; sec.daily = !!(result.value?.bao_cao_ngay)
     // Giữ scanStep===2 để user vẫn thấy form scan và có thể sửa rồi đánh giá lại
   } catch(e) {
     evalError.value = e.message
@@ -1016,55 +1097,60 @@ async function sendScanToEval() {
   }
 }
 
+
 async function exportReport() {
   const r = result.value; if (!r) return
-  const nv = r.thong_tin_nhan_vien || {}
+  const _nvi = r.thong_tin_nhan_vien || {}
+  const nv = {
+    ten_nhan_vien: _nvi.ten_nhan_vien || scanEf.ho_ten || '—',
+    ma_nhan_vien:  _nvi.ma_nhan_vien  || scanEf.ma_nhan_su || '—',
+    chuc_danh:     _nvi.chuc_danh     || scanEf.chuc_danh || '—',
+    don_vi:        _nvi.don_vi        || scanEf.phong_ban || '—',
+    ngay_nhan_viec:_nvi.ngay_nhan_viec|| scanEf.ngay_nhan_viec || '—',
+    ngay_het_han:  _nvi.ngay_het_han  || scanEf.ngay_het_han || '—',
+  }
   const now = new Date().toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' })
   const nsSteps = nextStepsAI.value.map((s,i) =>
     `<tr><td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center">${i+1}</td>
      <td style="padding:6px 8px;border:1px solid #e5e7eb">${s.title}${s.mo_ta?'<br><small style="color:#6b7280">'+s.mo_ta+'</small>':''}</td>
-     <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center">${s.urgent?'⚡ Gấp':''}</td>
-     <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center">${s.done?'✅':''}</td></tr>`
+     <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center">${s.urgent?'Cao':''}</td>
+     <td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center">${s.done?'X':''}</td></tr>`
   ).join('')
 
   // ── Phần 7 tiêu chí 2AS ──────────────────────────────────────────
   const tc2asHtml = (r.phan_tich_2as?.length) ? `
     <div style="page-break-inside:avoid">
-    <h3 style="color:#4f46e5;margin-top:28px;border-left:4px solid #6366f1;padding-left:10px;font-size:15px">
-      🔍 Phân tích theo 7 Tiêu chí đánh giá 2AS
-      <span style="font-size:12px;font-weight:400;color:#6b7280;margin-left:8px">
+    <h3 style="margin-top:28px;border-left:4px solid #555;padding-left:10px;font-size:15px;color:#111">
+      Phân tích theo 7 Tiêu chí đánh giá 2AS
+      <span style="font-size:12px;font-weight:400;color:#555;margin-left:8px">
         (${r.phan_tich_2as.filter(t=>t.ket_qua==='ĐẠT').length}/${r.phan_tich_2as.length} đạt)
       </span>
     </h3>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px;page-break-inside:avoid">
-      <thead><tr style="background:#ede9fe">
-        <th style="padding:8px 10px;border:1px solid #ddd6fe;width:50px;text-align:center">#</th>
-        <th style="padding:8px 10px;border:1px solid #ddd6fe;width:20%">Tiêu chí</th>
-        <th style="padding:8px 10px;border:1px solid #ddd6fe">Nhận xét</th>
-        <th style="padding:8px 10px;border:1px solid #ddd6fe;width:95px;text-align:center">Kết quả</th>
+      <thead><tr style="background:#eee">
+        <th style="padding:8px 10px;border:1px solid #ccc;width:50px;text-align:center">#</th>
+        <th style="padding:8px 10px;border:1px solid #ccc;width:20%">Tiêu chí</th>
+        <th style="padding:8px 10px;border:1px solid #ccc">Nhận xét</th>
+        <th style="padding:8px 10px;border:1px solid #ccc;width:95px;text-align:center">Kết quả</th>
       </tr></thead>
       <tbody>
-        ${r.phan_tich_2as.map((tc,i)=>{
-          const isDat = tc.ket_qua==='ĐẠT'
-          const isWarn = (tc.ket_qua||'').includes('CẦN') || (tc.ket_qua||'').includes('BỔ SUNG')
-          const bg = isDat?'#f0fdf4':isWarn?'#fffbeb':'#fef2f2'
-          const clr = isDat?'#059669':isWarn?'#d97706':'#dc2626'
-          return `<tr style="background:${bg};page-break-inside:avoid">
-            <td style="padding:7px 10px;border:1px solid #e5e7eb;text-align:center;font-weight:700;color:#6366f1">${tc.ma||i+1}</td>
-            <td style="padding:7px 10px;border:1px solid #e5e7eb;font-weight:600">${tc.tieu_chi||'—'}</td>
-            <td style="padding:7px 10px;border:1px solid #e5e7eb;line-height:1.6">${tc.nhan_xet||'—'}</td>
-            <td style="padding:7px 10px;border:1px solid #e5e7eb;text-align:center;font-weight:700;color:${clr};white-space:nowrap">${tc.ket_qua||'—'}</td>
+        ${r.phan_tich_2as.map((tc,i)=>
+          `<tr style="background:${i%2===0?'#f9f9f9':'#fff'};page-break-inside:avoid">
+            <td style="padding:7px 10px;border:1px solid #ddd;text-align:center;font-weight:700">${tc.ma||i+1}</td>
+            <td style="padding:7px 10px;border:1px solid #ddd;font-weight:600">${tc.tieu_chi||'—'}</td>
+            <td style="padding:7px 10px;border:1px solid #ddd;line-height:1.6">${tc.nhan_xet||'—'}</td>
+            <td style="padding:7px 10px;border:1px solid #ddd;text-align:center;font-weight:700;white-space:nowrap">${tc.ket_qua||'—'}</td>
           </tr>`
-        }).join('')}
+        ).join('')}
       </tbody>
     </table>
     </div>` : ''
 
   // ── Cảnh báo 2AS ─────────────────────────────────────────────────
   const canhBaoHtml = (r.canh_bao_2as?.length) ? `
-    <div style="background:#fffbeb;border:1px solid #fbbf24;border-radius:8px;padding:12px;margin-bottom:16px;page-break-inside:avoid">
-      <div style="font-weight:700;color:#92400e;margin-bottom:8px">⚠️ Cảnh báo 2AS (${r.canh_bao_2as.length} lưu ý)</div>
-      <ul style="margin:0;padding-left:20px;color:#78350f">
+    <div style="border:1px solid #ccc;border-radius:4px;padding:12px;margin-bottom:16px;page-break-inside:avoid">
+      <div style="font-weight:700;margin-bottom:8px">Cảnh báo 2AS (${r.canh_bao_2as.length} lưu ý)</div>
+      <ul style="margin:0;padding-left:20px">
         ${r.canh_bao_2as.map(w=>`<li style="margin-bottom:4px">${w}</li>`).join('')}
       </ul>
     </div>` : ''
@@ -1072,68 +1158,214 @@ async function exportReport() {
   // ── Đề xuất xử lý ─────────────────────────────────────────────────
   const dx = r.de_xuat_xu_ly || {}
   const kqtv = dx.ket_qua_tv || ''
-  const isPass = kqtv.toLowerCase().includes('đạt') || kqtv.includes('Ký HĐ') || kqtv.includes('ký hđ')
-  const isExtend = kqtv.toLowerCase().includes('gia hạn')
-  const dxBg = isPass?'#f0fdf4':isExtend?'#fffbeb':'#fef2f2'
-  const dxBorder = isPass?'#059669':isExtend?'#d97706':'#dc2626'
-  const deXuatHtml = (kqtv || dx.muc_do || dx.ly_do) ? `
+  const deXuatHtml = kqtv ? `
     <div style="page-break-inside:avoid">
-    <h3 style="color:#4f46e5;margin-top:24px;border-left:4px solid #6366f1;padding-left:10px;font-size:15px">📋 Đề xuất xử lý thử việc</h3>
-    <div style="background:${dxBg};border:2px solid ${dxBorder};border-radius:10px;padding:16px;margin-bottom:16px;page-break-inside:avoid">
-      <table style="width:100%;border-collapse:collapse">
-        <tr>
-          <td style="padding:6px 12px;width:160px;font-weight:700;color:#6b7280;vertical-align:top">Kết quả thử việc</td>
-          <td style="padding:6px 12px;font-weight:800;font-size:16px;color:${dxBorder}">${kqtv||'—'}</td>
-        </tr>
-        <tr>
-          <td style="padding:6px 12px;font-weight:700;color:#6b7280;vertical-align:top">Mức độ đề xuất</td>
-          <td style="padding:6px 12px">${dx.muc_do||'—'}</td>
-        </tr>
-        <tr>
-          <td style="padding:6px 12px;font-weight:700;color:#6b7280;vertical-align:top">Căn cứ / Lý do</td>
-          <td style="padding:6px 12px;line-height:1.7">${dx.ly_do||'—'}</td>
-        </tr>
-      </table>
-      ${(dx.diem_manh?.length || dx.diem_can_cai_thien?.length) ? `
-      <div style="display:flex;gap:16px;margin-top:12px;padding-top:10px;border-top:1px solid ${dxBorder}30;page-break-inside:avoid">
-        ${dx.diem_manh?.length ? `<div style="flex:1">
-          <div style="font-weight:700;color:#059669;margin-bottom:6px">💪 Điểm mạnh</div>
-          <ul style="margin:0;padding-left:18px;color:#065f46;font-size:13px">${dx.diem_manh.map(d=>`<li style="margin-bottom:3px">${d}</li>`).join('')}</ul>
-        </div>` : ''}
-        ${dx.diem_can_cai_thien?.length ? `<div style="flex:1">
-          <div style="font-weight:700;color:#d97706;margin-bottom:6px">🔧 Cần cải thiện</div>
-          <ul style="margin:0;padding-left:18px;color:#78350f;font-size:13px">${dx.diem_can_cai_thien.map(d=>`<li style="margin-bottom:3px">${d}</li>`).join('')}</ul>
-        </div>` : ''}
-      </div>` : ''}
+    <h3 style="margin-top:24px;border-left:4px solid #555;padding-left:10px;font-size:15px;color:#111">Đề xuất xử lý</h3>
+    <div style="border:1px solid #ccc;border-radius:4px;padding:14px;background:#f9f9f9">
+      <div style="font-weight:800;font-size:15px">${kqtv}</div>
+      ${dx.ly_do?`<div style="margin-top:8px">${dx.ly_do}</div>`:''}
+      ${dx.diem_manh?.length?`<div style="margin-top:8px"><b>Điểm mạnh:</b><ul style="margin:4px 0 0 16px">${dx.diem_manh.map(d=>`<li>${d}</li>`).join('')}</ul></div>`:''}
+      ${dx.diem_can_cai_thien?.length?`<div style="margin-top:6px"><b>Cần cải thiện:</b><ul style="margin:4px 0 0 16px">${dx.diem_can_cai_thien.map(d=>`<li>${d}</li>`).join('')}</ul></div>`:''}
     </div>
     </div>` : ''
 
-  const html = `<div style="font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111827;max-width:860px;margin:0 auto;padding:40px">
-    <h2 style="color:#6366f1;border-bottom:2px solid #6366f1;padding-bottom:10px">BÁO CÁO ĐÁNH GIÁ THỬ VIỆC</h2>
-    <p style="color:#6b7280">CT Group · ${now}</p>
-    <table style="width:100%;border-collapse:collapse;margin:16px 0">
-      <tr><td style="padding:6px;background:#f8fafc;width:130px;font-weight:600">Họ tên</td><td style="padding:6px">${nv.ten_nhan_vien||'—'}</td>
-          <td style="padding:6px;background:#f8fafc;width:130px;font-weight:600">Mã NV</td><td style="padding:6px">${nv.ma_nhan_vien||'—'}</td></tr>
-      <tr><td style="padding:6px;background:#f8fafc;font-weight:600">Chức danh</td><td style="padding:6px">${nv.chuc_danh||'—'}</td>
-          <td style="padding:6px;background:#f8fafc;font-weight:600">Đơn vị</td><td style="padding:6px">${nv.don_vi||'—'}</td></tr>
+  // ── Bảng Tỷ Trọng + Chấm Điểm ───────────────────────────────────────────────
+  const ttData = r.bang_ty_trong || {}
+  const bangTyTrongHtml = (ttData.tieu_chi?.length) ? `
+    <div style="page-break-inside:avoid">
+    <h3 style="margin-top:28px;border-left:4px solid #555;padding-left:10px;font-size:15px;color:#111">
+      Bảng Tỷ Trọng Năng Lực – AI Chấm Điểm
+      ${ttData.diem_tong != null ? `<span style="margin-left:10px;font-size:13px;border:1px solid #ccc;padding:2px 10px;border-radius:4px;font-weight:700">Điểm tổng: ${Number(ttData.diem_tong).toFixed(1)}</span>` : ''}
+    </h3>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px">
+      <thead><tr style="background:#eee">
+        <th style="padding:8px 10px;border:1px solid #ccc;width:40px;text-align:center">STT</th>
+        <th style="padding:8px 10px;border:1px solid #ccc">Năng lực</th>
+        <th style="padding:8px 10px;border:1px solid #ccc;width:90px;text-align:center">Trọng số</th>
+        <th style="padding:8px 10px;border:1px solid #ccc;width:70px;text-align:center">Điểm</th>
+      </tr></thead>
+      <tbody>
+        ${(ttData.tieu_chi||[]).map((tc,i)=>`<tr style="background:${i%2===0?'#f9f9f9':'#fff'}">
+          <td style="padding:6px 10px;border:1px solid #ddd;text-align:center">${i+1}</td>
+          <td style="padding:6px 10px;border:1px solid #ddd">${tc.ten||'—'}</td>
+          <td style="padding:6px 10px;border:1px solid #ddd;text-align:center">${typeof tc.trong_so==='number'?(tc.trong_so<=1?(tc.trong_so*100).toFixed(0):tc.trong_so.toFixed(0))+'%':tc.trong_so||'—'}</td>
+          <td style="padding:6px 10px;border:1px solid #ddd;text-align:center;font-weight:700">${tc.diem!=null?Number(tc.diem).toFixed(1):'—'}</td>
+        </tr>`).join('')}
+      </tbody>
+      <tfoot><tr style="background:#eee;font-weight:700">
+        <td colspan="2" style="padding:8px 10px;border:1px solid #ccc">ĐIỂM TỔNG</td>
+        <td style="padding:8px 10px;border:1px solid #ccc;text-align:center">100%</td>
+        <td style="padding:8px 10px;border:1px solid #ccc;text-align:center;font-size:16px">${ttData.diem_tong!=null?Number(ttData.diem_tong).toFixed(1):'—'}</td>
+      </tr></tfoot>
     </table>
-    <h3>Kết quả đánh giá: <span style="color:${r.status==='ĐẠT'?'#059669':'#d97706'}">${r.status}</span></h3>
-    <p style="background:#f1f5f9;padding:12px;border-radius:8px;line-height:1.7">${r.tong_quan||'—'}</p>
+    ${ttData.ghi_chu?`<div style="border-left:3px solid #999;padding:6px 10px;font-size:12px;margin-bottom:8px">${ttData.ghi_chu}</div>`:''}
+    </div>` : ''
+
+  // ── Báo cáo ngày stats ────────────────────────────────────────────────
+  const bc = r.bao_cao_ngay
+  const baoCaoNgayHtml = bc ? `
+    <div style="page-break-inside:avoid">
+    <h3 style="margin-top:24px;border-left:4px solid #555;padding-left:10px;font-size:15px;color:#111">
+      Báo cáo ngày
+      <span style="margin-left:10px;font-size:12px;border:1px solid #ccc;padding:2px 8px;border-radius:4px">${bc.so_ngay_da_bc??'?'}/${bc.so_ngay_can_bc??'?'} ngày</span>
+    </h3>
+    <div style="border:1px solid #ccc;border-radius:4px;padding:14px;background:#f9f9f9">
+      <div style="background:#fff;border:1px solid #ddd;border-radius:3px;height:10px;overflow:hidden;margin-bottom:10px">
+        <div style="height:100%;background:#555;width:${Math.min(100,Math.round((bc.so_ngay_da_bc||0)/(bc.so_ngay_can_bc||1)*100))}%"></div>
+      </div>
+      ${bc.nhan_xet?`<div style="font-weight:600;margin-bottom:8px">${bc.nhan_xet}</div>`:''}
+      ${bc.ngay_thieu_bao_cao?.length?`<div style="font-size:12px;margin-bottom:4px">Thiếu báo cáo: ${bc.ngay_thieu_bao_cao.join(', ')}</div>`:''}
+      ${bc.ngay_thieu_hang_muc?.length?`<div style="font-size:12px;margin-bottom:8px">Thiếu hạng mục: ${bc.ngay_thieu_hang_muc.join(', ')}</div>`:''}
+      ${bc.doi_chieu_cong_viec?.length ? `
+        <div style="margin-top:10px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:6px">Đối chiếu nội dung báo cáo ngày vs Phiếu đánh giá</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:#eee">
+              <th style="padding:6px 8px;border:1px solid #ccc">Hạng mục (Báo cáo ngày)</th>
+              <th style="padding:6px 8px;border:1px solid #ccc;width:100px;text-align:center">Có trong phiếu</th>
+              <th style="padding:6px 8px;border:1px solid #ccc">Ghi chú</th>
+            </tr></thead>
+            <tbody>
+              ${bc.doi_chieu_cong_viec.map((d,i)=>{
+                const ok = d.co_trong_phieu
+                return `<tr style="background:${i%2===0?'#f5f5f5':'#fff'}">
+                  <td style="padding:5px 8px;border:1px solid #ddd">${d.hang_muc||'—'}</td>
+                  <td style="padding:5px 8px;border:1px solid #ddd;text-align:center;font-weight:700">${ok?'Có':'Không'}</td>
+                  <td style="padding:5px 8px;border:1px solid #ddd">${d.ghi_chu||''}</td>
+                </tr>`
+              }).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}`
+  + `</div>
+    </div>` : ''
+
+  // ── Đánh giá đề xuất Quản lý ─────────────────────────────────────────────
+  const ql = r.danh_gia_quan_ly || {}
+  const quanLyHtml = (ql.de_xuat_quan_ly || ql.nhan_xet || ql.phan_tich_chi_tiet) ? `
+    <div style="page-break-inside:avoid">
+    <h3 style="margin-top:24px;border-left:4px solid #555;padding-left:10px;font-size:15px;color:#111">
+      Đánh giá đề xuất quản lý
+      <span style="margin-left:8px;font-size:12px;border:1px solid #ccc;padding:2px 8px;border-radius:4px">
+        ${ql.muc_do_dong_y || (ql.hop_ly!==false?'Đồng ý':'Cần xem xét')}
+      </span>
+    </h3>
+    <div style="border:1px solid #ccc;border-radius:4px;padding:14px;background:#f9f9f9">
+      ${ql.de_xuat_quan_ly?`<div style="font-weight:700;font-size:13px;font-style:italic;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #ddd">
+        <span style="font-size:11px;font-weight:600;font-style:normal;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Đề xuất của Quản lý / TBP / HOD</span>
+        ${ql.de_xuat_quan_ly}
+      </div>`:''}
+      ${ql.ly_do_chinh?`<div style="margin-bottom:8px;padding:7px 10px;background:#fff;border-left:3px solid #999;border-radius:2px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Lý do chính</div>
+        <div style="font-size:13px;font-weight:600">${ql.ly_do_chinh}</div>
+      </div>`:''}
+      ${ql.phan_tich_chi_tiet?`<div style="margin-bottom:8px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Phân tích chi tiết</div>
+        <div style="font-size:13px;line-height:1.75">${ql.phan_tich_chi_tiet}</div>
+      </div>`:''}
+      ${ql.nhan_xet?`<div style="margin-bottom:8px;padding:7px 10px;background:#fff;border:1px solid #ddd;border-radius:2px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Nhận xét</div>
+        <div style="font-size:13px;line-height:1.7">${ql.nhan_xet}</div>
+      </div>`:''}
+      ${ql.khuyen_nghi_xu_ly?`<div style="padding:7px 10px;background:#fff;border-left:3px solid #555;border-radius:2px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Khuyến nghị xử lý</div>
+        <div style="font-size:13px;font-weight:600">${ql.khuyen_nghi_xu_ly}</div>
+      </div>`:''}
+    </div>
+    </div>` : ''
+
+
+  // ── Gợi ý JD ─────────────────────────────────────────────────────────
+  const jd = r.jd_goi_y || {}
+  const jdGoiYHtml = (jd.chuc_danh || jd.tom_tat) ? `
+    <div style="page-break-inside:avoid;margin-top:28px">
+    <h3 style="border-left:4px solid #333;padding-left:10px;font-size:15px;color:#111;margin-bottom:0">
+      Gợi ý Mô tả Công việc (JD)
+    </h3>
+    <div style="border:1px solid #bbb;border-radius:4px;overflow:hidden;margin-top:10px">
+      <!-- Header band -->
+      <div style="background:#333;color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:14px;font-weight:700;letter-spacing:.02em">${jd.chuc_danh||'—'}</div>
+          ${jd.phong_ban?`<div style="font-size:11px;opacity:.8;margin-top:2px">${jd.phong_ban}</div>`:''}
+        </div>
+        ${jd.cap_bac?`<div style="font-size:11px;border:1px solid rgba(255,255,255,.5);padding:2px 10px;border-radius:3px">${jd.cap_bac}</div>`:''}
+      </div>
+      <!-- Body -->
+      <div style="padding:16px;background:#fff">
+        ${jd.tom_tat?`
+          <p style="line-height:1.75;margin:0 0 16px;font-size:13px;color:#333;font-style:italic;border-bottom:1px solid #eee;padding-bottom:12px">${jd.tom_tat}</p>
+        `:''}
+        ${jd.nhiem_vu_chinh?.length?`
+          <div style="margin-bottom:16px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #eee">Nhiệm vụ chính</div>
+            <ol style="margin:0;padding-left:18px">
+              ${jd.nhiem_vu_chinh.map((t,i)=>`<li style="margin-bottom:5px;font-size:13px;line-height:1.6">${t}</li>`).join('')}
+            </ol>
+          </div>
+        `:''}`
+  + `${jd.yeu_cau_nang_luc?.length?`
+          <div style="margin-bottom:16px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #eee">Yêu cầu năng lực</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              ${jd.yeu_cau_nang_luc.map((y,i)=>`
+                <tr style="background:${i%2===0?'#f9f9f9':'#fff'}">
+                  <td style="padding:6px 10px;border:1px solid #e5e5e5;font-weight:600;width:120px;vertical-align:top">${y.loai}</td>
+                  <td style="padding:6px 10px;border:1px solid #e5e5e5;line-height:1.6">${y.mo_ta}</td>
+                </tr>`).join('')}
+            </table>
+          </div>
+        `:''}`
+  + `${(jd.yeu_cau_kinh_nghiem||jd.trinh_do_hoc_van)?`
+          <div style="margin-bottom:8px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #eee">Yêu cầu khác</div>
+            <div style="display:flex;gap:24px;font-size:13px">
+              ${jd.yeu_cau_kinh_nghiem?`<div><b>Kinh nghiệm:</b> ${jd.yeu_cau_kinh_nghiem}</div>`:''}
+              ${jd.trinh_do_hoc_van?`<div><b>Học vấn:</b> ${jd.trinh_do_hoc_van}</div>`:''}
+            </div>
+          </div>
+        `:''}`
+  + `${jd.ghi_chu?`
+          <div style="margin-top:12px;padding:8px 12px;background:#f5f5f5;border-left:3px solid #999;font-size:12px;font-style:italic">${jd.ghi_chu}</div>
+        `:''}`
+  + `</div>
+    </div>
+    </div>` : ''
+
+  const html = `<div style="font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;max-width:860px;margin:0 auto;padding:40px">
+    <h2 style="border-bottom:2px solid #333;padding-bottom:10px;color:#111">BÁO CÁO ĐÁNH GIÁ ${evalType.value==="hoc_viec"?"HỌC VIỆC":"THỬ VIỆC"}</h2>
+    <p style="color:#555">CT Group · ${now}</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0">
+      <tr><td style="padding:6px;background:#f5f5f5;width:130px;font-weight:600;border:1px solid #ddd">Họ tên</td><td style="padding:6px;border:1px solid #ddd">${nv.ten_nhan_vien||'—'}</td>
+          <td style="padding:6px;background:#f5f5f5;width:130px;font-weight:600;border:1px solid #ddd">Mã NV</td><td style="padding:6px;border:1px solid #ddd">${nv.ma_nhan_vien||'—'}</td></tr>
+      <tr><td style="padding:6px;background:#f5f5f5;font-weight:600;border:1px solid #ddd">Chức danh</td><td style="padding:6px;border:1px solid #ddd">${nv.chuc_danh||'—'}</td>
+          <td style="padding:6px;background:#f5f5f5;font-weight:600;border:1px solid #ddd">Đơn vị</td><td style="padding:6px;border:1px solid #ddd">${nv.don_vi||'—'}</td></tr>
+      <tr><td style="padding:6px;background:#f5f5f5;font-weight:600;border:1px solid #ddd">Ngày nhận việc</td><td style="padding:6px;border:1px solid #ddd">${nv.ngay_nhan_viec||'—'}</td>
+          <td style="padding:6px;background:#f5f5f5;font-weight:600;border:1px solid #ddd">Thời hạn HĐ</td><td style="padding:6px;border:1px solid #ddd">${nv.ngay_het_han||'—'}</td></tr>
+    </table>
+    <h3 style="color:#111">Kết quả đánh giá: <span style="font-weight:800">${r.status}</span></h3>
+    <p style="background:#f5f5f5;padding:12px;border-radius:4px;line-height:1.7;border:1px solid #ddd">${r.tong_quan||'—'}</p>
 
     ${tc2asHtml}
     ${canhBaoHtml}
     ${deXuatHtml}
+    ${bangTyTrongHtml}
+    ${baoCaoNgayHtml}
+    ${quanLyHtml}
+    ${jdGoiYHtml}
 
-    <h3 style="margin-top:20px">Việc cần làm tiếp theo</h3>
+    <h3 style="margin-top:20px;color:#111">Việc cần làm tiếp theo</h3>
     <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="background:#f3f4f6">
-        <th style="padding:6px 8px;border:1px solid #e5e7eb;width:36px">#</th>
-        <th style="padding:6px 8px;border:1px solid #e5e7eb">Nội dung</th>
-        <th style="padding:6px 8px;border:1px solid #e5e7eb;width:70px">Ưu tiên</th>
-        <th style="padding:6px 8px;border:1px solid #e5e7eb;width:70px">Hoàn thành</th>
+      <thead><tr style="background:#eee">
+        <th style="padding:6px 8px;border:1px solid #ccc;width:36px">#</th>
+        <th style="padding:6px 8px;border:1px solid #ccc">Nội dung</th>
+        <th style="padding:6px 8px;border:1px solid #ccc;width:70px">Ưu tiên</th>
+        <th style="padding:6px 8px;border:1px solid #ccc;width:70px">Hoàn thành</th>
       </tr></thead><tbody>${nsSteps}</tbody></table>
-    ${r.van_de?.length ? `<h3 style="margin-top:20px">Vấn đề cần bổ sung (${r.van_de.length})</h3>${r.van_de.map(v=>`<div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px;margin-bottom:8px"><b>${v.muc}</b>: ${v.van_de}<br><i>→ ${v.yeu_cau}</i></div>`).join('')}` : ''}
+    ${r.van_de?.length ? `<h3 style="margin-top:20px;color:#111">Vấn đề cần bổ sung (${r.van_de.length})</h3>${r.van_de.map(v=>`<div style="border:1px solid #ddd;border-radius:4px;padding:10px;margin-bottom:8px"><b>${v.muc}</b>: ${v.van_de}<br><i>→ ${v.yeu_cau}</i></div>`).join('')}` : ''}
   </div>`
+
+
 
   if (!window.html2pdf) {
     await new Promise((resolve,reject) => {
@@ -1144,14 +1376,25 @@ async function exportReport() {
     })
   }
   const nvName = (nv.ten_nhan_vien||'NhanVien').replace(/\s+/g,'_')
-  await window.html2pdf().set({
-    margin: [15, 18],
-    filename: `BaoCao_ThuViec_${nvName}_${new Date().toISOString().slice(0,10)}.pdf`,
+  const worker = window.html2pdf().set({
+    margin: [15, 18, 22, 18],
+    filename: `BaoCao_${evalType.value==="hoc_viec"?"HocViec":"ThuViec"}_${nvName}_${new Date().toISOString().slice(0,10)}.pdf`,
     image: { type: 'jpeg', quality: .97 },
     html2canvas: { scale: 2, useCORS: true },
     jsPDF: { unit: 'mm', format: 'a4' },
     pagebreak: { mode: ['avoid-all', 'css', 'legacy'], avoid: ['div', 'table', 'tr', 'ul', 'li'] }
-  }).from(html).save()
+  })
+  await worker.from(html).toPdf().get('pdf').then(pdf => {
+    const total = pdf.internal.getNumberOfPages()
+    const w = pdf.internal.pageSize.getWidth()
+    const h = pdf.internal.pageSize.getHeight()
+    for (let p = 1; p <= total; p++) {
+      pdf.setPage(p)
+      pdf.setFontSize(8)
+      pdf.setTextColor(150)
+      pdf.text(`Trang ${p} / ${total}`, w / 2, h - 6, { align: 'center' })
+    }
+  }).save()
 }
 
 function resetScan() {
@@ -1377,7 +1620,8 @@ async function doReview() {
 .ns-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.05); cursor: pointer; transition: background .15s; border-radius: 6px; padding-left: 4px; }
 .ns-item:hover { background: rgba(99,102,241,.04); }
 .ns-item.done .ns-title { text-decoration: line-through; color: #64748b; }
-.ns-check { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+.ns-num { min-width:20px;font-size:.85rem;font-weight:700;color:#374151;flex-shrink:0;margin-top:2px; }
+.ns-item.done .ns-num { color:#94a3b8; }
 .ns-title { font-size: .88rem; font-weight: 600; }
 .ns-sub { font-size: .76rem; color: #64748b; margin-top: 2px; }
 .ns-urgent { font-size: .7rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: rgba(239,68,68,.1); color: #f87171; margin-left: auto; flex-shrink: 0; }
@@ -1459,15 +1703,27 @@ async function doReview() {
 .phieu-table { width:100%; border-collapse:collapse; margin-bottom:6px; font-size:.83rem; }
 .phieu-table th { background:#f1f5f9; color:#374151; font-weight:700; padding:6px 9px; text-align:left; border:1px solid #d1d5db; font-size:.76rem; }
 :global(body.theme-dark) .phieu-table th { background:#1e2030; color:#94a3b8; border-color:rgba(255,255,255,.08); }
-.phieu-table td { padding:6px 9px; border:1px solid #e2e8f0; vertical-align:top; line-height:1.5; }
-:global(body.theme-dark) .phieu-table td { border-color:rgba(255,255,255,.07); }
+.phieu-table td { padding:6px 9px; border:1px solid #e2e8f0; vertical-align:top; line-height:1.5; color:#1e293b; }
+:global(body.theme-dark) .phieu-table td { border-color:rgba(255,255,255,.07); color:#e2e8f0; }
+
 .pl { font-weight:600; color:#6366f1; white-space:nowrap; }
-.pe-input { width:100%; box-sizing:border-box; background:rgba(99,102,241,.03); border:1.5px solid rgba(99,102,241,.18); border-radius:7px; color:inherit; font-size:.83rem; padding:5px 9px; outline:none; transition:border-color .18s,background .18s; font-family:inherit; field-sizing: content; }
+.pe-input { width:100%; box-sizing:border-box; background:rgba(99,102,241,.03); border:1.5px solid rgba(99,102,241,.18); border-radius:7px; color:#1e293b; font-size:.83rem; padding:5px 9px; outline:none; transition:border-color .18s,background .18s; font-family:inherit; field-sizing: content; }
+:global(body.theme-dark) .pe-input { color:#e2e8f0; background:rgba(99,102,241,.06); border-color:rgba(99,102,241,.25); }
+
 .pe-input:hover { border-color:rgba(99,102,241,.35); background:rgba(99,102,241,.05); }
 .pe-input:focus { border-color:#6366f1; background:rgba(99,102,241,.07); box-shadow:0 0 0 3px rgba(99,102,241,.12); }
-.pe-ta { width:100%; box-sizing:border-box; background:rgba(99,102,241,.03); border:1.5px solid rgba(99,102,241,.18); border-radius:7px; color:inherit; font-size:.83rem; padding:6px 9px; outline:none; resize:vertical; font-family:inherit; line-height:1.6; min-height:52px; field-sizing: content; }
+.pe-ta { width:100%; box-sizing:border-box; background:rgba(99,102,241,.03); border:1.5px solid rgba(99,102,241,.18); border-radius:7px; color:#1e293b; font-size:.83rem; padding:6px 9px; outline:none; resize:vertical; font-family:inherit; line-height:1.6; min-height:52px; field-sizing: content; }
+:global(body.theme-dark) .pe-ta { color:#e2e8f0; background:rgba(99,102,241,.06); border-color:rgba(99,102,241,.25); }
+
 .pe-ta:hover { border-color:rgba(99,102,241,.35); }
 .pe-ta:focus { border-color:#6366f1; background:rgba(99,102,241,.07); box-shadow:0 0 0 3px rgba(99,102,241,.12); }
+
+/* ── Missing field highlights ── */
+.sp-card.sp-empty { border-color:rgba(239,68,68,.35) !important; background:rgba(239,68,68,.03) !important; }
+.sp-missing-badge { display:inline-flex; align-items:center; gap:4px; margin-left:8px; padding:1px 8px; border-radius:20px; font-size:.68rem; font-weight:700; background:rgba(239,68,68,.12); color:#ef4444; }
+.pe-warn { border-color:rgba(245,158,11,.5) !important; background:rgba(245,158,11,.04) !important; }
+.pe-warn:focus { border-color:#f59e0b !important; background:rgba(245,158,11,.08) !important; box-shadow:0 0 0 3px rgba(245,158,11,.15) !important; }
+.pe-warn::placeholder { color:rgba(245,158,11,.6); }
 
 /* SXKD document */
 .sxkd-month-block { margin-bottom:30px; }
@@ -1485,8 +1741,9 @@ async function doReview() {
 .thg { border-bottom:none !important; }
 .th-kh { background:rgba(99,102,241,.07) !important; color:#6366f1 !important; }
 .th-kq { background:rgba(16,185,129,.07) !important; color:#059669 !important; }
-.sxkd-row td { border:1px solid #e2e8f0; padding:0; vertical-align:top; }
-:global(body.theme-dark) .sxkd-row td { border-color:rgba(255,255,255,.06); }
+.sxkd-row td { border:1px solid #e2e8f0; padding:0; vertical-align:top; color:#1e293b; }
+:global(body.theme-dark) .sxkd-row td { border-color:rgba(255,255,255,.06); color:#e2e8f0; }
+
 .td-stt { width:30px; text-align:center; font-weight:700; color:#6366f1; padding:7px; vertical-align:middle; }
 .td-mang { width:80px; } .td-mota { width:350px; } .td-num { width:62px; } .td-bod { width:70px; } .td-link { width:130px; }
 .kqc { background:rgba(16,185,129,.03) !important; }
@@ -1494,10 +1751,13 @@ async function doReview() {
 .tc { text-align:center !important; }
 .total-row td { border:1px solid #e2e8f0; padding:7px; }
 .total-label { text-align:center; font-weight:800; font-size:.8rem; background:#f8fafc; }
-.sc-input { width:100%; border:none; background:transparent; outline:none; color:inherit; font-size:.78rem; padding:5px 7px; font-family:inherit; field-sizing: content; }
+.sc-input { width:100%; border:none; background:transparent; outline:none; color:#1e293b; font-size:.78rem; padding:5px 7px; font-family:inherit; field-sizing: content; }
+:global(body.theme-dark) .sc-input { color:#e2e8f0; }
 .sc-input:focus { background:rgba(99,102,241,.04); }
-.sc-ta { width:100%; border:none; background:transparent; outline:none; color:inherit; font-size:.77rem; padding:5px 7px; font-family:inherit; resize:vertical; min-height:65px; field-sizing: content; }
+.sc-ta { width:100%; border:none; background:transparent; outline:none; color:#1e293b; font-size:.77rem; padding:5px 7px; font-family:inherit; resize:vertical; min-height:65px; field-sizing: content; }
+:global(body.theme-dark) .sc-ta { color:#e2e8f0; }
 .sc-ta:focus { background:rgba(99,102,241,.04); }
+
 .link-ta { font-size:.71rem; color:#6366f1; }
 
 /* Sidebar scan summary */

@@ -389,6 +389,10 @@ def parse_daily_report(file_url=None, raw_bytes=None, filename=None):
 					tmp_path = tf.name
 				try:
 					content = parse_pdf(tmp_path)
+					# Vision fallback for scanned/image-only PDFs
+					if not content.strip():
+						from cnb_2as.services.ocr_service import ocr_daily_report_from_pdf
+						content = ocr_daily_report_from_pdf(tmp_path)
 				finally:
 					try:
 						os.unlink(tmp_path)

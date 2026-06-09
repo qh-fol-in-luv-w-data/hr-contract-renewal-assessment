@@ -34,8 +34,8 @@ export const dict = {
     
     back_portal: 'Về Portal',
     eval_docs: 'Hồ sơ đánh giá',
-    file_docx_title: 'Phiếu đánh giá',
-    file_xlsx_title: 'Bảng KPI',
+    file_docx_title: 'Báo cáo hoàn thành thử việc',
+    file_xlsx_title: 'HĐ sản xuất kinh doanh',
     file_docx_desc: 'Định dạng hỗ trợ: .docx, .pdf',
     file_xlsx_desc: 'Định dạng hỗ trợ: .xlsx, .pdf',
     file_eval_title: 'Phiếu đánh giá tái ký',
@@ -128,8 +128,8 @@ export const dict = {
     
     back_portal: 'Back to Portal',
     eval_docs: 'Evaluation Documents',
-    file_docx_title: 'Evaluation Form',
-    file_xlsx_title: 'KPI Table',
+    file_docx_title: 'Probation Completion Report',
+    file_xlsx_title: 'Business Operations Report',
     file_docx_desc: 'Supported formats: .docx, .pdf',
     file_xlsx_desc: 'Supported formats: .xlsx, .pdf',
     file_eval_title: 'Renewal Evaluation Form',

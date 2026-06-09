@@ -59,6 +59,7 @@ def chat_completion_json(system_prompt, user_prompt, model="gpt-4o"):
 	client = get_client()
 
 	try:
+		content = ""  # khởi tạo trước để tránh UnboundLocalError trong except block
 		response = client.chat.completions.create(
 			model=model,
 			messages=[

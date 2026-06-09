@@ -24,6 +24,9 @@ from cnb_2as.services.prompts import (
     RECOMMENDATION_AGENT_SYSTEM,
     _DAILY_REPORT_SYSTEM,
     _MANAGER_PROPOSAL_SYSTEM,
+    _HOP_DONG_SYSTEM,
+    _DE_XUAT_NHAN_SU_SYSTEM,
+    _JD_SUGGESTION_SYSTEM,
 )
 
 
@@ -304,6 +307,138 @@ Trả về JSON theo schema đã cho."""
 
 
 # ============================================================
+# SUB-AGENT C: Contract Evaluation (Hợp đồng)
+# ============================================================
+
+
+def _evaluate_hop_dong(eval_content, work_report_content, recommendation_data, scores_data, bao_cao_ngay=None, role_analysis=None):
+	"""Sub-agent C: Đánh giá điều kiện ký/tái ký/gia hạn hợp đồng lao động."""
+	try:
+		rec_summary = json.dumps({
+			"recommendation": recommendation_data.get("recommendation", ""),
+			"overall_score": recommendation_data.get("overall_score", 0),
+			"proposal_level": recommendation_data.get("proposal_level", ""),
+			"strengths": recommendation_data.get("strengths", []),
+			"improvements": recommendation_data.get("improvements", []),
+		}, ensure_ascii=False)
+		scores_summary = json.dumps(
+			[{"competency": s.get("competency"), "score": s.get("score"),
+			  "justification": str(s.get("justification", ""))[:100]}
+			 for s in (scores_data.get("competency_scores") or [])],
+			ensure_ascii=False
+		)[:3000]
+		bao_cao_summary = ""
+		if bao_cao_ngay and isinstance(bao_cao_ngay, dict):
+			bao_cao_summary = (
+				f"Báo cáo ngày: {bao_cao_ngay.get('so_ngay_da_bc', '?')}/{bao_cao_ngay.get('so_ngay_can_bc', '?')} ngày. "
+				f"{bao_cao_ngay.get('nhan_xet', '')}"
+			)
+		# Build JD context from role_analysis if available
+		jd_context = ""
+		if role_analysis and isinstance(role_analysis, dict):
+			chuc_danh = role_analysis.get("position_title") or role_analysis.get("chuc_danh") or ""
+			expectations = role_analysis.get("role_expectations") or role_analysis.get("expected_competencies") or []
+			if chuc_danh:
+				jd_context = f"Chức danh đang đánh giá: {chuc_danh}.\n"
+			if expectations:
+				jd_ctx_str = json.dumps(expectations, ensure_ascii=False)[:500]
+				jd_context += f"Kỳ vọng vai trò (từ JD): {jd_ctx_str}\n"
+		prompt = (
+			f"Đây là đánh giá TÁI KÝ hợp đồng (không phải ký mới). "
+			f"Phân tích điều kiện tái ký dựa trên kết quả thực tế đã thể hiện trong kỳ HĐ vừa qua.\n\n"
+			+ (f"THÔNG TIN JD / VAI TRÒ:\n{jd_context}\n" if jd_context else "")
+			+ f"NỘI DUNG PHIẾU ĐÁNH GIÁ:\n---\n{eval_content[:5000]}\n---\n\n"
+			+ f"KẾT QUẢ BÁO CÁO KPI / CÔNG VIỆC:\n---\n{work_report_content[:3000]}\n---\n\n"
+			+ (f"THÔNG TIN BÁO CÁO NGÀY: {bao_cao_summary}\n\n" if bao_cao_summary else "")
+			+ f"KẾT QUẢ ĐÁNH GIÁ AI:\n{rec_summary}\n\n"
+			+ f"ĐIỂM NĂNG LỰC:\n{scores_summary}\n\n"
+			+ "Đánh giá điều kiện tái ký/gia hạn hợp đồng theo từng tiêu chí. Trả về JSON theo schema."
+		)
+		return chat_completion_json(_HOP_DONG_SYSTEM, prompt)
+	except Exception:
+		return None
+
+
+# ============================================================
+# SUB-AGENT D: HR Proposal Evaluation (Đề xuất nhân sự)
+# ============================================================
+
+
+def _evaluate_de_xuat_nhan_su(eval_content, recommendation_data, scores_data, role_analysis=None):
+	"""Sub-agent D: Đánh giá các đề xuất nhân sự (tăng lương, bổ nhiệm, điều chỉnh...)."""
+	try:
+		rec_summary = json.dumps({
+			"recommendation": recommendation_data.get("recommendation", ""),
+			"overall_score": recommendation_data.get("overall_score", 0),
+			"proposal_level": recommendation_data.get("proposal_level", ""),
+		}, ensure_ascii=False)
+		scores_summary = json.dumps(
+			[{"competency": s.get("competency"), "score": s.get("score")}
+			 for s in (scores_data.get("competency_scores") or [])],
+			ensure_ascii=False
+		)[:2000]
+		# Build JD context from role_analysis to evaluate proposal fit
+		jd_context = ""
+		if role_analysis and isinstance(role_analysis, dict):
+			chuc_danh = role_analysis.get("position_title") or role_analysis.get("chuc_danh") or ""
+			cap_bac = role_analysis.get("level") or role_analysis.get("cap_bac") or ""
+			expectations = role_analysis.get("role_expectations") or role_analysis.get("expected_competencies") or []
+			if chuc_danh:
+				jd_context = f"Chức danh hiện tại: {chuc_danh}. Cấp bậc: {cap_bac}.\n"
+			if expectations:
+				jd_ctx_str = json.dumps(expectations, ensure_ascii=False)[:400]
+				jd_context += f"Kỳ vọng JD hiện tại: {jd_ctx_str}\n"
+		prompt = (
+			f"Tìm kiếm và đánh giá các đề xuất nhân sự trong phiếu đánh giá tái ký hợp đồng.\n\n"
+			+ (f"THÔNG TIN JD / CẤP BẬC HIỆN TẠI:\n{jd_context}\n" if jd_context else "")
+			+ f"NỘI DUNG PHIẾU ĐÁNH GIÁ (tìm các đề xuất tăng lương, bổ nhiệm, điều chỉnh chức danh,\n"
+			+ "thay đổi cấp bậc, điều chỉnh chế độ đãi ngộ v.v.):\n---\n"
+			+ f"{eval_content[:6000]}\n---\n\n"
+			+ f"KẾT QUẢ ĐÁNH GIÁ AI:\n{rec_summary}\n\n"
+			+ f"ĐIỂM NĂNG LỰC:\n{scores_summary}\n\n"
+			+ "Phân tích tính phù hợp từng đề xuất, đánh giá mức độ ưu tiên và tác động. Trả về JSON theo schema."
+		)
+		return chat_completion_json(_DE_XUAT_NHAN_SU_SYSTEM, prompt)
+	except Exception:
+		return None
+
+
+# ============================================================
+# SUB-AGENT E: JD Suggestion (Gợi ý Job Description)
+# ============================================================
+
+
+def _generate_jd_suggestion(eval_content, work_report_content, role_analysis, scores_data):
+	"""Sub-agent E: Gợi ý JD (Job Description) theo chức danh/vị trí được đánh giá."""
+	try:
+		# Extract key role info
+		chuc_danh = ""
+		if isinstance(role_analysis, dict):
+			chuc_danh = (
+				role_analysis.get("position_title") or
+				role_analysis.get("chuc_danh") or
+				role_analysis.get("role") or ""
+			)
+		scores_summary = json.dumps(
+			[{"competency": s.get("competency"), "score": s.get("score")}
+			 for s in (scores_data.get("competency_scores") or [])],
+			ensure_ascii=False
+		)[:2000]
+		prompt = (
+			f"Xây dựng gợi ý Job Description (Mô tả công việc) cho vị trí sau.\n\n"
+			f"CHỨC DANH/VỊ TRÍ: {chuc_danh}\n\n"
+			f"NỘI DUNG PHIẾU ĐÁNH GIÁ (bao gồm thông tin nhân viên, JD hiện tại nếu có, công việc thực tế):\n---\n"
+			f"{eval_content[:4000]}\n---\n\n"
+			f"KẼT QUẢ KPI / CÔNG VIỆC THỰC TẼ:\n---\n{work_report_content[:2500]}\n---\n\n"
+			f"PHIẼU NĂNG LỰC (từ AI):\n{scores_summary}\n\n"
+			"Dựa trên toàn bộ thông tin trên, ghi ra một bản JD gợi ý chuẩn theo schema."
+		)
+		return chat_completion_json(_JD_SUGGESTION_SYSTEM, prompt)
+	except Exception:
+		return None
+
+
+# ============================================================
 # PIPELINE ORCHESTRATOR
 # ============================================================
 
@@ -390,6 +525,32 @@ def run_evaluation_pipeline(
 	# Sub-agent B: Manager proposal validation (luôn chạy)
 	danh_gia_quan_ly = _evaluate_manager_proposal(eval_content, recommendation_data)
 
+	# Sub-agent C: Contract conditions evaluation (luôn chạy)
+	frappe.publish_realtime(
+		"eval_progress",
+		{"step": 5, "total": 8, "message": "Đang đánh giá điều kiện ký/tái ký hợp đồng..."},
+	)
+	danh_gia_hop_dong = _evaluate_hop_dong(
+		eval_content, work_report_content, recommendation_data, scores_data, bao_cao_ngay,
+		role_analysis=role_analysis,
+	)
+
+	# Sub-agent D: HR proposals evaluation (luôn chạy)
+	frappe.publish_realtime(
+		"eval_progress",
+		{"step": 6, "total": 8, "message": "Đang đánh giá đề xuất nhân sự..."},
+	)
+	danh_gia_de_xuat_nhan_su = _evaluate_de_xuat_nhan_su(
+		eval_content, recommendation_data, scores_data, role_analysis=role_analysis
+	)
+
+	# Sub-agent E: JD suggestion (luôn chạy)
+	frappe.publish_realtime(
+		"eval_progress",
+		{"step": 7, "total": 8, "message": "Đang xây dựng gợi ý JD..."},
+	)
+	jd_goi_y = _generate_jd_suggestion(eval_content, work_report_content, role_analysis, scores_data)
+
 	return {
 		"extracted_info": extracted_info,
 		"document_completeness": role_result.get("document_completeness", []),
@@ -401,5 +562,8 @@ def run_evaluation_pipeline(
 		"recommendation": recommendation_data,
 		"bao_cao_ngay": bao_cao_ngay,
 		"danh_gia_quan_ly": danh_gia_quan_ly,
+		"danh_gia_hop_dong": danh_gia_hop_dong,
+		"danh_gia_de_xuat_nhan_su": danh_gia_de_xuat_nhan_su,
+		"jd_goi_y": jd_goi_y,
 	}
 

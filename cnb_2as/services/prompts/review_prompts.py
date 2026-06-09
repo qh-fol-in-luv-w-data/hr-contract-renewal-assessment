@@ -129,10 +129,12 @@ X1 – Đối chiếu nội dung và tỷ lệ hoàn thành Word ↔ Excel:
   ✗ Word mô tả mức hoàn thành CAO HƠN Excel → không phải mâu thuẫn, KHÔNG flag.
     (Ví dụ: KPI 70% nhưng Word nói đã hoàn thành nhiều hơn → KPI bảo thủ, bình thường, KHÔNG flag)
   ✗ Word mô tả không rõ ràng / mơ hồ về mức độ hoàn thành → KHÔNG flag.
-    (Ví dụ: "đang tiếp tục", "đã làm", "hoàn thành một phần" → không đủ căn cứ, KHÔNG flag)
+    (Ví dụ: "đang tiếp tục", "đã làm", "hoàn thành một phần", "bàn giao", "tạo một...", "hỗ trợ..." → không đủ căn cứ, KHÔNG flag)
   ✗ Chênh lệch < 30% (tuyệt đối) giữa MAX KPI Excel và tỷ lệ suy ra từ Word → KHÔNG flag.
   ✗ Không rõ giai đoạn (tháng 1 vs tháng 3, v.v.) → KHÔNG flag.
   ✗ Đã tạo X1 issue cho task đó rồi → KHÔNG tạo thêm issue X1 nào nữa cho cùng task đó.
+  ✗ TUYỆT ĐỐI không dùng nội dung "Báo cáo ngày" (nếu có) để đánh giá X1.
+    X1 CHỈ so sánh File Word (phiếu đánh giá) với File Excel (KPI). Báo cáo ngày chỉ dùng cho trường bao_cao_ngay.
 
   LỖI % CHỈ KHI: mâu thuẫn RÕ RÀNG, NGHIÊM TRỌNG và KHÔNG THỂ GIẢI THÍCH ĐƯỢC.
   Ví dụ duy nhất được phép flag: MAX KPI = 100% nhưng mọi mô tả Word đều nói "chưa bắt đầu".
@@ -213,7 +215,10 @@ KẾT QUẢ TRẢ VỀ (JSON duy nhất, không kèm text thừa):
     "so_ngay_du_hang_muc": 16,
     "ngay_thieu_hang_muc": ["12/03", "18/03"],
     "ngay_thieu_bao_cao": ["05/03", "10/03"],
-    "nhan_xet": "Nhận xét về tình trạng báo cáo ngày"
+    "nhan_xet": "Nhận xét tổng hợp: số ngày + độ khớp nội dung báo cáo ngày với phiếu đánh giá",
+    "doi_chieu_cong_viec": [
+      {"hang_muc": "Tên hạng mục/công việc trong báo cáo ngày", "co_trong_phieu": true, "ghi_chu": "Ghi chú nếu có"}
+    ]
   },
   "danh_gia_quan_ly": {
     "de_xuat_quan_ly": "Đề xuất của quản lý trích từ phiếu",

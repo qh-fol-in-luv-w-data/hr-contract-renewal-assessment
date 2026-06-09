@@ -46,6 +46,9 @@ from openai import OpenAI
 # ── OpenAI client ──────────────────────────────────────────────────────────────
 _client = None
 
+# ── OCR API URL (ctpai.vn) ──────────────────────────────────────────────────────
+_OCR_API_URL = os.getenv("CNB_OCR_API_URL", "https://ctpai.vn/api/ocr")
+
 
 def _get_client() -> OpenAI:
     global _client
@@ -114,14 +117,20 @@ def _call_ocr_api(file_bytes: bytes, filename: str) -> str:
 
 
 def _pdf_to_images(file_bytes: bytes) -> list[bytes]:
-    """Chuyển PDF sang list ảnh PNG (mỗi trang). Dùng PyMuPDF."""
+    """Chuyển PDF sang list ảnh PNG (mỗi trang). Dùng PyMuPDF.
+    Zoom 2.0x (~144 DPI) — đủ rõ cho GPT-4o Vision, tránh OOM với phiếu nhiều trang.
+    """
     try:
         import fitz  # PyMuPDF
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         images = []
-        for page in doc:
-            # Render 3x để chữ nhỏ / viết tay rõ hơn cho Vision
-            mat = fitz.Matrix(3.0, 3.0)
+        # Giới hạn tối đa 40 trang để tránh OOM (phiếu thực tế không quá 30 trang)
+        for i, page in enumerate(doc):
+            if i >= 40:
+                frappe.logger("cnb_scan").warning(f"[SCAN] PDF có {doc.page_count} trang, chỉ xử lý 40 trang đầu")
+                break
+            # 2.0x = ~144 DPI — đủ rõ cho Vision, tiết kiệm RAM ~3x so với 3.0x
+            mat = fitz.Matrix(2.0, 2.0)
             pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
             images.append(pix.tobytes("png"))
         doc.close()

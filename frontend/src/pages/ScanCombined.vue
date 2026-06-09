@@ -18,10 +18,16 @@
       <div class="sb-body">
         <!-- Upload section -->
         <div v-if="step === 1" class="sb-section">
-          <div class="sb-section-title">📂 Upload 2 file để scan</div>
+          <div class="sb-section-title">📂 Upload file để scan</div>
+
+          <!-- Loại đánh giá -->
+          <div style="display:flex;gap:6px;margin-bottom:10px">
+            <button class="etype-btn" :class="{active: evalType==='thu_viec'}" @click="evalType='thu_viec'">🎯 Thử việc</button>
+            <button class="etype-btn" :class="{active: evalType==='hoc_viec'}" @click="evalType='hoc_viec'">🎓 Học việc</button>
+          </div>
 
           <!-- Phiếu -->
-          <div class="upl-group-label">📋 Phiếu đánh giá thử việc</div>
+          <div class="upl-group-label">📋 Phiếu {{ evalType==='hoc_viec' ? 'học việc' : 'thử việc' }}</div>
           <div class="sb-upload-card" :class="{filled: phieuFile, err: !phieuFile && tried}"
             @dragover.prevent @drop.prevent="onDrop($event,'phieu')" @click="$refs.rPhieu.click()">
             <input ref="rPhieu" type="file" accept=".pdf,.docx,.html,.htm" hidden
@@ -50,6 +56,31 @@
             <button v-if="sxkdFile" class="upc-rm" @click.stop="sxkdFile=null">✕</button>
           </div>
 
+          <!-- Báo cáo ngày (optional) -->
+          <div class="upl-group-label" style="margin-top:10px">📅 Báo cáo ngày <span style="font-size:.68rem;color:#64748b">(tùy chọn)</span></div>
+          <div class="sb-upload-card" :class="{filled: dailyFile}" @dragover.prevent @drop.prevent="onDrop($event,'daily')" @click="$refs.rDaily.click()">
+            <input ref="rDaily" type="file" accept=".txt,.pdf,.docx" hidden @change="e => dailyFile = e.target.files[0] || null"/>
+            <div class="upc-icon">{{ dailyFile ? '📄' : '📋' }}</div>
+            <div class="upc-info" :title="dailyFile ? dailyFile.name : ''">
+              <div class="upc-val" :class="dailyFile ? 'ok' : 'empty'">{{ dailyFile ? dailyFile.name : 'TXT / PDF / DOCX' }}</div>
+            </div>
+            <button v-if="dailyFile" class="upc-rm" @click.stop="dailyFile=null">✕</button>
+          </div>
+          <!-- Date range for daily report -->
+          <div v-if="dailyFile" style="display:flex;gap:6px;margin-top:6px">
+            <div style="flex:1">
+              <div style="font-size:.68rem;color:#94a3b8;margin-bottom:2px">Từ ngày</div>
+              <input type="text" v-model="ngayBD" class="date-inp" placeholder="dd/mm/yyyy" maxlength="10"
+                @input="e => ngayBD = fmtDateInput(e.target.value)"/>
+            </div>
+            <div style="flex:1">
+              <div style="font-size:.68rem;color:#94a3b8;margin-bottom:2px">Đến ngày</div>
+              <input type="text" v-model="ngayKT" class="date-inp" placeholder="dd/mm/yyyy" maxlength="10"
+                @input="e => ngayKT = fmtDateInput(e.target.value)"/>
+            </div>
+          </div>
+          <div v-if="dailyFile && soNgayLamViec > 0" style="margin-top:4px;font-size:.71rem;color:#818cf8">📆 {{ soNgayLamViec }} ngày làm việc</div>
+
           <p v-if="tried && !phieuFile && !sxkdFile" class="sb-err">Cần ít nhất 1 file</p>
 
           <button class="sb-btn-primary" :disabled="loading || (!phieuFile && !sxkdFile)" @click="doScan">
@@ -61,13 +92,14 @@
           <div v-if="error" class="sb-err-box">{{ error }}</div>
         </div>
 
+
         <!-- Results summary -->
         <div v-if="step === 2" class="sb-section">
           <div class="sb-section-title">📊 Kết quả scan</div>
 
           <!-- Phiếu summary -->
           <div v-if="phieuResult" class="sb-result-block">
-            <div class="srb-title">📋 Phiếu đánh giá</div>
+            <div class="srb-title">📋 {{ evalType==='hoc_viec' ? '🎓 Học việc' : '🎯 Thử việc' }}</div>
             <div class="srb-badge" :class="badgeCls">{{ phieuResult.de_xuat || phieuResult.mau_de_xuat || '...' }}</div>
             <button v-if="scanSessionId" class="sb-btn-docx" :disabled="loadingDocx" @click="downloadDocx">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -102,9 +134,17 @@
             </button>
             <div v-if="evalError" class="sb-err">{{ evalError }}</div>
           </div>
+          <!-- Nút xuất PDF 2AS từ kết quả đánh giá -->
+          <div v-if="tvResult" style="margin-top:8px">
+            <button class="sb-btn-pdf" :disabled="loadingTvPdf" @click="exportTvPdf">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              {{ loadingTvPdf ? 'Đang xuất PDF...' : '📊 Xuất PDF Đánh giá 2AS' }}
+            </button>
+          </div>
 
           <button class="sb-btn-ghost" @click="resetAll">↩ Scan lại</button>
         </div>
+
       </div>
     </aside>
 
@@ -366,12 +406,12 @@
             </div>
             <div v-if="phieuResult.viec_can_lam?.length" class="eval-section eval-todo">
               <div class="eval-sec-title">📋 Việc cần làm</div>
-              <ul class="eval-list">
+              <ol class="eval-ol">
                 <li v-for="(v,i) in phieuResult.viec_can_lam" :key="i">
-                  <span class="eval-prio" :class="`prio-${v.uu_tien}`">{{ (v.uu_tien||'').toUpperCase() }}</span>
+                  <span class="eval-prio" :class="`prio-${v.uu_tien}`">Ưu tiên: {{ (v.uu_tien||'').toLowerCase() }}</span>
                   {{ v.noi_dung }}
                 </li>
-              </ul>
+              </ol>
             </div>
           </div>
         </template>
@@ -430,17 +470,72 @@
               </table>
             </div>
 
+
+            <!-- Bảng tỷ trọng -->
+            <div v-if="tvResult.bang_ty_trong?.tieu_chi?.length" class="eval-section" style="margin-top:14px;border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.04);">
+              <div class="eval-sec-title" style="color:#059669">📊 Bảng Tỷ Trọng Năng Lực – AI Chấm Điểm
+                <span v-if="tvResult.bang_ty_trong.diem_tong != null" style="font-size:.72rem;background:#d1fae5;color:#065f46;padding:2px 9px;border-radius:16px;font-weight:700;margin-left:8px">Điểm tổng: {{ Number(tvResult.bang_ty_trong.diem_tong).toFixed(1) }}</span>
+              </div>
+              <table class="eval-table" style="margin-top:8px">
+                <thead><tr>
+                  <th style="width:28px">#</th>
+                  <th>Năng lực</th>
+                  <th style="width:80px;text-align:center">Trọng số</th>
+                  <th style="width:60px;text-align:center">Điểm</th>
+                </tr></thead>
+                <tbody>
+                  <tr v-for="(tc,i) in tvResult.bang_ty_trong.tieu_chi" :key="i">
+                    <td class="pc">{{ i+1 }}</td>
+                    <td style="font-weight:600">{{ tc.ten }}</td>
+                    <td style="text-align:center">{{ typeof tc.trong_so==='number' ? (tc.trong_so<=1?(tc.trong_so*100).toFixed(0):tc.trong_so.toFixed(0))+'%' : tc.trong_so }}</td>
+                    <td style="text-align:center;font-weight:700;color:#059669">{{ tc.diem != null ? Number(tc.diem).toFixed(1) : '—' }}</td>
+                  </tr>
+                </tbody>
+                <tfoot><tr style="font-weight:700;background:rgba(16,185,129,.08)">
+                  <td colspan="2" style="padding:6px 10px">ĐIỂM TỔNG</td>
+                  <td style="text-align:center;padding:6px 10px">100%</td>
+                  <td style="text-align:center;font-size:1rem;color:#059669;padding:6px 10px">{{ tvResult.bang_ty_trong.diem_tong != null ? Number(tvResult.bang_ty_trong.diem_tong).toFixed(1) : '—' }}</td>
+                </tr></tfoot>
+              </table>
+            </div>
+
+            <!-- Báo cáo ngày -->
+            <div v-if="tvResult.bao_cao_ngay" class="eval-section" style="margin-top:12px;border:1px solid rgba(59,130,246,.2);background:rgba(59,130,246,.04);">
+              <div class="eval-sec-title" style="color:#3b82f6">🔵 Báo cáo ngày
+                <span style="font-size:.72rem;background:#dbeafe;color:#1e40af;padding:2px 9px;border-radius:16px;font-weight:600;margin-left:8px">
+                  {{ tvResult.bao_cao_ngay.so_ngay_da_bc ?? '?' }}/{{ tvResult.bao_cao_ngay.so_ngay_can_bc ?? '?' }} ngày
+                </span>
+              </div>
+              <!-- Progress bar -->
+              <div style="background:rgba(59,130,246,.12);border-radius:6px;height:8px;overflow:hidden;margin:8px 0">
+                <div :style="{width: Math.min(100,Math.round((tvResult.bao_cao_ngay.so_ngay_da_bc||0)/(tvResult.bao_cao_ngay.so_ngay_can_bc||1)*100))+'%',height:'100%',background:'linear-gradient(90deg,#3b82f6,#60a5fa)'}" style="transition:width .4s"></div>
+              </div>
+              <div v-if="tvResult.bao_cao_ngay.nhan_xet" style="font-size:.8rem;color:#1e40af;font-weight:600;margin-bottom:4px">🔵 {{ tvResult.bao_cao_ngay.nhan_xet }}</div>
+              <div v-if="tvResult.bao_cao_ngay.ngay_thieu_bao_cao?.length" style="font-size:.76rem;color:#dc2626">❌ Thiếu BC: {{ tvResult.bao_cao_ngay.ngay_thieu_bao_cao.join(', ') }}</div>
+              <div v-if="tvResult.bao_cao_ngay.ngay_thieu_hang_muc?.length" style="font-size:.76rem;color:#d97706">⚠️ Thiếu hạng mục: {{ tvResult.bao_cao_ngay.ngay_thieu_hang_muc.join(', ') }}</div>
+            </div>
+
             <!-- Việc cần làm -->
             <div v-if="tvResult.viec_can_lam?.length" class="eval-section eval-todo">
               <div class="eval-sec-title">📋 Việc cần làm ngay</div>
-              <ul class="eval-list">
+              <ol class="eval-ol">
                 <li v-for="(v,i) in tvResult.viec_can_lam" :key="i">
-                  <span v-if="v.urgent" style="color:#dc2626;font-weight:700;margin-right:4px">⚡</span>
                   <strong>{{ v.title }}</strong>
-                  <span v-if="v.mo_ta" style="color:#64748b;font-size:.75rem"> — {{ v.mo_ta }}</span>
+                  <span v-if="v.urgent" class="eval-prio prio-cao">Gấp</span>
+                  <span v-if="v.mo_ta" style="color:#64748b;font-size:.75rem;display:block;margin-top:2px"> {{ v.mo_ta }}</span>
                 </li>
-              </ul>
+              </ol>
             </div>
+
+            <!-- ── Gợi ý JD ── -->
+            <div v-if="tvResult.jd_goi_y" style="margin-top:14px">
+              <JdGoiY
+                :jd="tvResult.jd_goi_y"
+                :expanded="true"
+                @toggle="() => {}"
+              />
+            </div>
+
           </div>
         </template>
 
@@ -588,6 +683,7 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import JdGoiY from '../components/JdGoiY.vue'
 const router = useRouter()
 
 // ── CSRF ──────────────────────────────────────────────────────────
@@ -610,6 +706,7 @@ async function callApi(url, body) {
 
 // ── State ─────────────────────────────────────────────────────────
 const step = ref(1)
+const evalType = ref('thu_viec')  // 'thu_viec' | 'hoc_viec'
 const phieuFile = ref(null)
 const sxkdFile = ref(null)
 const tried = ref(false)
@@ -692,10 +789,43 @@ function onKetQuaKpiInput() {
   sxkdDirty.value = true
 }
 
-// ── Gửi vào Đánh giá 2AS ────────────────────────────────────────────────────
+// ── Đánh giá 2AS + Daily report state ──────────────────────────────────────
+const dailyFile = ref(null)
+const ngayBD = ref('')
+const ngayKT = ref('')
+// Parse dd/mm/yyyy hoặc yyyy-mm-dd → Date
+function parseDMY(s) {
+  if (!s) return null
+  const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (m1) return new Date(+m1[3], +m1[2] - 1, +m1[1])
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (m2) return new Date(+m2[1], +m2[2] - 1, +m2[3])
+  return null
+}
+function fmtDateInput(v) {
+  const digits = v.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return digits.slice(0,2) + '/' + digits.slice(2)
+  return digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4)
+}
+const soNgayLamViec = computed(() => {
+  const start = parseDMY(ngayBD.value)
+  const end = parseDMY(ngayKT.value)
+  if (!start || !end || end < start) return 0
+  let count = 0
+  const cur = new Date(start)
+  while (cur <= end) {
+    const dow = cur.getDay()
+    if (dow !== 0 && dow !== 6) count++
+    cur.setDate(cur.getDate() + 1)
+  }
+  return count
+})
+
 const loadingEval = ref(false)
 const evalError = ref('')
 const tvResult = ref(null)
+const loadingTvPdf = ref(false)
 
 
 async function sendToEval() {
@@ -707,15 +837,37 @@ async function sendToEval() {
       months:   months.value,
       shared:   shared.value,
       cv_list:  cvList.value,
+      eval_type: evalType.value,
+      so_ngay_can_bc: soNgayLamViec.value || 0,
+      ngay_bd: ngayBD.value ? (parseDMY(ngayBD.value)?.toISOString().slice(0,10) || ngayBD.value) : '',
+      ngay_kt: ngayKT.value ? (parseDMY(ngayKT.value)?.toISOString().slice(0,10) || ngayKT.value) : '',
     }
     const BASE = '/api/method/cnb_2as.api.thu_viec'
+
+    let fetchBody, fetchHeaders
+    if (dailyFile.value) {
+      // Có file → dùng FormData để backend parse .xlsx/.docx đúng cách
+      const fd = new FormData()
+      fd.append('ef', JSON.stringify(payload.ef))
+      fd.append('months', JSON.stringify(payload.months))
+      fd.append('shared', JSON.stringify(payload.shared))
+      fd.append('cv_list', JSON.stringify(payload.cv_list))
+      fd.append('eval_type', payload.eval_type)
+      fd.append('so_ngay_can_bc', String(payload.so_ngay_can_bc))
+      fd.append('ngay_bd', payload.ngay_bd)
+      fd.append('ngay_kt', payload.ngay_kt)
+      fd.append('daily_report_file', dailyFile.value)
+      fetchBody = fd
+      fetchHeaders = { 'X-Frappe-CSRF-Token': csrf() }
+    } else {
+      fetchBody = JSON.stringify(payload)
+      fetchHeaders = { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': csrf() }
+    }
+
     const resp = await fetch(`${BASE}.review_from_scan`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Frappe-CSRF-Token': csrf(),
-      },
-      body: JSON.stringify(payload),
+      headers: fetchHeaders,
+      body: fetchBody,
     })
     const j = await resp.json()
     if (!resp.ok) throw new Error(j?.exception || j?.message || `HTTP ${resp.status}`)
@@ -730,6 +882,152 @@ async function sendToEval() {
     loadingEval.value = false
   }
 }
+
+async function exportTvPdf() {
+  const r = tvResult.value; if (!r) return
+  loadingTvPdf.value = true
+  try {
+    const nv = r.thong_tin_nhan_vien || {}
+    const now = new Date().toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' })
+
+    const tc2asHtml = r.phan_tich_2as?.length ? `
+      <h3 style="color:#4f46e5;margin-top:22px;border-left:4px solid #6366f1;padding-left:10px;font-size:14px">🔍 Phân tích 7 Tiêu chí 2AS</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#ede9fe">
+          <th style="padding:7px;border:1px solid #ddd6fe;width:36px">#</th>
+          <th style="padding:7px;border:1px solid #ddd6fe;width:22%">Tiêu chí</th>
+          <th style="padding:7px;border:1px solid #ddd6fe">Nhận xét</th>
+          <th style="padding:7px;border:1px solid #ddd6fe;width:80px;text-align:center">Kết quả</th>
+        </tr></thead><tbody>
+        ${r.phan_tich_2as.map((tc,i) => {
+          const ok = tc.ket_qua==='ĐẠT'
+          const warn = (tc.ket_qua||'').includes('CẦN')||(tc.ket_qua||'').includes('BỔ SUNG')
+          const bg = ok?'#f0fdf4':warn?'#fffbeb':'#fef2f2'
+          const clr = ok?'#059669':warn?'#d97706':'#dc2626'
+          return `<tr style="background:${bg}"><td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-weight:700;color:#6366f1">${tc.ma||i+1}</td><td style="padding:6px 8px;border:1px solid #e5e7eb;font-weight:600">${tc.tieu_chi||'—'}</td><td style="padding:6px 8px;border:1px solid #e5e7eb;line-height:1.6">${tc.nhan_xet||'—'}</td><td style="padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-weight:700;color:${clr}">${tc.ket_qua||'—'}</td></tr>`
+        }).join('')}
+        </tbody></table>` : ''
+
+    const dx = r.de_xuat_xu_ly || {}
+    const kqtv = dx.ket_qua_tv || ''
+    const isPass = kqtv.toLowerCase().includes('đạt')
+    const dxColor = isPass ? '#059669' : '#d97706'
+    const deXuatHtml = kqtv ? `
+      <h3 style="color:#4f46e5;margin-top:20px;border-left:4px solid #6366f1;padding-left:10px;font-size:14px">📋 Đề xuất xử lý</h3>
+      <div style="background:${isPass?'#f0fdf4':'#fffbeb'};border:2px solid ${dxColor};border-radius:8px;padding:14px">
+        <div style="font-weight:800;font-size:15px;color:${dxColor}">${kqtv}</div>
+        ${dx.ly_do?`<div style="margin-top:8px;color:#475569">${dx.ly_do}</div>`:''}
+      </div>` : ''
+
+    const ttData = r.bang_ty_trong || {}
+    const bangTyTrongHtml = ttData.tieu_chi?.length ? `
+      <h3 style="color:#4f46e5;margin-top:20px;border-left:4px solid #10b981;padding-left:10px;font-size:14px">📊 Bảng Tỷ Trọng Năng Lực
+        ${ttData.diem_tong != null ? `<span style="font-size:12px;background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:14px;font-weight:700;margin-left:8px">Điểm tổng: ${Number(ttData.diem_tong).toFixed(1)}</span>` : ''}
+      </h3>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#d1fae5">
+          <th style="padding:7px;border:1px solid #6ee7b7;width:36px">#</th>
+          <th style="padding:7px;border:1px solid #6ee7b7">Năng lực</th>
+          <th style="padding:7px;border:1px solid #6ee7b7;width:80px;text-align:center">Trọng số</th>
+          <th style="padding:7px;border:1px solid #6ee7b7;width:60px;text-align:center">Điểm</th>
+        </tr></thead><tbody>
+        ${(ttData.tieu_chi||[]).map((tc,i) => `<tr style="background:${i%2===0?'#f0fdf4':'#fff'}">
+          <td style="padding:6px 8px;border:1px solid #d1fae5;text-align:center">${i+1}</td>
+          <td style="padding:6px 8px;border:1px solid #d1fae5">${tc.ten||'—'}</td>
+          <td style="padding:6px 8px;border:1px solid #d1fae5;text-align:center">${typeof tc.trong_so==='number'?(tc.trong_so<=1?(tc.trong_so*100).toFixed(0):tc.trong_so.toFixed(0))+'%':tc.trong_so||'—'}</td>
+          <td style="padding:6px 8px;border:1px solid #d1fae5;text-align:center;font-weight:700;color:#059669">${tc.diem!=null?Number(tc.diem).toFixed(1):'—'}</td>
+        </tr>`).join('')}
+        </tbody>
+        <tfoot><tr style="font-weight:700;background:#d1fae5">
+          <td colspan="2" style="padding:7px 8px;border:1px solid #6ee7b7">ĐIỂM TỔNG</td>
+          <td style="padding:7px 8px;border:1px solid #6ee7b7;text-align:center">100%</td>
+          <td style="padding:7px 8px;border:1px solid #6ee7b7;text-align:center;font-size:15px;color:#059669">${ttData.diem_tong!=null?Number(ttData.diem_tong).toFixed(1):'—'}</td>
+        </tr></tfoot>
+      </table>` : ''
+
+    const bc = r.bao_cao_ngay
+    const pct = bc ? Math.min(100, Math.round((bc.so_ngay_da_bc||0)/(bc.so_ngay_can_bc||1)*100)) : 0
+    const baoCaoNgayHtml = bc ? `
+      <h3 style="color:#4f46e5;margin-top:18px;border-left:4px solid #3b82f6;padding-left:10px;font-size:14px">🔵 Báo cáo ngày
+        <span style="font-size:12px;background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:14px;font-weight:600;margin-left:8px">${bc.so_ngay_da_bc??'?'}/${bc.so_ngay_can_bc??'?'} ngày</span>
+      </h3>
+      <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px">
+        <div style="background:#fff;border-radius:4px;height:10px;overflow:hidden;margin-bottom:8px">
+          <div style="height:100%;background:linear-gradient(90deg,#3b82f6,#60a5fa);width:${pct}%"></div>
+        </div>
+        ${bc.nhan_xet?`<div style="color:#1e40af;font-weight:600;font-size:12px;margin-bottom:6px">${bc.nhan_xet}</div>`:''}
+        ${bc.ngay_thieu_bao_cao?.length?`<div style="color:#dc2626;font-size:11px;margin-bottom:4px">❌ Thiếu: ${bc.ngay_thieu_bao_cao.join(', ')}</div>`:''}
+        ${bc.ngay_thieu_hang_muc?.length?`<div style="color:#d97706;font-size:11px;margin-bottom:6px">⚠️ Thiếu hạng mục: ${bc.ngay_thieu_hang_muc.join(', ')}</div>`:''}
+        ${bc.doi_chieu_cong_viec?.length ? `
+          <div style="margin-top:8px">
+            <div style="font-weight:700;color:#1e40af;font-size:12px;margin-bottom:5px">🔍 Đối chiếu báo cáo ngày vs Phiếu đánh giá</div>
+            <table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead><tr style="background:#dbeafe">
+                <th style="padding:5px 7px;border:1px solid #93c5fd">Hạng mục</th>
+                <th style="padding:5px 7px;border:1px solid #93c5fd;width:90px;text-align:center">Có trong phiếu</th>
+                <th style="padding:5px 7px;border:1px solid #93c5fd">Ghi chú</th>
+              </tr></thead>
+              <tbody>
+                ${bc.doi_chieu_cong_viec.map((d,i)=>{
+                  const ok = d.co_trong_phieu
+                  return `<tr style="background:${i%2===0?'#f0f9ff':'#fff'}">
+                    <td style="padding:4px 7px;border:1px solid #bfdbfe">${d.hang_muc||'—'}</td>
+                    <td style="padding:4px 7px;border:1px solid #bfdbfe;text-align:center;font-weight:700;color:${ok?'#059669':'#dc2626'}">${ok?'✅ Có':'❌ Không'}</td>
+                    <td style="padding:4px 7px;border:1px solid #bfdbfe;color:#6b7280">${d.ghi_chu||''}</td>
+                  </tr>`
+                }).join('')}
+              </tbody>
+            </table>
+          </div>` : ''}
+      </div>` : ''
+
+    // ── Đề xuất của Quản lý ──────────────────────────────────────────────────
+    const ql = r.danh_gia_quan_ly || {}
+    const quanLyHtml = (ql.de_xuat_quan_ly || ql.nhan_xet) ? `
+      <h3 style="color:#4f46e5;margin-top:18px;border-left:4px solid #f59e0b;padding-left:10px;font-size:14px">
+        👔 Đề xuất của Quản lý
+        <span style="margin-left:8px;font-size:12px;background:${ql.hop_ly!==false?'#d1fae5':'#fef3c7'};color:${ql.hop_ly!==false?'#065f46':'#92400e'};padding:2px 8px;border-radius:14px;font-weight:600">${ql.hop_ly!==false?'✅ Hợp lý':'⚠️ Cần xem xét'}</span>
+      </h3>
+      <div style="background:${ql.hop_ly!==false?'#f0fdf4':'#fffbeb'};border:1px solid ${ql.hop_ly!==false?'#86efac':'#fcd34d'};border-radius:8px;padding:12px">
+        ${ql.de_xuat_quan_ly?`<div style="font-weight:700;font-size:13px;color:#374151;margin-bottom:5px">${ql.de_xuat_quan_ly}</div>`:''}
+        ${ql.nhan_xet?`<div style="color:#6b7280;font-size:12px;line-height:1.6">${ql.nhan_xet}</div>`:''}
+      </div>` : ''
+
+    const html = `<div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#111827;max-width:860px;margin:0 auto;padding:36px">
+      <h2 style="color:#6366f1;border-bottom:2px solid #6366f1;padding-bottom:8px">BÁO CÁO ĐÁNH GIÁ 2AS – THỬ VIỆC</h2>
+      <p style="color:#6b7280;margin-bottom:18px">CT Group · ${now}</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+        <tr><td style="padding:5px;background:#f8fafc;width:120px;font-weight:600">Họ tên</td><td style="padding:5px">${nv.ten_nhan_vien||ef.ho_ten||'—'}</td>
+            <td style="padding:5px;background:#f8fafc;width:100px;font-weight:600">Mã NV</td><td style="padding:5px">${nv.ma_nhan_vien||ef.ma_nhan_su||'—'}</td></tr>
+        <tr><td style="padding:5px;background:#f8fafc;font-weight:600">Chức danh</td><td style="padding:5px">${nv.chuc_danh||ef.chuc_danh||'—'}</td>
+            <td style="padding:5px;background:#f8fafc;font-weight:600">Đơn vị</td><td style="padding:5px">${nv.don_vi||ef.phong_ban||'—'}</td></tr>
+      </table>
+      <h3>Kết quả: <span style="color:${r.status==='ĐẠT'?'#059669':'#d97706'}">${r.status||'—'}</span></h3>
+      <p style="background:#f1f5f9;padding:10px;border-radius:8px;line-height:1.7">${r.tong_quan||'—'}</p>
+      ${tc2asHtml}${deXuatHtml}${bangTyTrongHtml}${baoCaoNgayHtml}${quanLyHtml}
+    </div>`
+
+    if (!window.html2pdf) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script')
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js'
+        s.onload = resolve; s.onerror = () => reject(new Error('Không tải được html2pdf'))
+        document.head.appendChild(s)
+      })
+    }
+    const name = (nv.ten_nhan_vien || ef.ho_ten || 'NhanVien').replace(/\s+/g, '_')
+    await window.html2pdf().set({
+      margin: [14, 16],
+      filename: `BaoCao_2AS_${name}_${new Date().toISOString().slice(0,10)}.pdf`,
+      image: { type: 'jpeg', quality: .95 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    }).from(html).save()
+  } catch(e) { alert('Lỗi PDF: ' + e.message) }
+  finally { loadingTvPdf.value = false }
+}
+
 
 // Phiếu editable fields
 const ef = reactive({
@@ -857,8 +1155,10 @@ function cancelPhieu() { populateEf(JSON.parse(efSnapshot.value)); phieuDirty.va
 function onDrop(e, type) {
   const f = e.dataTransfer.files[0]; if (!f) return
   if (type === 'phieu') phieuFile.value = f
-  else sxkdFile.value = f
+  else if (type === 'sxkd') sxkdFile.value = f
+  else if (type === 'daily') dailyFile.value = f
 }
+
 
 // ── SCAN (đồng thời) ─────────────────────────────────────────────
 async function doScan() {
@@ -871,7 +1171,9 @@ async function doScan() {
 
   if (phieuFile.value) {
     loadingMsg.value = 'GPT-4o đang đọc phiếu & KH SXKD song song...'
-    const fd = new FormData(); fd.append('scan_file', phieuFile.value)
+    const fd = new FormData()
+    fd.append('scan_file', phieuFile.value)
+    fd.append('eval_type', evalType.value)
     tasks.push(
       callApi('/api/method/cnb_2as.api.scan_phieu.scan_extract', fd)
         .then(async d => {
@@ -988,14 +1290,18 @@ async function downloadExcel(mi) {
 }
 
 function resetAll() {
-  step.value=1; phieuFile.value=null; sxkdFile.value=null; tried.value=false; error.value=''
+  step.value=1; phieuFile.value=null; sxkdFile.value=null; dailyFile.value=null
+  ngayBD.value=''; ngayKT.value=''
+  tried.value=false; error.value=''
   phieuResult.value=null; scanSessionId.value=''; phieuDirty.value=false; phieuDone.value=false
   months.value=[]; sxkdDirty.value=false; sxkdDone.value=false
   shared.value={ noi_quy:[], chi_dao:[], xet_duyet:{ hod_y_kien:'', bod_y_kien:'', ranking:'' } }
   cvList.value = [{ noi_dung:'', ty_le:'' }]
+  tvResult.value = null; evalError.value = ''
   Object.keys(ef).forEach(k=>ef[k]='')
 }
 </script>
+
 
 <style scoped>
 /* ── Layout ─────────────────────────────────────────────────────── */
@@ -1117,8 +1423,9 @@ body.theme-dark .phieu-title { color:#f1f5f9; }
 .phieu-table { width:100%; border-collapse:collapse; margin-bottom:6px; font-size:.83rem; }
 .phieu-table th { background:#f1f5f9; color:#374151; font-weight:700; padding:6px 9px; text-align:left; border:1px solid #d1d5db; font-size:.76rem; }
 body.theme-dark .phieu-table th { background:#1e2030; color:#94a3b8; border-color:rgba(255,255,255,.08); }
-.phieu-table td { padding:6px 9px; border:1px solid #e2e8f0; vertical-align:top; line-height:1.5; }
-body.theme-dark .phieu-table td { border-color:rgba(255,255,255,.07); }
+.phieu-table td { padding:6px 9px; border:1px solid #e2e8f0; vertical-align:top; line-height:1.5; color:#1e293b; }
+body.theme-dark .phieu-table td { border-color:rgba(255,255,255,.07); color:#e2e8f0; }
+
 .pl { font-weight:600; color:#6366f1; white-space:nowrap; }
 .pc { text-align:center; font-weight:600; color:#6366f1; }
 .phieu-selected { background:rgba(16,185,129,.08) !important; }
@@ -1135,13 +1442,14 @@ body.theme-dark .phieu-table td { border-color:rgba(255,255,255,.07); }
   background: rgba(99,102,241,.03);
   border: 1.5px solid rgba(99,102,241,.18);
   border-radius: 7px;
-  color: inherit;
+  color: #1e293b;
   font-size: .83rem;
   padding: 5px 9px;
   outline: none;
   transition: border-color .18s, background .18s, box-shadow .18s;
   font-family: inherit;
 }
+body.theme-dark .pe-input { color: #e2e8f0; background: rgba(99,102,241,.06); border-color: rgba(99,102,241,.25); }
 .pe-input:hover { border-color: rgba(99,102,241,.35); background: rgba(99,102,241,.05); }
 .pe-input:focus {
   border-color: #6366f1;
@@ -1153,7 +1461,7 @@ body.theme-dark .phieu-table td { border-color:rgba(255,255,255,.07); }
   background: rgba(99,102,241,.03);
   border: 1.5px solid rgba(99,102,241,.18);
   border-radius: 7px;
-  color: inherit;
+  color: #1e293b;
   font-size: .83rem;
   padding: 6px 9px;
   outline: none;
@@ -1163,12 +1471,14 @@ body.theme-dark .phieu-table td { border-color:rgba(255,255,255,.07); }
   transition: border-color .18s, background .18s, box-shadow .18s;
   min-height: 52px;
 }
+body.theme-dark .pe-ta { color: #e2e8f0; background: rgba(99,102,241,.06); border-color: rgba(99,102,241,.25); }
 .pe-ta:hover { border-color: rgba(99,102,241,.35); background: rgba(99,102,241,.05); }
 .pe-ta:focus {
   border-color: #6366f1;
   background: rgba(99,102,241,.07);
   box-shadow: 0 0 0 3px rgba(99,102,241,.12);
 }
+
 /* HOD fields — amber tint */
 .pe-hod {
   border-color: rgba(245,158,11,.3);
@@ -1220,8 +1530,9 @@ body.theme-dark .sth th { background:#1e2030; color:#94a3b8; border-color:rgba(2
 .thg { border-bottom:none !important; }
 .th-kh { background:rgba(99,102,241,.07) !important; color:#6366f1 !important; }
 .th-kq { background:rgba(16,185,129,.07) !important; color:#059669 !important; }
-.sxkd-row td { border:1px solid #e2e8f0; padding:0; vertical-align:top; }
-body.theme-dark .sxkd-row td { border-color:rgba(255,255,255,.06); }
+.sxkd-row td { border:1px solid #e2e8f0; padding:0; vertical-align:top; color:#1e293b; }
+body.theme-dark .sxkd-row td { border-color:rgba(255,255,255,.06); color:#e2e8f0; }
+
 .td-stt { width:30px; text-align:center; font-weight:700; color:#6366f1; padding:7px; vertical-align:middle; }
 .td-mang { width:110px; } .td-mota { width:250px; } .td-num { width:62px; } .td-bod { width:70px; } .td-link { width:130px; }
 .kqc { background:rgba(16,185,129,.03) !important; }
@@ -1231,10 +1542,13 @@ body.theme-dark .sxkd-row td { border-color:rgba(255,255,255,.06); }
 body.theme-dark .total-row td { border-color:rgba(255,255,255,.06); }
 .total-label { text-align:center; font-weight:800; font-size:.8rem; background:#f8fafc; }
 body.theme-dark .total-label { background:#1a1a28; }
-.sc-input { width:100%; border:none; background:transparent; outline:none; color:inherit; font-size:.78rem; padding:5px 7px; font-family:inherit; }
+.sc-input { width:100%; border:none; background:transparent; outline:none; color:#1e293b; font-size:.78rem; padding:5px 7px; font-family:inherit; }
+body.theme-dark .sc-input { color:#e2e8f0; }
 .sc-input:focus { background:rgba(99,102,241,.04); }
-.sc-ta { width:100%; border:none; background:transparent; outline:none; color:inherit; font-size:.77rem; padding:5px 7px; font-family:inherit; resize:vertical; min-height:65px; }
+.sc-ta { width:100%; border:none; background:transparent; outline:none; color:#1e293b; font-size:.77rem; padding:5px 7px; font-family:inherit; resize:vertical; min-height:65px; }
+body.theme-dark .sc-ta { color:#e2e8f0; }
 .sc-ta:focus { background:rgba(99,102,241,.04); }
+
 .link-ta { font-size:.71rem; color:#6366f1; }
 .nq-hdr td { background:#fef3c7; color:#92400e; font-weight:700; font-size:.75rem; padding:4px 10px; border:1px solid #e2e8f0; }
 body.theme-dark .nq-hdr td { background:rgba(245,158,11,.1); color:#fbbf24; }
@@ -1313,6 +1627,9 @@ body.theme-dark .eval-nx { color:#94a3b8; }
 .eval-list { margin:0; padding-left:18px; }
 .eval-list li { font-size:.8rem; color:#475569; line-height:1.6; }
 body.theme-dark .eval-list li { color:#94a3b8; }
+.eval-ol { margin:0; padding-left:22px; list-style:decimal; }
+.eval-ol li { font-size:.8rem; color:#475569; line-height:1.7; padding:2px 0; }
+body.theme-dark .eval-ol li { color:#94a3b8; }
 .eval-prio { display:inline-block; padding:1px 6px; border-radius:4px; font-size:.65rem; font-weight:800; margin-right:5px; }
 .prio-cao { background:rgba(239,68,68,.12); color:#dc2626; }
 .prio-trung { background:rgba(251,191,36,.12); color:#d97706; }
@@ -1321,5 +1638,11 @@ body.theme-dark .eval-list li { color:#94a3b8; }
 .sb-btn-reeval { display:flex; align-items:center; gap:6px; width:100%; padding:9px 12px; border-radius:9px; border:1.5px solid rgba(99,102,241,.3); background:rgba(99,102,241,.06); color:#818cf8; font-size:.8rem; font-weight:700; cursor:pointer; transition:all .2s; margin-top:6px; }
 .sb-btn-reeval:hover:not(:disabled) { background:rgba(99,102,241,.15); }
 .sb-btn-reeval:disabled { opacity:.5; cursor:not-allowed; }
+.date-inp { width:100%; box-sizing:border-box; background:rgba(99,102,241,.04); border:1.5px solid rgba(99,102,241,.2); border-radius:7px; color:inherit; font-size:.75rem; padding:4px 7px; outline:none; transition:border-color .18s; }
+.date-inp:focus { border-color:#6366f1; background:rgba(99,102,241,.07); }
+.etype-btn { flex:1; padding:7px 8px; border-radius:8px; border:1px solid rgba(99,102,241,.2); background:transparent; color:inherit; cursor:pointer; font-size:.82rem; font-weight:600; transition:all .2s; }
+.etype-btn:hover { background:rgba(99,102,241,.08); }
+.etype-btn.active { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border-color:transparent; }
+
 </style>
 

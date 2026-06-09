@@ -2,9 +2,11 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [vue()],
-  base: '/',
+  // Khi build: assets phải nằm ở /assets/cnb_2as/frontend/ để Frappe serve đúng
+  // Khi dev: dùng '/' vì proxy tự handle
+  base: command === 'build' ? '/assets/cnb_2as/frontend/' : '/',
   build: {
     outDir: resolve(__dirname, '../cnb_2as/public/frontend'),
     emptyOutDir: true,
@@ -21,4 +23,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

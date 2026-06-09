@@ -10,6 +10,7 @@ consistency between Word and Excel files.
 Imported by: api/evaluation.py, api/thu_viec.py
 """
 
+import os
 import re
 from datetime import datetime, date, timedelta
 
@@ -18,8 +19,15 @@ import frappe
 # Needed for reading documents in validators
 from docx import Document as DocxDocument
 import openpyxl
+from openpyxl import load_workbook
 
 from cnb_2as.services.document_parser import get_file_path_from_url, parse_docx, parse_xlsx
+
+# Ký tự placeholder — dùng trong _is_cell_empty
+_PLACEHOLDER_CHARS = set("._-…*/\\")
+
+# Các dòng data trong Excel template (tương ứng các mục công việc)
+XLSX_DATA_ROWS = list(range(5, 25))  # rows 5→24 (tối đa 20 mục)
 
 
 def _check_field(text, fields, warnings, field_name, keywords, checklist=None):

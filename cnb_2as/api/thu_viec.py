@@ -64,11 +64,56 @@ from cnb_2as.services.thu_viec_service import (
 from cnb_2as.services.prompts import (
     _SYSTEM_PROMPT,
     _CHAT_SYSTEM,
+    _JD_SUGGESTION_SYSTEM,
 )
 
 
 # ── OpenAI client ─────────────────────────────────────────────────────────────
 _client: OpenAI | None = None
+
+
+# ── JD Gợi ý helper ───────────────────────────────────────────────────────────
+
+def _generate_jd_goi_y_thu_viec(client, nhan_vien_info, word_raw, excel_raw, result):
+    """Sinh JD chuẩn theo CHỨC DANH/VỊ TRÍ — không dùng dữ liệu KPI/công việc thực tế của ứng viên."""
+    try:
+        chuc_danh = (
+            nhan_vien_info.get("chuc_danh") or
+            nhan_vien_info.get("vi_tri") or
+            nhan_vien_info.get("chuc_vu") or
+            result.get("thong_tin_nhan_vien", {}).get("chuc_danh") or ""
+        )
+        phong_ban = (
+            nhan_vien_info.get("phong_ban") or
+            nhan_vien_info.get("don_vi") or
+            result.get("thong_tin_nhan_vien", {}).get("don_vi") or ""
+        )
+        if not chuc_danh:
+            return None
+
+        context = f"CHỨC DANH / VỊ TRÍ: {chuc_danh}"
+        if phong_ban:
+            context += f"\nPHÒNG / BAN / ĐƠN VỊ: {phong_ban}"
+
+        prompt = (
+            f"Hãy xây dựng bản Mô tả Công việc (Job Description) chuẩn cho vị trí sau:\n\n"
+            f"{context}\n\n"
+            "Đây là JD CHUẨN của VỊ TRÍ, không phải mô tả công việc thực tế của một cá nhân cụ thể. "
+            "Hãy sinh JD phù hợp với thực tế thị trường lao động Việt Nam cho vị trí này."
+        )
+        resp = client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            messages=[
+                {"role": "system", "content": _JD_SUGGESTION_SYSTEM},
+                {"role": "user",   "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.4,
+            max_tokens=2000,
+        )
+        return json.loads(resp.choices[0].message.content)
+    except Exception:
+        return None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -109,6 +154,95 @@ _SESSION_PREFIX = "ats_session:"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Báo cáo ngày helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _merge_bao_cao_ngay(deterministic, ai_result):
+    """Merge deterministic day-count with AI cross-check findings."""
+    if not deterministic:
+        return None
+    merged = dict(deterministic)
+    if ai_result and isinstance(ai_result, dict):
+        if ai_result.get("nhan_xet"):
+            merged["nhan_xet"] = ai_result["nhan_xet"]
+        if ai_result.get("doi_chieu_cong_viec"):
+            merged["doi_chieu_cong_viec"] = ai_result["doi_chieu_cong_viec"]
+    return merged
+
+
+def _extract_bao_cao_section(word_raw: str) -> str:
+    """Trích phần 'Báo cáo ngày' từ word_raw (phiếu đánh giá).
+
+    Tìm section chứa từ khoá 'báo cáo ngày' hoặc 'nhật ký' và trả về
+    tối đa 3000 ký tự từ đó. Nếu không tìm thấy, trả về 500 ký tự cuối.
+    """
+    lower = word_raw.lower()
+    for kw in ["báo cáo ngày", "nhật ký công việc", "nhật ký", "iv. báo cáo", "phần iv"]:
+        idx = lower.find(kw)
+        if idx != -1:
+            return word_raw[idx: idx + 3000]
+    # Fallback: 500 chars cuối (thường chứa phần cuối phiếu)
+    return word_raw[-500:] if len(word_raw) > 500 else word_raw
+
+
+def _cross_check_bao_cao_vs_word(deterministic, daily_report_text, word_raw, client, excel_raw=""):
+    """So sánh nội dung báo cáo ngày (OCR) với Word phiếu VÀ Excel KPI.
+
+    Tách biệt hoàn toàn khỏi main prompt — không ảnh hưởng X1/W3/E1.
+    """
+    if not deterministic:
+        return None
+    if not daily_report_text or (not word_raw and not excel_raw):
+        return deterministic
+
+    try:
+        bao_cao_section = _extract_bao_cao_section(word_raw) if word_raw else ""
+        # Lấy phần KPI/công việc từ excel_raw (tóm tắt công việc được giao)
+        excel_section = excel_raw[:2000] if excel_raw else ""
+        mini_prompt = (
+            "Bạn là chuyên gia HR. Nhiệm vụ DUY NHẤT: đối chiếu nội dung Báo cáo ngày (OCR) "
+            "với danh sách công việc từ Phiếu Word VÀ Excel KPI.\n"
+            "KHÔNG nhận xét KPI %, tiến độ hay nội dung nào khác.\n\n"
+            "NGUYÊN TẮC SO SÁNH – BẮT BUỘC:\n"
+            "• So sánh theo Ý NGHĨA / NỘI DUNG THỰC TẾ, KHÔNG so tên literal.\n"
+            "• Công việc được tính là CÓ nếu xuất hiện trong Word HOẶC Excel KPI.\n"
+            "• Cùng công việc nhưng ghi khác tên → vẫn tính là CÓ.\n"
+            "  Ví dụ: 'làm API login' ↔ 'xây dựng chức năng đăng nhập' → GIỐNG NHAU.\n"
+            "  Ví dụ: 'bàn giao dự án Y' ↔ 'chuyển giao Y cho bạn Z' → GIỐNG NHAU.\n"
+            "• Chỉ đánh dấu KHÔNG có khi HOÀN TOÀN không liên quan đến bất kỳ nội dung nào.\n"
+            "• Khi nghi ngờ → đánh dấu CÓ (co_trong_phieu: true), ghi lý do vào ghi_chu.\n\n"
+            "Trả về JSON với 2 trường:\n"
+            '  "nhan_xet": string – nhận xét tổng hợp độ khớp (cả Word lẫn Excel)\n'
+            '  "doi_chieu_cong_viec": list[{"hang_muc": str, "co_trong_phieu": bool, "ghi_chu": str}]\n'
+            "Mỗi phần tử = 1 loại hoạt động từ Báo cáo ngày (gộp các ngày làm cùng việc)."
+        )
+        parts = []
+        if bao_cao_section:
+            parts.append(f"=== PHẦN BÁO CÁO NGÀY TRONG PHIẾU WORD ===\n{bao_cao_section}")
+        if excel_section:
+            parts.append(f"=== DANH SÁCH CÔNG VIỆC TRONG EXCEL KPI ===\n{excel_section}")
+        parts.append(f"=== NỘI DUNG BÁO CÁO NGÀY (OCR từ file nhân viên nộp) ===\n{daily_report_text[:8000]}")
+        mini_user = "\n\n".join(parts)
+
+        resp = client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            messages=[
+                {"role": "system", "content": mini_prompt},
+                {"role": "user",   "content": mini_user},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            max_tokens=2000,
+        )
+        ai = json.loads(resp.choices[0].message.content)
+        return _merge_bao_cao_ngay(deterministic, ai)
+    except Exception:
+        # Nếu mini-call lỗi, trả về deterministic không thay đổi
+        return deterministic
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # Endpoint 1b: review_from_scan  (nhận text từ ScanCombined, không cần file)
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -120,20 +254,171 @@ def review_from_scan():
       - months: list — SXKD months data từ ScanCombined
       - shared: dict — SXKD shared section (noi_quy, chi_dao, xet_duyet)
       - cv_list: list — danh sách % hoàn thành 1.6
+      - daily_report_text: str (optional) — nội dung báo cáo ngày đã extract
+      - so_ngay_can_bc: int (optional) — số ngày làm việc cần báo cáo
+      - ngay_bd: str (optional) — ngày bắt đầu kỳ báo cáo (YYYY-MM-DD)
+      - ngay_kt: str (optional) — ngày kết thúc kỳ báo cáo (YYYY-MM-DD)
     Trả về cùng schema với review_files.
     """
-    import uuid
-    body = frappe.form_dict or {}
-    if frappe.request and frappe.request.data:
+    import uuid, re as _re_dr
+    import json as _json_mod
+
+    def _safe_parse(val, default):
+        """Parse JSON string or return already-parsed object."""
+        if isinstance(val, (dict, list)):
+            return val  # Frappe đã parse sẵn
+        if isinstance(val, str) and val.strip():
+            try:
+                return _json_mod.loads(val)
+            except Exception:
+                return default
+        return default
+
+    # ── Đọc form fields từ frappe.form_dict (luôn có, dù multipart hay JSON) ──
+    fd = frappe.form_dict or {}
+
+    # Nếu là JSON POST thuần, body nằm trong frappe.request.data
+    if frappe.request and frappe.request.data and not fd.get("ef"):
         try:
-            body = json.loads(frappe.request.data)
+            fd = _json_mod.loads(frappe.request.data)
         except Exception:
             pass
 
-    ef = body.get("ef") or {}
-    months = body.get("months") or []
-    shared = body.get("shared") or {}
-    cv_list = body.get("cv_list") or []
+    ef       = _safe_parse(fd.get("ef"), {})
+    months   = _safe_parse(fd.get("months"), [])
+    shared   = _safe_parse(fd.get("shared"), {})
+    cv_list  = _safe_parse(fd.get("cv_list"), [])
+    eval_type = str(fd.get("eval_type") or "thu_viec")  # 'thu_viec' | 'hoc_viec'
+    so_ngay_can_bc = int(fd.get("so_ngay_can_bc") or 0)
+    ngay_bd  = str(fd.get("ngay_bd") or "")
+    ngay_kt  = str(fd.get("ngay_kt") or "")
+
+    # ── Parse file báo cáo ngày (chỉ nằm trong frappe.request.files) ─────────
+    daily_report_text = str(fd.get("daily_report_text") or "")
+    try:
+        files = frappe.request.files if frappe.request else {}
+        all_file_keys = list(files.keys()) if hasattr(files, 'keys') else []
+        print(f"[cnb_review] request.files keys: {all_file_keys}", flush=True)
+        if "daily_report_file" in files:
+            from cnb_2as.services.document_parser import parse_daily_report
+            raw_daily  = files["daily_report_file"].stream.read()
+            fname_daily = files["daily_report_file"].filename or ""
+            daily_report_text = parse_daily_report(raw_bytes=raw_daily, filename=fname_daily)
+            print(f"[cnb_review] daily_file={fname_daily} raw_len={len(raw_daily)} text_len={len(daily_report_text)}", flush=True)
+        else:
+            print(f"[cnb_review] NO daily_report_file in files. fd keys: {list(fd.keys())[:10]}", flush=True)
+    except Exception as _fe:
+        print(f"[cnb_review] file parse EXCEPTION: {_fe}", flush=True)
+        frappe.log_error(f"[review_from_scan] file parse error: {_fe}", "cnb_review")
+
+    # ── Debug log ─────────────────────────────────────────────────────────────
+    print(
+        f"[cnb_review] ef_type={type(ef).__name__} | months_count={len(months)} | "
+        f"daily_text_len={len(daily_report_text)} | so_ngay_can_bc={so_ngay_can_bc}",
+        flush=True
+    )
+
+
+    # ── Phân tích báo cáo ngày (deterministic, không cần AI) ─────────────────
+    bao_cao_ngay = None
+    if daily_report_text:
+        import json as _json_bc
+        from datetime import datetime as _dt, timedelta as _td
+        so_ngay_da_bc = 0
+        ngay_list_found: list[str] = []  # list ngày thật đọc được
+
+        # Thử parse JSON từ OCR (so_ngay_tim_thay chính xác hơn regex)
+        try:
+            report_data = _json_bc.loads(daily_report_text)
+            # Dùng ngay_list nếu có (dedup từ ocr_service), fallback so_ngay_tim_thay
+            if report_data.get("ngay_list"):
+                ngay_list_found = [d.strip() for d in report_data["ngay_list"] if d.strip()]
+                so_ngay_da_bc = len(ngay_list_found)
+            else:
+                # Fallback: extract từ bao_cao array và dedup
+                bao_cao_arr = report_data.get("bao_cao", [])
+                seen_ngay = set()
+                for item in bao_cao_arr:
+                    ngay = (item.get("ngay") or "").strip()
+                    if ngay and ngay not in seen_ngay:
+                        seen_ngay.add(ngay)
+                        ngay_list_found.append(ngay)
+                so_ngay_da_bc = len(ngay_list_found) or int(report_data.get("so_ngay_tim_thay", 0))
+        except Exception:
+            # Fallback: đếm ngày bằng regex cho plain text
+            date_patterns = [
+                r'\b(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})\b',
+                r'\b(\d{4}[/\-]\d{1,2}[/\-]\d{1,2})\b',
+                r'Ngày\s+(\d{1,2}[/\-]\d{1,2}(?:[/\-]\d{2,4})?)',
+            ]
+            found_dates = set()
+            for pat in date_patterns:
+                for m in _re_dr.finditer(pat, daily_report_text, _re_dr.IGNORECASE):
+                    found_dates.add(m.group(1).strip())
+            ngay_list_found = sorted(found_dates)
+            so_ngay_da_bc = len(found_dates)
+
+        # ── Tính ngày thiếu cụ thể (dựa vào khoảng ngay_bd→ngay_kt) ──────────
+        ngay_thieu_bao_cao: list[str] = []
+        ngay_thieu_hang_muc: list[str] = []
+
+        def _parse_date(s):
+            for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%Y-%m-%d"):
+                try:
+                    return _dt.strptime(s.strip(), fmt).date()
+                except Exception:
+                    pass
+            return None
+
+        def _workdays_in_range(start_str, end_str):
+            """Trả về list ngày làm việc (T2-T6) dạng dd/mm/yyyy."""
+            d0 = _parse_date(start_str) if start_str else None
+            d1 = _parse_date(end_str) if end_str else None
+            if not d0 or not d1 or d1 < d0:
+                return []
+            days = []
+            cur = d0
+            while cur <= d1:
+                if cur.weekday() < 5:  # 0=T2…4=T6
+                    days.append(cur.strftime("%d/%m/%Y"))
+                cur += _td(days=1)
+            return days
+
+        if ngay_bd and ngay_kt:
+            all_workdays = _workdays_in_range(ngay_bd, ngay_kt)
+            if all_workdays:
+                # Normalize found dates về dd/mm/yyyy để so sánh
+                def _norm(d):
+                    p = _parse_date(d)
+                    return p.strftime("%d/%m/%Y") if p else d
+                found_norm = set(_norm(d) for d in ngay_list_found)
+                ngay_thieu_bao_cao = [d for d in all_workdays if d not in found_norm]
+                so_ngay_can_bc_computed = len(all_workdays)
+                if so_ngay_can_bc == 0:
+                    so_ngay_can_bc = so_ngay_can_bc_computed
+        elif so_ngay_can_bc > 0 and so_ngay_da_bc < so_ngay_can_bc:
+            ngay_thieu_bao_cao = [f"Ngày {i+1}" for i in range(so_ngay_can_bc - so_ngay_da_bc)]
+
+        # Nhận xét
+        if so_ngay_can_bc > 0:
+            diff = so_ngay_can_bc - so_ngay_da_bc
+            nhan_xet = f"Tìm thấy {so_ngay_da_bc}/{so_ngay_can_bc} ngày báo cáo trong file." + (
+                f" Thiếu {diff} ngày." if diff > 0 else " Đủ ngày báo cáo."
+            )
+        else:
+            nhan_xet = f"Tìm thấy {so_ngay_da_bc} ngày báo cáo trong file. (Chưa nhập kỳ hạn để so sánh)"
+        bao_cao_ngay = {
+            "so_ngay_can_bc": so_ngay_can_bc,
+            "so_ngay_da_bc": so_ngay_da_bc,
+            "so_ngay_du_hang_muc": so_ngay_da_bc,
+            "ngay_thieu_hang_muc": ngay_thieu_hang_muc,
+            "ngay_thieu_bao_cao": ngay_thieu_bao_cao,
+            "nhan_xet": nhan_xet,
+            "ngay_bd": ngay_bd,
+            "ngay_kt": ngay_kt,
+        }
+
+
 
     # ── Serialize phiếu → word_raw text ──────────────────────────────────────
     def _yn(v): return "Có" if str(v).strip() else "(trống)"
@@ -304,8 +589,9 @@ def review_from_scan():
     kpi_summary = _build_kpi_summary(xlsx_parsed)
 
     # ── Tái dùng user_msg format như review_files ────────────────────────────
+    _loai_danh_gia = "HỌC VIỆC" if eval_type == "hoc_viec" else "THỬ VIỆC"
     user_msg = f"""
-═══ FILE WORD – PHIẾU ĐÁNH GIÁ (TỪ SCAN OCR) ═══
+═══ FILE WORD – PHIẾU ĐÁNH GIÁ {_loai_danh_gia} (TỪ SCAN OCR) ═══
 {word_raw[:14000]}
 
 ═══ FILE EXCEL – KẾ HOẠCH KPI (TÓM TẮT) ═══
@@ -372,6 +658,34 @@ Trả về JSON theo đúng schema.
     ]
     _save_session(session_id, sess)
 
+    # ── Sub-agent: Đánh giá đề xuất quản lý ─────────────────────────────────
+    try:
+        from cnb_2as.services.agents import _evaluate_manager_proposal
+        # Xây dựng context rõ ràng từ ef fields thay vì dựa vào word_raw
+        _proposal_lines = [
+            "=== ĐỀ XUẤT CỦA QUẢN LÝ TRỰC TIẾP / TBP / HOD (từ phiếu đánh giá) ===",
+            f"Kết luận: {ef.get('ket_luan', '(không có)')}",
+            f"Đề xuất ký HĐ / xử lý: {ef.get('de_xuat_ky_hd', '')}",
+            f"Đề xuất tăng thu nhập: {ef.get('de_xuat_tang_thu_nhap', '')}",
+            f"Ý kiến Quản lý / HOD: {ef.get('y_kien_hod', '')}",
+            f"Ý kiến RTD: {ef.get('y_kien_rtd', '')}",
+            f"Đề nghị phối hợp: {ef.get('de_nghi_phoi_hop', '')}",
+            "",
+            "=== TÓM TẮT KẾT QUẢ ĐÁNH GIÁ AI ===",
+        ]
+        _proposal_context = "\n".join(_proposal_lines) + "\n" + word_raw[:4000]
+        _de_xuat = result.get("de_xuat_xu_ly") or {}
+        _rec_data = {
+            "recommendation": _de_xuat.get("ket_qua_tv", ""),
+            "proposal_level": _de_xuat.get("ket_qua_tv", ""),
+            "reasoning": result.get("tong_quan", ""),
+        }
+        _danh_gia_ql = _evaluate_manager_proposal(_proposal_context, _rec_data)
+        if _danh_gia_ql:
+            result["danh_gia_quan_ly"] = _danh_gia_ql
+    except Exception as _e:
+        frappe.logger("cnb_review").warning(f"[MANAGER_PROPOSAL] Lỗi sub-agent scan: {_e}")
+
     weekly_kpi = xlsx_parsed.get("weekly_kpi") or {}
     return {
         "session_id":      session_id,
@@ -397,6 +711,11 @@ Trả về JSON theo đúng schema.
             ef.get("ngay_het_han") or
             (result.get("canh_bao_han") or {}).get("ngay_het_han", "")
         ),
+        "bang_ty_trong":   result.get("bang_ty_trong", {}),
+        "bao_cao_ngay":    _cross_check_bao_cao_vs_word(bao_cao_ngay, daily_report_text, word_raw, client, excel_raw),
+        "danh_gia_quan_ly": result.get("danh_gia_quan_ly", {}),
+        "jd_goi_y":        _generate_jd_goi_y_thu_viec(client, docx_parsed["nhan_vien_info"], word_raw, excel_raw, result),
+        "eval_type":       eval_type,
         "from_scan":       True,
     }
 
@@ -541,6 +860,22 @@ def review_files():
     result = json.loads(resp.choices[0].message.content)
     result = _filter_result(result)  # Xóa bất kỳ E1 nào AI tự sinh ra
     _log_tokens(resp, "review_files")
+
+    # ── Sub-agent: Đánh giá đề xuất quản lý ─────────────────────────────────
+    try:
+        from cnb_2as.services.agents import _evaluate_manager_proposal
+        _word_text = docx_parsed.get("full_text", "") or sess.get("docx_text", "")
+        _de_xuat = result.get("de_xuat_xu_ly") or {}
+        _rec_data = {
+            "recommendation": _de_xuat.get("ket_qua_tv", ""),
+            "proposal_level": _de_xuat.get("ket_qua_tv", ""),
+            "reasoning": result.get("tong_quan", ""),
+        }
+        _danh_gia_ql = _evaluate_manager_proposal(_word_text, _rec_data)
+        if _danh_gia_ql:
+            result["danh_gia_quan_ly"] = _danh_gia_ql
+    except Exception as _e:
+        frappe.logger("cnb_review").warning(f"[MANAGER_PROPOSAL] Lỗi sub-agent: {_e}")
 
     # ── Debug: log sự có mặt của các field quan trọng ──────────────────────────
     _logger = frappe.logger("cnb_review", allow_site=True)

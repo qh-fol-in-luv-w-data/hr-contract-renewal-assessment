@@ -448,7 +448,7 @@ Trả về JSON:
 {
   "ngay": "04/05/2026",
   "so_bao_cao": "T5/01/21",
-  "nguoi_bao_cao": "Hồ Đắc Quân",
+  "nguoi_bao_cao": "[Họ tên người báo cáo]",
   "hang_muc": [
     {"hang_muc": "CT Worksuit AI Assistant", "cong_viec": "...", "ket_qua": "..."},
     {"hang_muc": "Data Platform", "cong_viec": "...", "ket_qua": "..."}
@@ -524,3 +524,186 @@ Trả về JSON:
 
 	return result_json
 
+
+def ocr_daily_report_from_pdf(file_path, max_pages=25):
+	"""Extract daily report data from a scanned PDF by rendering pages as images.
+
+	Used when parse_pdf() returns empty text (image-only / scanned PDF).
+	Renders each page via PyMuPDF and sends to GPT-4o Vision API.
+
+	Args:
+		file_path: Absolute path to the .pdf file.
+		max_pages: Maximum number of pages to process (default 25).
+
+	Returns:
+		JSON string with aggregated daily report data across all pages.
+	"""
+	import json
+	import base64
+	import re as _re
+
+	try:
+		import fitz  # PyMuPDF
+	except ImportError:
+		raise ImportError("PyMuPDF (fitz) chưa được cài: pip install pymupdf")
+
+	if not os.path.exists(file_path):
+		raise ValueError(f"File không tồn tại: {file_path}")
+
+	print(f"[OCR-PDF] Mở PDF {os.path.basename(file_path)}...")
+	start_time = time.time()
+
+	doc = fitz.open(file_path)
+	n_pages = min(len(doc), max_pages)
+	print(f"[OCR-PDF] Tổng {len(doc)} trang, xử lý {n_pages} trang...")
+
+	# Render mỗi trang thành PNG (200 DPI – đủ cho chữ nhỏ và bảng dày)
+	img_entries = []
+	for page_num in range(n_pages):
+		page = doc[page_num]
+		mat = fitz.Matrix(200 / 72, 200 / 72)
+		pix = page.get_pixmap(matrix=mat)
+		img_bytes = pix.tobytes("png")
+		b64 = base64.b64encode(img_bytes).decode("utf-8")
+		img_entries.append((f"page_{page_num + 1}.png", "image/png", b64))
+	doc.close()
+
+	if not img_entries:
+		raise ValueError("Không có trang nào trong PDF")
+
+	from openai import OpenAI
+	api_key = frappe.conf.get("openai_api_key")
+	if not api_key:
+		raise ValueError("OpenAI API key chưa được cấu hình")
+
+	client = OpenAI(api_key=api_key)
+	model = os.environ.get("OPENAI_MODEL", "gpt-4o")
+
+	SYSTEM_MSG = (
+		"Bạn là chuyên gia đọc báo cáo công việc hàng ngày của nhân viên từ tài liệu scan. "
+		"Trích xuất đầy đủ và chính xác. Trả về JSON hợp lệ."
+	)
+
+	DAILY_PROMPT = """Đọc TẤT CẢ các báo cáo ngày trong trang PDF này. PHẢI TRÍCH XUẤT ĐẦY ĐỦ.
+
+MỘT TRANG CÓ THỂ CHỨA NHIỀU NGÀY BÁO CÁO. Hãy trích xuất TẤT CẢ.
+
+Với mỗi báo cáo ngày, trích xuất:
+- Ngày báo cáo (định dạng dd/mm/yyyy - Nếu không thấy ngày, hãy đoán dựa vào context xung quanh hoặc ghi 'Unknown')
+- Số báo cáo (dạng T5/01/21, v.v. nếu có)
+- Họ tên người báo cáo (Nếu không thấy tên, hãy kiểm tra phần Header hoặc Footer)
+- Từng dòng trong bảng: Hạng mục | Công việc thực hiện | Kết quả – PHẢI TRÍCH HẾT, không được bỏ sót (ghi lại đầy đủ text, không viết tắt)
+- Pending list (nếu có, để trống nếu không)
+- Đổi mới sáng tạo (nếu có, để trống nếu không)
+
+LƯU Ý QUAN TRỌNG:
+• Đọc kỹ từng ô trong bảng, kể cả chữ nhỏ và handwriting
+• Mỗi hạng mục phải có cong_viec và ket_qua đầy đủ, không được để trống nếu có nội dung
+• Nếu 1 hạng mục có nhiều dòng, gộp lại thành 1 object với nội dung đầy đủ
+• PHẢI TRÍCH XUẤT MỌI NGÀY BÁO CÁO có trên trang, KHÔNG bỏ qua bất kỳ mục nào
+• Nếu bảng bị gãy hoặc cắt trang, hãy tự hiểu context để hoàn thiện nội dung
+
+Trả về JSON với mảng bao_cao chứa TẤT CẢ các ngày tìm được:
+{
+  "bao_cao": [
+    {
+      "ngay": "04/05/2026",
+      "so_bao_cao": "T5/01/21",
+      "nguoi_bao_cao": "[Họ tên người báo cáo]",
+      "hang_muc": [
+        {"hang_muc": "...", "cong_viec": "...", "ket_qua": "..."}
+      ],
+      "pending_list": "...",
+      "doi_moi_sang_tao": "..."
+    }
+  ]
+}
+
+Nếu trang không chứa báo cáo ngày nào, trả về {"bao_cao": []}."""
+
+	bao_cao_list = []
+	total_tokens = 0
+
+	for idx, (name, mime, b64) in enumerate(img_entries):
+		print(f"[OCR-PDF] Trang {idx + 1}/{len(img_entries)}: {name}")
+		try:
+			response = client.chat.completions.create(
+				model=model,
+				messages=[
+					{"role": "system", "content": SYSTEM_MSG},
+					{
+						"role": "user",
+						"content": [
+							{"type": "text", "text": DAILY_PROMPT},
+							{"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}", "detail": "high"}}
+						]
+					}
+				],
+				response_format={"type": "json_object"},
+				max_tokens=6000,
+				temperature=0,
+			)
+			raw = response.choices[0].message.content
+			if response.usage:
+				total_tokens += response.usage.total_tokens
+			if raw and raw.strip():
+				try:
+					page_data = json.loads(raw)
+					# Hỗ trợ cả array trong bao_cao[] lẫn object đơn
+					page_reports = page_data.get("bao_cao", [])
+					if not page_reports and page_data.get("ngay"):
+						# Fallback: response là single object
+						page_reports = [page_data]
+					for day_data in page_reports:
+						if day_data.get("ngay"):  # chỉ cần có ngày là đủ
+							bao_cao_list.append(day_data)
+					print(f"[OCR-PDF] Trang {idx + 1}: {len(page_reports)} ngày → {[d.get('ngay','') for d in page_reports]}")
+				except json.JSONDecodeError:
+					print(f"[OCR-PDF] Trang {idx + 1}: JSON không hợp lệ")
+		except Exception as e:
+			print(f"[OCR-PDF] Trang {idx + 1}: Lỗi — {str(e)[:100]}")
+
+	if not bao_cao_list:
+		raise ValueError("OCR-PDF không đọc được nội dung báo cáo nào từ các trang")
+
+	# Sắp xếp theo ngày
+	def _sort_key(item):
+		ngay = item.get("ngay", "")
+		m = _re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", ngay)
+		if m:
+			return int(f"{m.group(3)}{int(m.group(2)):02d}{int(m.group(1)):02d}")
+		return 0
+
+	bao_cao_list.sort(key=_sort_key)
+
+	# Dedup theo ngày: nếu cùng ngày có nhiều bản (multi-page), giữ bản có nhiều hang_muc nhất
+	seen = {}
+	for item in bao_cao_list:
+		ngay = item.get("ngay", "").strip()
+		if not ngay:
+			continue
+		if ngay not in seen:
+			seen[ngay] = item
+		else:
+			# Giữ bản có nhiều hang_muc hơn
+			if len(item.get("hang_muc") or []) > len(seen[ngay].get("hang_muc") or []):
+				seen[ngay] = item
+	bao_cao_list = list(seen.values())
+	bao_cao_list.sort(key=_sort_key)
+
+	ngay_dau = bao_cao_list[0].get("ngay", "") if bao_cao_list else ""
+	ngay_cuoi = bao_cao_list[-1].get("ngay", "") if bao_cao_list else ""
+
+	result = {
+		"so_ngay_tim_thay": len(bao_cao_list),
+		"ngay_dau": ngay_dau,
+		"ngay_cuoi": ngay_cuoi,
+		"bao_cao": bao_cao_list,
+		"ngay_list": [item.get("ngay", "") for item in bao_cao_list],  # list ngày thật để đối chiếu
+	}
+
+	result_json = json.dumps(result, ensure_ascii=False, indent=2)
+	elapsed = time.time() - start_time
+	print(f"[OCR-PDF] Xong: {len(bao_cao_list)} ngày unique, {elapsed:.1f}s, {total_tokens} tokens")
+
+	return result_json

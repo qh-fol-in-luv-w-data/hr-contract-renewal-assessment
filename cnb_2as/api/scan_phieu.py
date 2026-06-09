@@ -130,6 +130,9 @@ def scan_extract():
     if not file_bytes:
         frappe.throw("File rỗng")
 
+    # Loại đánh giá: 'thu_viec' (default) hoặc 'hoc_viec'
+    eval_type = str(frappe.form_dict.get("eval_type") or "thu_viec")
+
     fname = filename.lower()
     client = _get_client()
     method_note = ""
@@ -162,6 +165,7 @@ def scan_extract():
         "extracted_fields": fields,
         "method": method_note,
         "xml_output": xml_output,
+        "eval_type": eval_type,
     })
 
     return {
@@ -171,6 +175,7 @@ def scan_extract():
         "has_handwriting": has_handwriting,
         "raw_markdown": raw_text,
         "xml_output": xml_output,
+        "eval_type": eval_type,
         **deadline_info,
     }
 
@@ -197,11 +202,19 @@ def scan_analyze():
     edited_text = body.get("edited_text", "")
     confirmed = body.get("confirmed_fields", {})
 
+    # Optional params – client có thể truyền hoặc lấy từ session đã lưu trước
+    daily_report_text = body.get("daily_report_text", "")
+    so_ngay_can_bc    = body.get("so_ngay_can_bc", "")
+    ti_trong          = body.get("ti_trong", None)
+    ngay_bd           = body.get("ngay_bd", "")
+    ngay_kt           = body.get("ngay_kt", "")
+
     if not sid:
         frappe.throw("Thiếu scan_session_id")
 
     sess = _load_session(sid)
     client = _get_client()
+    eval_type = sess.get("eval_type", "thu_viec")  # lấy từ session scan_extract
 
     # ── Ưu tiên: xml_input > edited_text > confirmed_fields > session ───────────
     if xml_input and xml_input.strip():
@@ -229,15 +242,44 @@ def scan_analyze():
 
     today_str = date.today().strftime("%d/%m/%Y")
     fields_json = json.dumps(confirmed, ensure_ascii=False, indent=2)
-    prompt = (_ANALYZE_PROMPT
+
+    # ── Build daily report section ──────────────────────────────────────────
+    daily_report_section = ''
+    if daily_report_text and daily_report_text.strip():
+        so_ngay_label = f" (cần báo cáo: {so_ngay_can_bc} ngày)" if so_ngay_can_bc else ''
+        daily_report_section = (
+            f"\n══ BÁO CÁO NGÀY{so_ngay_label} ══\n"
+            f"{daily_report_text[:8000]}\n\n"
+            "Đánh giá số ngày đã báo cáo vs số ngày cần báo cáo.\n"
+            "Nếu thiếu báo cáo ngày → thêm cảnh báo vào canh_bao.\n"
+            "Bổ sung field \"bao_cao_ngay\" vào JSON kết quả: "
+            '{"so_ngay_da_bc": N, "so_ngay_can_bc": M, "ty_le_bc": "N/M"}\n'
+        )
+
+    # ── Build tỉ trọng section ──────────────────────────────────────────────
+    ti_trong_section = ''
+    if ti_trong:
+        ti_trong_section = (
+            f"\n══ TỈ TRỌNG ĐÁNH GIÁ ══\n"
+            f"{json.dumps(ti_trong, ensure_ascii=False)}\n"
+            "Dùng tỉ trọng này để tính điểm tổng hợp (0-100).\n"
+            "Bổ sung field \"diem_tong_hop\" vào JSON kết quả: "
+            '{"kpi": N, "hoi_nhap": N, "san_pham": N, "bao_cao_ngay": N, "tong": N}\n'
+        )
+
+    _loai_label = "HỌC VIỆC" if eval_type == "hoc_viec" else "THỬ VIỆC"
+    prompt = (f"Loại phiếu: ĐÁNH GIÁ {_loai_label}\n\n"
+              + _ANALYZE_PROMPT
               .replace("{confirmed_fields_json}", fields_json)
-              .replace("{today}", today_str))
+              .replace("{today}", today_str)
+              .replace("{daily_report_section}", daily_report_section)
+              .replace("{ti_trong_section}", ti_trong_section))
 
     resp = client.chat.completions.create(
         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
         messages=[{"role": "user", "content": prompt}],
         temperature=0.2,
-        max_tokens=2500,
+        max_tokens=3500,
         response_format={"type": "json_object"},
     )
 
@@ -259,14 +301,20 @@ def scan_analyze():
     xml_output = _build_xml_from_fields(confirmed)
     result["xml_output"] = xml_output
 
-    # Lưu lại session
+    # Lưu thêm context vào session
     sess["result"] = result
     sess["confirmed_fields"] = confirmed
     sess["xml_output"] = xml_output
+    sess["ti_trong"] = ti_trong
+    sess["ngay_bd"] = ngay_bd
+    sess["ngay_kt"] = ngay_kt
+    if daily_report_text:
+        sess["daily_report_text"] = daily_report_text[:60000]
     if edited_text:
         sess["edited_text"] = edited_text[:60000]
     _save_session(sid, sess)
 
+    result["eval_type"] = eval_type
     return result
 
 
@@ -279,7 +327,7 @@ def scan_analyze():
 # Scan theo đề mục, không hardcode row/table index
 # ══════════════════════════════════════════════════════════════════════════════
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def fill_docx(scan_session_id: str):
     """
     Generate DOCX phiếu đánh giá thử việc từ confirmed_fields của session.
