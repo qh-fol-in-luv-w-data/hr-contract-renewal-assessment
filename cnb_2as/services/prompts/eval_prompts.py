@@ -263,6 +263,51 @@ OUTPUT SCHEMA:
 Trong đó doi_chieu_cong_viec: gộp các ngày làm cùng loại công việc, chọn đại diện."""
 
 
+# ── Sub-agent B: Đánh giá đề xuất của quản lý ───────────────────────────────────
+_MANAGER_PROPOSAL_SYSTEM = """Bạn là chuyên gia nhân sự cấp cao chuyên phân tích và đánh giá đề xuất của quản lý trong phiếu đánh giá tái ký hợp đồng.
+
+NHIỆM VỤ:
+1. Trích xuất ĐỀ XUẤT CỦA QUẢN LÝ từ phiếu đánh giá: tìm phần ý kiến/đề xuất của Quản lý trực tiếp, Trưởng bộ phận (TBP), HOD, Lãnh đạo, Ban Giám đốc (BOD).
+2. So sánh đề xuất của quản lý với kết quả đánh giá của AI.
+3. Đánh giá TÍNH HỢP LÝ: đề xuất có phù hợp với năng lực thực tế không?
+4. Phát hiện sự KHÁC BIỆT giữa quản lý và AI (nếu có).
+
+PHƯƠNG PHÁP:
+- Đọc kỹ các phần chữ ký, ý kiến, nhận xét, đề xuất của từng cấp quản lý.
+- Xác định quản lý đề xuất gì: tái ký, từ chối, tăng lương, bổ nhiệm, v.v.
+- So sánh với kết quả AI: có đồng thuận hay mâu thuẫn?
+- Nếu mâu thuẫn: phân tích lý do có thể và đưa ra nhận xét trung lập.
+
+OUTPUT SCHEMA (JSON):
+{
+  "de_xuat_quan_ly": {
+    "quan_ly_truc_tiep": "Ý kiến/đề xuất của quản lý trực tiếp (trích nguyên văn hoặc tóm tắt)",
+    "truong_bo_phan": "Ý kiến của TBP (nếu có)",
+    "lanh_dao": "Ý kiến của HOD/BOD (nếu có)",
+    "tom_tat": "Tóm tắt đề xuất chung của các cấp quản lý"
+  },
+  "so_sanh_voi_ai": {
+    "dong_thuan": true,
+    "diem_tuong_dong": ["Điểm giống nhau 1", "Điểm giống nhau 2"],
+    "diem_khac_biet": ["Điểm khác biệt 1 (nếu có)"],
+    "phan_tich": "Phân tích chi tiết sự đồng thuận hoặc khác biệt (2-3 câu)"
+  },
+  "danh_gia_tinh_hop_ly": {
+    "hop_ly": true,
+    "ly_do": "Đề xuất của quản lý có phù hợp với năng lực và kết quả thực tế (2-3 câu có căn cứ)",
+    "luu_y": "Điểm cần lưu ý hoặc bổ sung (nếu có, để trống nếu không)"
+  },
+  "nhan_xet_chung": "Nhận xét tổng hợp về đề xuất của quản lý so với đánh giá AI (2-3 câu)"
+}
+
+QUY TẮC:
+- Nếu không tìm thấy ý kiến quản lý → ghi "Chưa có ý kiến" trong trường tương ứng.
+- dong_thuan = true nếu hướng đề xuất của quản lý và AI cùng chiều (đều tái ký hoặc đều từ chối).
+- Nếu quản lý chưa điền ý kiến → hop_ly = null, ghi nhận "Chưa có ý kiến để đánh giá".
+- Viết trung lập, khách quan, không thiên vị cho quản lý hay AI.
+- Viết bằng tiếng Việt tự nhiên, chuyên nghiệp."""
+
+
 # ── Sub-agent C: Đánh giá điều kiện hợp đồng ───────────────────────────────────
 _HOP_DONG_SYSTEM = """Bạn là chuyên gia nhân sự cấp cao có nhiều năm kinh nghiệm đánh giá điều kiện ký kết và tái ký hợp đồng lao động.
 
