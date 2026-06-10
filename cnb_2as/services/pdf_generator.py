@@ -708,6 +708,52 @@ def _render_detail_analysis(eval_data, styles):
 	return result
 
 
+def _render_manager_evaluation(eval_data, styles, page_width):
+	"""Render manager evaluation section for the PDF.
+	
+	Returns:
+		list: ReportLab story elements for this section.
+	"""
+	result = []
+	ql = eval_data.get("danh_gia_quan_ly", {})
+	if ql and isinstance(ql, dict):
+		result.append(_section_divider())
+		result.append(Paragraph("5. ĐÁNH GIÁ ĐỀ XUẤT QUẢN LÝ", styles["PDFSection"]))
+
+		col_lbl = 3.2 * cm
+		col_val = page_width - col_lbl
+
+		ql_rows = [
+			[Paragraph("Đề xuất quản lý", styles["PDFSmall"]),
+			 Paragraph(_safe(ql.get("de_xuat_quan_ly", "—"), 800), styles["PDFCellBold"])],
+			[Paragraph("Mức độ đồng ý", styles["PDFSmall"]),
+			 Paragraph(_safe(ql.get("muc_do_dong_y", "—")), styles["PDFCellBold"])],
+			[Paragraph("Lý do chính", styles["PDFSmall"]),
+			 Paragraph(_safe(ql.get("ly_do_chinh", "—"), 800), styles["PDFBody"])],
+			[Paragraph("Phân tích AI", styles["PDFSmall"]),
+			 Paragraph(_safe(ql.get("phan_tich_chi_tiet", "—"), 800), styles["PDFBody"])],
+			[Paragraph("Nhận xét chung", styles["PDFSmall"]),
+			 Paragraph(_safe(ql.get("nhan_xet", "—"), 800), styles["PDFBody"])],
+			[Paragraph("Khuyến nghị", styles["PDFSmall"]),
+			 Paragraph(_safe(ql.get("khuyen_nghi_xu_ly", "—"), 800), styles["PDFBodyBold"])],
+		]
+
+		ql_table = Table(ql_rows, colWidths=[col_lbl, col_val])
+		ql_table.setStyle(TableStyle([
+			("BACKGROUND", (0, 0), (-1, -1), _CLR_BG_ALT),
+			("BOX", (0, 0), (-1, -1), 0.5, _CLR_BORDER),
+			("LINEBELOW", (0, 0), (-1, -1), 0.3, _CLR_BORDER_LIGHT),
+			("VALIGN", (0, 0), (-1, -1), "TOP"),
+			("TOPPADDING", (0, 0), (-1, -1), 6),
+			("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+			("LEFTPADDING", (0, 0), (0, -1), 8),
+		]))
+		result.append(ql_table)
+		result.append(Spacer(1, 4 * mm))
+
+	return result
+
+
 def _render_next_steps(eval_data, styles):
 	"""Render next steps section for the PDF.
 	
@@ -728,7 +774,7 @@ def _render_next_steps(eval_data, styles):
 	if next_steps and isinstance(next_steps, list) and len(next_steps) > 0:
 		result.append(_section_divider())
 		result.append(Paragraph(
-			f"5. BƯỚC XỬ LÝ TIẾP THEO ({len(next_steps)} mục)",
+			f"6. BƯỚC XỬ LÝ TIẾP THEO ({len(next_steps)} mục)",
 			styles["PDFSection"],
 		))
 
@@ -778,7 +824,7 @@ def _render_evidence(eval_data, styles):
 	if evidence_list:
 		result.append(_section_divider())
 		result.append(Paragraph(
-			f"6. BẰNG CHỨNG TRÍCH XUẤT ({len(evidence_list)} mục)",
+			f"7. BẰNG CHỨNG TRÍCH XUẤT ({len(evidence_list)} mục)",
 			styles["PDFSection"],
 		))
 
@@ -871,6 +917,7 @@ def generate_pdf(eval_data):
 	elements.extend(_render_assessment(eval_data, styles, page_width))
 	elements.extend(_render_competency_table(eval_data, styles, page_width))
 	elements.extend(_render_detail_analysis(eval_data, styles))
+	elements.extend(_render_manager_evaluation(eval_data, styles, page_width))
 	elements.extend(_render_next_steps(eval_data, styles))
 	elements.extend(_render_evidence(eval_data, styles))
 	elements.extend(_render_footer(styles))

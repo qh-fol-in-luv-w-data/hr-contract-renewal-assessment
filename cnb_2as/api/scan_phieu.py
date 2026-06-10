@@ -139,13 +139,13 @@ def scan_extract():
 
     if fname.endswith(".docx"):
         method_note = "DOCX – batch extraction (5 section)"
-        fields, raw_text = _scan_extract_docx(file_bytes, filename, client)
+        fields, raw_text = _scan_extract_docx(file_bytes, filename, client, eval_type)
     elif fname.endswith((".html", ".htm")):
         method_note = "HTML – đọc trực tiếp"
-        fields, raw_text = _scan_extract_html(file_bytes, client)
+        fields, raw_text = _scan_extract_html(file_bytes, client, eval_type)
     elif fname.endswith((".pdf", ".png", ".jpg", ".jpeg", ".bmp", ".webp")):
         method_note = "GPT-4o Vision → JSON trực tiếp"
-        fields, raw_text = _scan_extract_pdf_image(file_bytes, filename, client)
+        fields, raw_text = _scan_extract_pdf_image(file_bytes, filename, client, eval_type)
     else:
         frappe.throw(f"Định dạng file không hỗ trợ: {filename}")
 
@@ -191,10 +191,10 @@ def scan_analyze():
     """
     POST /api/method/cnb_2as.api.scan_phieu.scan_analyze
     Body JSON: { scan_session_id, xml_input? | edited_text? | confirmed_fields? }
-    - xml_input: XML \u0111\u01b0\u1ee3c ng\u01b0\u1eddi d\u00f9ng s\u1eeda \u1edf b\u01b0\u1edbc 2 (uu ti\u00ean nh\u1ea5t, parse nhanh kh\u00f4ng c\u1ea7n AI)
-    - edited_text: n\u1ed9i dung \u0111\u00e3 ch\u1ec9nh s\u1eeda trong Word editor (AI re-extract)
-    - confirmed_fields: JSON fields \u0111\u00e3 x\u00e1c nh\u1eadn (legacy)
-    Returns: ph\u00e2n t\u00edch 6 ti\u00eau ch\u00ed + \u0111\u1ec1 xu\u1ea5t
+    - xml_input: XML được người dùng sửa ở bước 2 (ưu tiên nhất, parse nhanh không cần AI)
+    - edited_text: nội dung đã chỉnh sửa trong Word editor (AI re-extract)
+    - confirmed_fields: JSON fields đã xác nhận (legacy)
+    Returns: phân tích 6 tiêu chí + đề xuất
     """
     body = frappe.request.get_json(force=True) or {}
     sid = body.get("scan_session_id", "")
@@ -225,7 +225,7 @@ def scan_analyze():
             confirmed = sess.get("extracted_fields", {})
     elif edited_text and edited_text.strip():
         # Người dùng sửa text markdown → re-extract bằng AI
-        extract_prompt = _EXTRACT_PROMPT + edited_text[:40000]
+        extract_prompt = _EXTRACT_PROMPT.replace("{loai_danh_gia}", "học việc" if eval_type == "hoc_viec" else "thử việc").replace("{loai_danh_gia_up}", "HỌC VIỆC" if eval_type == "hoc_viec" else "THỬ VIỆC").replace("{loai_danh_gia_cap}", "Học việc" if eval_type == "hoc_viec" else "Thử việc") + edited_text[:40000]
         try:
             er = client.chat.completions.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-4o"),
@@ -272,7 +272,7 @@ def scan_analyze():
               + _ANALYZE_PROMPT
               .replace("{confirmed_fields_json}", fields_json)
               .replace("{today}", today_str)
-              .replace("{daily_report_section}", daily_report_section)
+              .replace("{daily_report_section}", daily_report_section).replace("{loai_danh_gia}", "học việc" if eval_type == "hoc_viec" else "thử việc").replace("{loai_danh_gia_up}", "HỌC VIỆC" if eval_type == "hoc_viec" else "THỬ VIỆC").replace("{loai_danh_gia_cap}", "Học việc" if eval_type == "hoc_viec" else "Thử việc")
               .replace("{ti_trong_section}", ti_trong_section))
 
     resp = client.chat.completions.create(
@@ -330,7 +330,7 @@ def scan_analyze():
 @frappe.whitelist()
 def fill_docx(scan_session_id: str):
     """
-    Generate DOCX phiếu đánh giá thử việc từ confirmed_fields của session.
+    Generate DOCX phiếu đánh giá từ confirmed_fields của session.
     Không dùng template file, generate toàn bộ nội dung theo đề mục.
     Trả về: { filename, content_b64, content_type, ho_ten, ma_nhan_su }
     """
@@ -346,6 +346,11 @@ def fill_docx(scan_session_id: str):
     # ── Load session ──────────────────────────────────────────────────────────
     sess   = _load_session(scan_session_id)
     fields = sess.get("confirmed_fields") or sess.get("extracted_fields") or {}
+    eval_type = sess.get("eval_type", "thu_viec")
+    _loai = "học việc" if eval_type == "hoc_viec" else "thử việc"
+    _loai_up = "HỌC VIỆC" if eval_type == "hoc_viec" else "THỬ VIỆC"
+    _loai_cap = "Học việc" if eval_type == "hoc_viec" else "Thử việc"
+
     if not fields:
         frappe.throw("Session chưa có dữ liệu. Hãy scan_extract trước.")
 
@@ -413,14 +418,13 @@ def fill_docx(scan_session_id: str):
     # ════════════════════════════════════════════════════════════════════════
     # TIÊU ĐỀ
     # ════════════════════════════════════════════════════════════════════════
-    h = doc.add_heading("PHIẾU ĐÁNH GIÁ HOÀN THÀNH THỬ VIỆC", level=1)
+    h = doc.add_heading(f"PHIẾU ĐÁNH GIÁ HOÀN THÀNH {_loai_up}", level=1)
     h.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p_sub = doc.add_paragraph("CT Group – Trung tâm Phát triển AI")
     p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # ════════════════════════════════════════════════════════════════════════
     # A. THÔNG TIN NHÂN VIÊN
-    # Scan theo field name (không hardcode row index)
     # ════════════════════════════════════════════════════════════════════════
     doc.add_heading("A. THÔNG TIN NHÂN VIÊN", level=2)
     t_info = _new_table(doc,
@@ -432,7 +436,7 @@ def fill_docx(scan_session_id: str):
         ("Chức danh:",        "chuc_danh",        "Chức danh HOD:",  "chuc_danh_hod"),
         ("Phòng ban:",        "phong_ban",        "",                ""),
         ("Ngày nhận việc:",   "ngay_nhan_viec",   "",                ""),
-        ("Hết hạn thử việc:", "ngay_het_han",     "",                ""),
+        (f"Hết hạn {_loai}:", "ngay_het_han",     "",                ""),
     ]:
         r = t_info.add_row()
         _cell(r.cells[0], lbl_nv, bold=True)
@@ -444,9 +448,8 @@ def fill_docx(scan_session_id: str):
 
     # ════════════════════════════════════════════════════════════════════════
     # PHẦN I – NHẬN XÉT CHUNG
-    # Scan các field nhan_xet_{i} theo thứ tự đề mục 1-5
     # ════════════════════════════════════════════════════════════════════════
-    doc.add_heading("PHAN I - NHAN XET CHUNG", level=2)
+    doc.add_heading("PHẦN I - NHẬN XÉT CHUNG", level=2)
     nx_items = [
         ("1. Những việc làm tốt / thành tích nổi bật", "tu_danh_gia_lam_tot",   "nhan_xet_1_hod"),
         ("2. Kỹ năng và hoạt động cần cải thiện",       "tu_danh_gia_ky_nang",   "nhan_xet_2_hod"),
@@ -468,25 +471,24 @@ def fill_docx(scan_session_id: str):
     # ════════════════════════════════════════════════════════════════════════
     # PHẦN II – KẾT QUẢ KPI
     # ════════════════════════════════════════════════════════════════════════
-    doc.add_heading("PHAN II - KET QUA KPI", level=2)
+    doc.add_heading("PHẦN II - KẾT QUẢ KPI", level=2)
 
     # ─── 1.1 – 1.8: KPI Từng Tuần ────────────────────────────────────────
-    # Scan theo đề mục: kpi_tuan_{i}_ty_le (KHÔNG hardcode row index)
-    doc.add_heading("1.1 - 1.8: KPI Tung Tuan", level=3)
+    doc.add_heading("1.1 - 1.8: KPI Từng Tuần", level=3)
     t_kpi = _new_table(doc,
-        ["Tuan", "% KPI (NV tu danh gia)", "% KPI (HOD)", "Ghi chu"],
+        ["Tuần", "% KPI (NV)", "% KPI (HOD)", "Ghi chú"],
         [2, 6, 3, 8.5])
     for i in range(1, 9):
         nv_pct  = f(f"kpi_tuan_{i}_ty_le")
         hod_pct = f(f"hod_kpi_tuan_{i}")
         r = t_kpi.add_row()
-        _cell(r.cells[0], f"Tuan {i}", bold=True)
+        _cell(r.cells[0], f"Tuần {i}", bold=True)
         _cell(r.cells[1], nv_pct,  bold=bool(nv_pct))
         _cell(r.cells[2], hod_pct, bold=bool(hod_pct))
         _cell(r.cells[3], "")
     # Dòng TBC
     r_tbc = t_kpi.add_row()
-    _cell(r_tbc.cells[0], "Diem TBC KPI", bold=True)
+    _cell(r_tbc.cells[0], "Điểm TBC KPI", bold=True)
     _cell(r_tbc.cells[1], f("diem_tbc_kpi_nv"), bold=True)
     _cell(r_tbc.cells[2], f("diem_tbc_kpi_hod"), bold=True)
     _cell(r_tbc.cells[3], "")
@@ -494,23 +496,20 @@ def fill_docx(scan_session_id: str):
     doc.add_paragraph("")
 
     # ─── 1.10: NHIỆM VỤ ĐƯỢC GIAO VÀ KẾT QUẢ THỰC TẾ ───────────────────
-    # Scan theo đề mục nhiem_vu_{i} — dynamic rows, không hardcode số hàng
-    doc.add_heading("1.10 - Nhiem Vu Duoc Giao va Ket Qua Thuc Te", level=3)
+    doc.add_heading("1.10 - Nhiệm vụ được giao và Kết quả thực tế", level=3)
 
     cong_viec = f("cong_viec_duoc_giao")
     tong_tl   = f("ty_le_hoan_thanh_16")
     if cong_viec:
-        doc.add_paragraph(f"Cong viec duoc giao:\n{cong_viec}")
+        doc.add_paragraph(f"Công việc được giao:\n{cong_viec}")
     if tong_tl:
-        doc.add_paragraph(f"Ty le hoan thanh tong 1.6: {tong_tl}")
+        doc.add_paragraph(f"Tỷ lệ hoàn thành tổng 1.6: {tong_tl}")
 
-    # Bảng nhiệm vụ — dynamic số hàng theo dữ liệu thực tế
     t_nv = _new_table(doc,
-        ["STT", "Noi dung nhiem vu", "Ket qua dat duoc", "% Hoan thanh", "Nhan xet HOD"],
+        ["STT", "Nội dung nhiệm vụ", "Kết quả đạt được", "% Hoàn thành", "Nhận xét HOD"],
         [1.5, 6.5, 5, 2.5, 4])
     found_nv = False
     for i in range(1, 9):
-        # Scan theo tên field đề mục nhiem_vu_X — không cần biết ở trang nào
         noi_dung = f(f"nhiem_vu_{i}_noi_dung")
         ket_qua  = f(f"nhiem_vu_{i}_ket_qua")
         ty_le    = f(f"nhiem_vu_{i}_ty_le")
@@ -525,20 +524,17 @@ def fill_docx(scan_session_id: str):
             _cell(r.cells[4], hod_nx)
     if not found_nv:
         r = t_nv.add_row()
-        _cell(r.cells[0], "(Chua co du lieu nhiem vu)")
+        _cell(r.cells[0], "(Chưa có dữ liệu nhiệm vụ)")
 
     doc.add_paragraph("")
 
     # ─── 2.1 – 2.8: SẢN PHẨM NGHIỆM THU ────────────────────────────────
-    # Scan theo đề mục san_pham_{i} và link_dinh_kem_{i}
-    # Dynamic: chỉ render tuần có dữ liệu
-    doc.add_heading("2. San Pham Nghiem Thu Tung Tuan", level=3)
+    doc.add_heading("2. Sản phẩm nghiệm thu từng tuần", level=3)
     t_sp = _new_table(doc,
-        ["De muc", "San pham / Nhiem vu dat ra", "So file", "Link dinh kem", "Vi pham", "% KPI"],
+        ["Đề mục", "Sản phẩm / Nhiệm vụ", "Số file", "Link", "Vi phạm", "% KPI"],
         [2, 5.5, 1.5, 4.5, 2, 2])
     found_sp = False
     for i in range(1, 9):
-        # Scan field theo tên đề mục — không hardcode trang/row
         sp      = f(f"san_pham_{i}")
         nt      = f(f"nhiem_vu_tuan_{i}")
         so_file = f(f"so_luong_file_{i}")
@@ -549,9 +545,9 @@ def fill_docx(scan_session_id: str):
             found_sp = True
             sp_text = sp
             if nt and nt != sp:
-                sp_text = f"{sp}\nNhiem vu: {nt}" if sp else nt
+                sp_text = f"{sp}\nNhiệm vụ: {nt}" if sp else nt
             r = t_sp.add_row()
-            _cell(r.cells[0], f"2.{i} - Tuan {i}", bold=True)
+            _cell(r.cells[0], f"2.{i} - T {i}", bold=True)
             _cell(r.cells[1], sp_text)
             _cell(r.cells[2], so_file, center=True)
             _cell(r.cells[3], link)
@@ -559,28 +555,27 @@ def fill_docx(scan_session_id: str):
             _cell(r.cells[5], kpi_sp, bold=bool(kpi_sp), center=True)
     if not found_sp:
         r = t_sp.add_row()
-        _cell(r.cells[0], "(Chua co du lieu san pham)")
+        _cell(r.cells[0], "(Chưa có dữ liệu sản phẩm)")
 
     doc.add_paragraph("")
 
     # ════════════════════════════════════════════════════════════════════════
     # PHẦN III – HỘI NHẬP
-    # Scan theo đề mục hoi_nhap_{i}_nv / _hod — không hardcode row index
     # ════════════════════════════════════════════════════════════════════════
-    doc.add_heading("PHAN III - HOI NHAP", level=2)
+    doc.add_heading("PHẦN III - HỘI NHẬP", level=2)
     hn_labels = [
-        "7.1. Su menh Tap doan",
-        "7.1. Su menh ban than",
-        "7.2. Tam nhin Tap doan",
-        "7.2. Tam nhin ban than",
-        "7.3. Van hoa cot loi Tap doan",
-        "7.3. Gia tri cot loi ban than",
-        "7.4. Phu hop van hoa lam viec",
-        "7.5. Van hoa kinh doanh",
-        "7.6. Dong gop khac trong giai doan hoi nhap",
+        "7.1. Sứ mệnh Tập đoàn",
+        "7.1. Sứ mệnh bản thân",
+        "7.2. Tầm nhìn Tập đoàn",
+        "7.2. Tầm nhìn bản thân",
+        "7.3. Văn hóa cốt lõi Tập đoàn",
+        "7.3. Giá trị cốt lõi bản thân",
+        "7.4. Phù hợp văn hóa làm việc",
+        "7.5. Văn hóa kinh doanh",
+        "7.6. Đóng góp khác trong giai đoạn hội nhập",
     ]
     t_hn = _new_table(doc,
-        ["Noi dung", "NV tu danh gia", "Nhan xet HOD"],
+        ["Nội dung", "NV tự đánh giá", "Nhận xét HOD"],
         [5, 7, 7.5])
     for i, label in enumerate(hn_labels, 1):
         nv  = f(f"hoi_nhap_{i}_nv")
@@ -595,12 +590,12 @@ def fill_docx(scan_session_id: str):
     # ════════════════════════════════════════════════════════════════════════
     # KẾT LUẬN
     # ════════════════════════════════════════════════════════════════════════
-    doc.add_heading("KET LUAN", level=2)
-    t_kl = _new_table(doc, ["Muc", "Noi dung"], [4, 15.5])
+    doc.add_heading("KẾT LUẬN", level=2)
+    t_kl = _new_table(doc, ["Mục", "Nội dung"], [4, 15.5])
     for muc, val in [
-        ("Ket qua danh gia:", f("ket_luan")),
-        ("De xuat cua NV:",   f("de_xuat_nv")),
-        ("De xuat cua HOD:",  f("de_xuat_hod")),
+        ("Kết quả đánh giá:", f("ket_luan")),
+        ("Đề xuất của NV:",   f("de_xuat_nv")),
+        ("Đề xuất của HOD:",  f("de_xuat_hod")),
     ]:
         r = t_kl.add_row()
         _cell(r.cells[0], muc, bold=True)
@@ -609,7 +604,7 @@ def fill_docx(scan_session_id: str):
     doc.add_paragraph("")
 
     # Chữ ký
-    t_sign = _new_table(doc, ["Nhan vien ky xac nhan", "Nguoi quan ly (HOD)"])
+    t_sign = _new_table(doc, ["Nhân viên ký xác nhận", "Người quản lý (HOD)"])
     r_sp2 = t_sign.add_row()
     _cell(r_sp2.cells[0], "\n\n\n\n")
     _cell(r_sp2.cells[1], "\n\n\n\n")
@@ -624,7 +619,7 @@ def fill_docx(scan_session_id: str):
     content_b64 = base64.b64encode(buf.read()).decode()
 
     ho_ten   = f("ho_ten", "NhanVien").replace(" ", "_")
-    filename = f"PhieuDanhGiaThuViec_{ho_ten}.docx"
+    filename = f"PhieuDanhGia_{_loai_cap}_{ho_ten}.docx"
 
     return {
         "filename":     filename,
@@ -735,10 +730,12 @@ def download_pdf():
         "de_xuat_xu_ly":       de_xuat_xu_ly,
         "viec_can_lam":        viec_can_lam,
         "xlsx_kpi":            [],
+        "danh_gia_quan_ly":    analyze_result.get("danh_gia_quan_ly", {}),
         "from_scan":           True,
     }
 
     # ── Generate PDF ──────────────────────────────────────────────────────────
+    eval_data["eval_type"] = sess.get("eval_type", "thu_viec")
     buffer = generate_thu_viec_pdf(eval_data)
 
     ho_ten = (confirmed_fields.get("ho_ten") or "NhanVien").replace(" ", "_")
@@ -746,8 +743,6 @@ def download_pdf():
 
     frappe.response.filename = filename
     frappe.response.filecontent = buffer.getvalue()
-    frappe.response.type = "pdf"
-
     filename = f"BaoCao_ScanPhieu_{ho_ten}.pdf"
 
     frappe.response.filename = filename

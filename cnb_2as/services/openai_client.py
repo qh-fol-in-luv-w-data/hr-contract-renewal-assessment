@@ -37,7 +37,7 @@ def get_client():
 	Returns:
 		OpenAI client configured with the site's API key.
 	"""
-	return OpenAI(api_key=get_api_key())
+	return OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
 
 
 def chat_completion_json(system_prompt, user_prompt, model="gpt-4o"):

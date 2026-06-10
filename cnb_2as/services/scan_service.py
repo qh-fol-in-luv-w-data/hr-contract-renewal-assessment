@@ -58,7 +58,7 @@ def _get_client() -> OpenAI:
         key = os.getenv("OPENAI_API_KEY", "") or getattr(frappe.conf, "openai_api_key", "")
         if not key:
             frappe.throw("Chưa cấu hình OPENAI_API_KEY")
-        _client = OpenAI(api_key=key)
+        _client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
     return _client
 
 
@@ -261,7 +261,7 @@ def _build_xml_from_fields(fields: dict) -> str:
     )
 
 
-def _scan_extract_docx(file_bytes, filename, client):
+def _scan_extract_docx(file_bytes, filename, client, eval_type):
     """
     Extract fields from DOCX using batch OpenAI calls (5-section strategy).
 
@@ -423,7 +423,7 @@ Lấy NGUYÊN VĂN. Ô trống → ""."""
     return fields, raw_text
 
 
-def _scan_extract_html(file_bytes, client):
+def _scan_extract_html(file_bytes, client, eval_type):
     """
     Extract fields from HTML using a single OpenAI call.
 
@@ -437,9 +437,13 @@ def _scan_extract_html(file_bytes, client):
     method_note = "HTML – đọc trực tiếp"
     if raw_text.strip():
         try:
+            _loai = "học việc" if eval_type == "hoc_viec" else "thử việc"
+            _loai_up = "HỌC VIỆC" if eval_type == "hoc_viec" else "THỬ VIỆC"
+            _loai_cap = "Học việc" if eval_type == "hoc_viec" else "Thử việc"
+            prompt_content = _EXTRACT_PROMPT.replace("{loai_danh_gia}", _loai).replace("{loai_danh_gia_up}", _loai_up).replace("{loai_danh_gia_cap}", _loai_cap)
             resp = client.chat.completions.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-                messages=[{"role": "user", "content": _EXTRACT_PROMPT + raw_text[:80000]}],
+                messages=[{"role": "user", "content": prompt_content + raw_text[:80000]}],
                 temperature=0,
                 max_tokens=8000,
                 response_format={"type": "json_object"},
@@ -452,7 +456,7 @@ def _scan_extract_html(file_bytes, client):
     return fields, raw_text
 
 
-def _scan_extract_pdf_image(file_bytes, filename, client):
+def _scan_extract_pdf_image(file_bytes, filename, client, eval_type):
     """
     Extract fields from PDF/image using GPT-4o Vision with smart batching.
 
@@ -583,8 +587,11 @@ def _scan_extract_pdf_image(file_bytes, filename, client):
             return "{}", {}
 
     # ── Phase 0: Detect section trên từng trang (cheap – detail:low) ────────
+    _loai = "học việc" if eval_type == "hoc_viec" else "thử việc"
+    _loai_up = "HỌC VIỆC" if eval_type == "hoc_viec" else "THỬ VIỆC"
+    _loai_cap = "Học việc" if eval_type == "hoc_viec" else "Thử việc"
     DETECT_PROMPT = (
-        'Nhìn vào trang phiếu đánh giá thử việc CT Group này. '
+        f'Nhìn vào trang phiếu đánh giá {_loai} CT Group này. '
         'Trả về JSON: {"section": "...", "page_label": "..."}\n'
         'section phải là 1 trong: "A_thong_tin", "I_nhan_xet", "II_kpi", '
         '"II_san_pham", "III_hoi_nhap", "C_ket_luan"\n'
@@ -725,14 +732,14 @@ def _scan_extract_pdf_image(file_bytes, filename, client):
                 f"[SCAN] Bridge KPI batch: trang {bridge_pg_s}–{bridge_pg_e} "
                 f"(bảng 1.10 boundary)"
             )
-            _btxt, _bpart = _call_batch(bridge_imgs, PROMPT_MAP["kpi"],
+            _btxt, _bpart = _call_batch(bridge_imgs, PROMPT_MAP["kpi"].replace("{loai_danh_gia}", _loai).replace("{loai_danh_gia_up}", _loai_up).replace("{loai_danh_gia_cap}", _loai_cap),
                                          f"trang {bridge_pg_s}–{bridge_pg_e} [kpi-bridge]")
             raw_text += f"\n\n=== trang {bridge_pg_s}–{bridge_pg_e} [kpi-bridge] ===\n" + _btxt
             fields = _merge_fields(fields, _bpart)
 
     # ── Phase 1+2: Extract từng group với prompt chuyên biệt ─────────────
     for grp in groups:
-        prompt = PROMPT_MAP[grp["type"]]
+        prompt = PROMPT_MAP[grp["type"]].replace("{loai_danh_gia}", _loai).replace("{loai_danh_gia_up}", _loai_up).replace("{loai_danh_gia_cap}", _loai_cap)
         pg_s   = grp["start"]
         pg_e   = grp["start"] + len(grp["imgs"]) - 1
         label  = f"trang {pg_s}–{pg_e}/{total_pages} [{grp['type']}]"

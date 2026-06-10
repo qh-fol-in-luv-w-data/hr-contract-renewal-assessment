@@ -835,7 +835,7 @@
         <!-- Đề xuất Quản lý -->
         <div v-if="result.danh_gia_quan_ly" class="result-card">
           <div class="rc-header" :class="result.danh_gia_quan_ly.hop_ly ? 'rc-h-green' : 'rc-h-warn'" @click="toggle('quan_ly')">
-            <span>{{ result.danh_gia_quan_ly.hop_ly ? '✅' : '⚠️' }} Đề xuất Quản lý – {{ result.danh_gia_quan_ly.hop_ly ? 'Hợp lý' : 'Cần xem lại' }}</span>
+            <span class="dx-chip" :class="result.danh_gia_quan_ly.hop_ly ? 'chip-pass' : 'chip-extend'">{{ result.danh_gia_quan_ly.muc_do_dong_y || (result.danh_gia_quan_ly.hop_ly ? '✅ Đồng ý' : '⚠️ Cần xem xét') }}</span>
             <span class="rc-arrow" :class="{open:sec.quan_ly}">›</span>
           </div>
           <div v-if="sec.quan_ly" class="rc-body">
@@ -843,9 +843,22 @@
               <div class="emp-field-label">Đề xuất của Quản lý</div>
               <div style="font-size:.9rem;font-weight:600;color:#1e293b;margin-top:4px;">{{ result.danh_gia_quan_ly.de_xuat_quan_ly || '—' }}</div>
             </div>
-            <div style="padding:12px 14px;border-radius:8px;" :style="result.danh_gia_quan_ly.hop_ly ? 'background:#f0fdf4;border:1px solid #bbf7d0' : 'background:#fff7ed;border:1px solid #fed7aa'">
-              <div class="emp-field-label">Đánh giá của 2AS</div>
+            
+            <div v-if="result.danh_gia_quan_ly.ly_do_chinh" style="margin-top:10px;padding:10px 12px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:6px">
+              <div class="dx-ly-do" style="font-size:.85rem;font-weight:600;color:#0c4a6e">{{ result.danh_gia_quan_ly.ly_do_chinh }}</div>
+            </div>
+
+            <div v-if="result.danh_gia_quan_ly.phan_tich_chi_tiet" style="margin-top:10px">
+              <div class="dx-ly-do" style="font-size:.85rem;line-height:1.75;color:#374151">{{ result.danh_gia_quan_ly.phan_tich_chi_tiet }}</div>
+            </div>
+
+            <div style="padding:12px 14px;border-radius:8px;margin-top:10px;" :style="result.danh_gia_quan_ly.hop_ly ? 'background:#f0fdf4;border:1px solid #bbf7d0' : 'background:#fff7ed;border:1px solid #fed7aa'">
+              <div class="emp-field-label">Nhận xét của 2AS</div>
               <div style="font-size:.88rem;color:#1e293b;margin-top:4px;line-height:1.6;">{{ result.danh_gia_quan_ly.nhan_xet }}</div>
+            </div>
+            
+            <div v-if="result.danh_gia_quan_ly.khuyen_nghi_xu_ly" style="margin-top:10px;padding:10px 12px;background:#fefce8;border-left:3px solid #eab308;border-radius:6px">
+              <div class="dx-ly-do" style="font-size:.85rem;font-weight:600;color:#78350f">{{ result.danh_gia_quan_ly.khuyen_nghi_xu_ly }}</div>
             </div>
           </div>
         </div>

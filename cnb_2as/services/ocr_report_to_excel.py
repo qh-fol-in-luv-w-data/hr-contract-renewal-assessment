@@ -85,7 +85,7 @@ def ocr_pdf_with_vision(pdf_path, api_key, model="gpt-4o"):
     """
     from openai import OpenAI
     
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
     
     # Convert PDF → ảnh
     base64_images = pdf_to_images(pdf_path)

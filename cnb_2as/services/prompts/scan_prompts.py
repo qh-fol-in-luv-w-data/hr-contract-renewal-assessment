@@ -1,7 +1,7 @@
 # Copyright (c) 2025, antruong and contributors
 # For license information, please see license.txt
 
-"""AI prompt constants for phiếu thử việc scan."""
+"""AI prompt constants for phiếu {loai_danh_gia} scan."""
 
 
 _MERGE_PROMPT = """Bạn nhận được 2 nguồn OCR của CÙNG 1 tài liệu scan:
@@ -29,7 +29,7 @@ QUY TẮC:
 Trả về MARKDOWN THUẦN (không wrap trong code block)."""
 
 
-_EXTRACT_PROMPT = """Bạn là AI chuyên đọc phiếu đánh giá thử việc CT Group. Trích xuất đầy đủ các trường sau. Trả về JSON thuần, không markdown. Nếu không tìm thấy → để "". KHÔNG bịa đặt.
+_EXTRACT_PROMPT = """Bạn là AI chuyên đọc phiếu đánh giá {loai_danh_gia} CT Group. Trích xuất đầy đủ các trường sau. Trả về JSON thuần, không markdown. Nếu không tìm thấy → để "". KHÔNG bịa đặt.
 
 {
   "ho_ten": "",
@@ -110,7 +110,7 @@ VĂN BẢN TÀI LIỆU:
 
 
 _ANALYZE_PROMPT = """Bạn là 2AS – AI Đánh Giá Nhân Sự CT Group.
-Phân tích hồ sơ đánh giá thử việc và đưa ra đề xuất xử lý.
+Phân tích hồ sơ đánh giá {loai_danh_gia} và đưa ra đề xuất xử lý.
 
 DỮ LIỆU NHÂN VIÊN (đã xác nhận):
 {confirmed_fields_json}
@@ -127,7 +127,7 @@ Ngày hiện tại: {today}
 ══ PHÂN TÍCH THEO 6 TIÊU CHÍ ══
 1. KẾT QUẢ CÔNG VIỆC – Có số liệu/kết quả cụ thể? Đạt mục tiêu? (chỉ tính các tuần thực tế có trong phiếu)
 2. THÁI ĐỘ / KỶ LUẬT – Vi phạm nội quy? Ý thức chuyên cần?
-3. NĂNG LỰC CHUYÊN MÔN – Thể hiện nền tảng & tiềm năng phát triển? (thử việc → không đòi thành thạo ngay; đánh giá thái độ học, tốc độ tiến bộ, chủ động giải quyết vấn đề)
+3. NĂNG LỰC CHUYÊN MÔN – Thể hiện nền tảng & tiềm năng phát triển? ({loai_danh_gia} → không đòi thành thạo ngay; đánh giá thái độ học, tốc độ tiến bộ, chủ động giải quyết vấn đề)
 4. MỨC ĐỘ PHÙ HỢP – Phù hợp vị trí, văn hóa, team?
 5. NHẬN XÉT QUẢN LÝ – Đủ rõ ràng, có căn cứ?
 6. TÌNH TRẠNG HỐ SƠ & THỚI HẠN – Đủ thông tin? Đúng hạn?
@@ -150,7 +150,7 @@ Trả về JSON thuần:
   "so_tuan_thuc_te": 4,
   "de_xuat": "ĐỒNG Ý KÝ HĐLĐ | CẦN BỔ SUNG | GIA HẠN THỮc VIỆC | KHÔNG ĐỀ XUẤT",
   "mau_de_xuat": "green | amber | amber | red",
-  "tong_quan": "Nhận xét tổng quan 2-3 câu, nêu rõ hợp đồng có bao nhiêu tuần",
+  "tong_quan": "Nhận xét tổng quan 2-3 câu, nêu rõ hợp đồng có bao nhiêu tuần (lưu ý dùng từ '{loai_danh_gia}' hoặc 'học việc' phù hợp với tiêu đề Phiếu)",
   "phan_tich": [
     {"tieu_chi": "KẾT QUẢ CÔNG VIỆC", "danh_gia": "Đạt | Chưa đạt | Không đủ dữ liệu", "nhan_xet": "..."},
     {"tieu_chi": "THÁI ĐỘ / KỶ LUẬT", "danh_gia": "...", "nhan_xet": "..."},
@@ -167,12 +167,21 @@ Trả về JSON thuần:
     {"thu_tu": 3, "noi_dung": "Việc cần làm CỤ THỂ #3", "uu_tien": "thap"}
   ],
   "alert_deadline": false,
-  "so_ngay_con_lai": null
+  "so_ngay_con_lai": null,
+  "danh_gia_quan_ly": {
+    "de_xuat_quan_ly": "Đề xuất của quản lý (BẮT BUỘC tổng hợp từ các trường 'ket_luan', 'de_xuat_ky_hd', 'de_xuat_tang_thu_nhap', 'de_nghi_phoi_hop', 'y_kien_hod', 'y_kien_rtd' trong dữ liệu nhân viên. Đọc nguyên văn nội dung chính).",
+    "hop_ly": true,
+    "muc_do_dong_y": "✅ Đồng ý hoàn toàn | ⚠️ Cần xem xét | ❌ Không đồng ý",
+    "ly_do_chinh": "Lý do chính yếu",
+    "phan_tich_chi_tiet": "Phân tích vì sao hợp lý hoặc không hợp lý (nếu có)",
+    "nhan_xet": "Nhận xét tổng quan của AI về đề xuất này",
+    "khuyen_nghi_xu_ly": "Khuyến nghị xử lý tiếp theo"
+  }
 }
 """
 
 
-VISION_JSON_PROMPT = """Bạn đang xem ảnh PHIẾU ĐÁNH GIÁ HOÀN THÀNH THỬ VIỆC (CTG-GO-NLCD-QT16-BM01) của CT Group.
+VISION_JSON_PROMPT = """Bạn đang xem ảnh PHIẾU ĐÁNH GIÁ HOÀN THÀNH {loai_danh_gia_up} (CTG-GO-NLCD-QT16-BM01) của CT Group.
 Đọc TOÀN BỘ nội dung — kể cả chữ nhỏ, chữ ở lề, góc trang. Điền vào JSON bên dưới.
 
 === QUY TẮC BẮT BUỘC ===
@@ -327,7 +336,7 @@ TRẢ VỀ JSON THUẦN (KHÔNG markdown):
 }"""
 
 
-HOI_NHAP_PROMPT = """Bạn đang xem các trang cuối phần II và/hoặc PHẦN III – MỨC ĐỘ HỘI NHẬP của PHIẾU ĐÁNH GIÁ THỬ VIỆC CT Group.
+HOI_NHAP_PROMPT = """Bạn đang xem các trang cuối phần II và/hoặc PHẦN III – MỨC ĐỘ HỘI NHẬP của PHIẾU ĐÁNH GIÁ {loai_danh_gia_up} CT Group.
 
 NHIỆM VỤ: Đọc TOÀN BỘ và điền NGUYÊN VĂN không tóm tắt vào đúng field.
 Các câu trả lời RẤT DÀI và TRẢI NHIỀU TRANG — ghi tất cả vào đây.
@@ -388,7 +397,7 @@ TRẢ VỀ JSON THUẦN:
 }"""
 
 
-KPI_PROMPT = """Bạn đang xem trang PHẦN II – KPI của PHIẾU ĐÁNH GIÁ THỬ VIỆC CT Group.
+KPI_PROMPT = """Bạn đang xem trang PHẦN II – KPI của PHIẾU ĐÁNH GIÁ {loai_danh_gia_up} CT Group.
 
 NHIỆM VỤ CHÍNH: Đọc chính xác % và nội dung nhiệm vụ.
 
@@ -477,7 +486,7 @@ TRẢ VỀ JSON THUẦN:
 }"""
 
 
-SAN_PHAM_PROMPT = """Bạn đang xem trang PHẦN II – SẢN PHẨM NGHIỆM THU của PHIẾU ĐÁNH GIÁ THỬ VIỆC CT Group.
+SAN_PHAM_PROMPT = """Bạn đang xem trang PHẦN II – SẢN PHẨM NGHIỆM THU của PHIẾU ĐÁNH GIÁ {loai_danh_gia_up} CT Group.
 
 NHIỆM VỤ: Đọc đầy đủ thông tin từng tuần (2.1 → 2.8).
 

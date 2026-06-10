@@ -633,11 +633,15 @@ Trả về JSON theo đúng schema.
 """
 
     session_id = str(uuid.uuid4())
+    _loai = "học việc" if eval_type == "hoc_viec" else "thử việc"
+    _loai_up = "HỌC VIỆC" if eval_type == "hoc_viec" else "THỬ VIỆC"
+    _loai_cap = "Học việc" if eval_type == "hoc_viec" else "Thử việc"
+
     client = _get_client()
     resp = client.chat.completions.create(
         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
         messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": _SYSTEM_PROMPT.replace("{loai_danh_gia}", _loai).replace("{loai_danh_gia_up}", _loai_up).replace("{loai_danh_gia_cap}", _loai_cap)},
             {"role": "user",   "content": user_msg},
         ],
         response_format={"type": "json_object"},
@@ -833,12 +837,16 @@ def review_files():
                                      so_ngay_can_bc=so_ngay_can_bc_str)
     # ── Gọi OpenAI ────────────────────────────────────────────────────────────
 
+    _loai = "học việc" if eval_type == "hoc_viec" else "thử việc"
+    _loai_up = "HỌC VIỆC" if eval_type == "hoc_viec" else "THỬ VIỆC"
+    _loai_cap = "Học việc" if eval_type == "hoc_viec" else "Thử việc"
+
     client = _get_client()
     try:
         resp = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": _SYSTEM_PROMPT.replace("{loai_danh_gia}", _loai).replace("{loai_danh_gia_up}", _loai_up).replace("{loai_danh_gia_cap}", _loai_cap)},
                 {"role": "user", "content": user_msg},
             ],
             response_format={"type": "json_object"},

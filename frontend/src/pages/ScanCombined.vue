@@ -214,7 +214,7 @@
           </div>
 
           <div class="phieu-doc">
-            <div class="phieu-title">PHIẾU ĐÁNH GIÁ HOÀN THÀNH THỬ VIỆC</div>
+            <div class="phieu-title">PHIẾU ĐÁNH GIÁ HOÀN THÀNH {{ evalType==='hoc_viec' ? 'HỌC VIỆC' : 'THỬ VIỆC' }}</div>
             <div class="phieu-subtitle">CT Group – CTG-GO-NLCD-QT16-BM01</div>
 
             <div v-if="phieuDirty" class="dirty-bar">
@@ -994,7 +994,7 @@ async function exportTvPdf() {
       </div>` : ''
 
     const html = `<div style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#111827;max-width:860px;margin:0 auto;padding:36px">
-      <h2 style="color:#6366f1;border-bottom:2px solid #6366f1;padding-bottom:8px">BÁO CÁO ĐÁNH GIÁ 2AS – THỬ VIỆC</h2>
+      <h2 style="color:#6366f1;border-bottom:2px solid #6366f1;padding-bottom:8px">BÁO CÁO ĐÁNH GIÁ 2AS – ${evalType.value==='hoc_viec'?'HỌC VIỆC':'THỬ VIỆC'}</h2>
       <p style="color:#6b7280;margin-bottom:18px">CT Group · ${now}</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
         <tr><td style="padding:5px;background:#f8fafc;width:120px;font-weight:600">Họ tên</td><td style="padding:5px">${nv.ten_nhan_vien||ef.ho_ten||'—'}</td>

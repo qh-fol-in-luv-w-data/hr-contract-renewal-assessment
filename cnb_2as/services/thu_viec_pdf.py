@@ -45,11 +45,16 @@ def generate_thu_viec_pdf(eval_data):
 	_register_vietnamese_font()
 	styles = _get_styles()
 
+	eval_type = eval_data.get("eval_type", "thu_viec")
+	_loai_up = "HỌC VIỆC" if eval_type == "hoc_viec" else "THỬ VIỆC"
+	_loai_cap = "Học việc" if eval_type == "hoc_viec" else "Thử việc"
+	_loai = "học việc" if eval_type == "hoc_viec" else "thử việc"
+
 	doc = SimpleDocTemplate(
 		buffer, pagesize=A4,
 		leftMargin=2*cm, rightMargin=2*cm,
 		topMargin=2*cm, bottomMargin=2*cm,
-		title="Bao Cao Danh Gia Thu Viec",
+		title=f"Bao Cao Danh Gia {_loai_cap}",
 		author="CT Group – DAIT AI System",
 	)
 
@@ -79,7 +84,7 @@ def generate_thu_viec_pdf(eval_data):
 	brand_style = ParagraphStyle("_brand", fontName=_FONT_BOLD, fontSize=13, textColor=CLR_INDIGO, alignment=TA_LEFT)
 	date_style  = ParagraphStyle("_date",  fontName=_FONT_NAME, fontSize=8,  textColor=CLR_GRAY,   alignment=TA_RIGHT)
 	hdr_table = Table(
-		[[Paragraph("CT GROUP  ·  BÁO CÁO ĐÁNH GIÁ THỬ VIỆC", brand_style), Paragraph(f"Ngày xuất: {now_str}", date_style)]],
+		[[Paragraph(f"CT GROUP  ·  BÁO CÁO ĐÁNH GIÁ {_loai_up}", brand_style), Paragraph(f"Ngày xuất: {now_str}", date_style)]],
 		colWidths=[pw*0.65, pw*0.35]
 	)
 	hdr_table.setStyle(TableStyle([
@@ -194,7 +199,7 @@ def generate_thu_viec_pdf(eval_data):
 		dx_bg  = CLR_GREEN_BG if is_dx_pass else (CLR_AMBER_BG if is_dx_warn else CLR_RED_BG)
 		dx_clr = CLR_GREEN    if is_dx_pass else (CLR_AMBER    if is_dx_warn else CLR_RED)
 		dx_rows = [
-			[Paragraph("Kết quả thử việc", ParagraphStyle("_dxlbl", fontName=_FONT_BOLD, fontSize=8, textColor=CLR_GRAY)),
+			[Paragraph(f"Kết quả {_loai}", ParagraphStyle("_dxlbl", fontName=_FONT_BOLD, fontSize=8, textColor=CLR_GRAY)),
 			 Paragraph(_safe(kq_tv or "—"), ParagraphStyle("_dxkq", fontName=_FONT_BOLD, fontSize=10, textColor=dx_clr))],
 			[Paragraph("Mức độ đề xuất",   ParagraphStyle("_dxlbl2", fontName=_FONT_BOLD, fontSize=8, textColor=CLR_GRAY)),
 			 Paragraph(_safe(dx.get("muc_do","—")), ParagraphStyle("_dxmd", fontName=_FONT_NAME, fontSize=9, textColor=_CLR_DARK))],
@@ -210,7 +215,39 @@ def generate_thu_viec_pdf(eval_data):
 		elements.append(dx_table)
 		elements.append(Spacer(1, 5*mm))
 
-	# ── 7. VIỆC CẦN LÀM ──────────────────────────────────────────────────────
+	# ── 7. ĐÁNH GIÁ ĐỀ XUẤT QUẢN LÝ ──────────────────────────────────────────
+	ql = r.get("danh_gia_quan_ly") or eval_data.get("danh_gia_quan_ly", {})
+	if ql and isinstance(ql, dict):
+		elements.append(Paragraph("▌ ĐÁNH GIÁ ĐỀ XUẤT QUẢN LÝ", ParagraphStyle(
+			"_secql", fontName=_FONT_BOLD, fontSize=9.5, textColor=CLR_INDIGO, spaceBefore=2*mm, spaceAfter=2*mm, leading=13)))
+		is_ql_pass = ql.get("hop_ly") is True
+		is_ql_warn = ql.get("hop_ly") is None
+		ql_bg  = CLR_GREEN_BG if is_ql_pass else (CLR_AMBER_BG if is_ql_warn else CLR_RED_BG)
+		ql_clr = CLR_GREEN    if is_ql_pass else (CLR_AMBER    if is_ql_warn else CLR_RED)
+		ql_rows = [
+			[Paragraph("Đề xuất quản lý", ParagraphStyle("_qllbl", fontName=_FONT_BOLD, fontSize=8, textColor=CLR_GRAY)),
+			 Paragraph(_safe(ql.get("de_xuat_quan_ly","—"), 800), ParagraphStyle("_qlval", fontName=_FONT_NAME, fontSize=9, textColor=_CLR_DARK))],
+			[Paragraph("Mức độ đồng ý",   ParagraphStyle("_qllbl2", fontName=_FONT_BOLD, fontSize=8, textColor=CLR_GRAY)),
+			 Paragraph(_safe(ql.get("muc_do_dong_y","—")), ParagraphStyle("_qlmd", fontName=_FONT_BOLD, fontSize=9, textColor=ql_clr))],
+			[Paragraph("Lý do chính",            ParagraphStyle("_qllbl3", fontName=_FONT_BOLD, fontSize=8, textColor=CLR_GRAY)),
+			 Paragraph(_safe(ql.get("ly_do_chinh","—"), 800), ParagraphStyle("_qlly", fontName=_FONT_NAME, fontSize=8.5, textColor=_CLR_DARK, leading=13))],
+			[Paragraph("Phân tích AI",            ParagraphStyle("_qllbl4", fontName=_FONT_BOLD, fontSize=8, textColor=CLR_GRAY)),
+			 Paragraph(_safe(ql.get("phan_tich_chi_tiet","—"), 800), ParagraphStyle("_qlpt", fontName=_FONT_NAME, fontSize=8.5, textColor=_CLR_DARK, leading=13))],
+			[Paragraph("Nhận xét chung",            ParagraphStyle("_qllbl5", fontName=_FONT_BOLD, fontSize=8, textColor=CLR_GRAY)),
+			 Paragraph(_safe(ql.get("nhan_xet","—"), 800), ParagraphStyle("_qlnx", fontName=_FONT_NAME, fontSize=8.5, textColor=_CLR_DARK, leading=13))],
+			[Paragraph("Khuyến nghị",            ParagraphStyle("_qllbl6", fontName=_FONT_BOLD, fontSize=8, textColor=CLR_GRAY)),
+			 Paragraph(_safe(ql.get("khuyen_nghi_xu_ly","—"), 800), ParagraphStyle("_qlkn", fontName=_FONT_BOLD, fontSize=8.5, textColor=_CLR_DARK, leading=13))],
+		]
+		ql_table = Table(ql_rows, colWidths=[3.2*cm, pw-3.2*cm])
+		ql_table.setStyle(TableStyle([
+			("BACKGROUND", (0,0), (-1,-1), ql_bg), ("BOX", (0,0), (-1,-1), 0.8, ql_clr),
+			("LINEBELOW", (0,0), (-1,-1), 0.3, _CLR_BORDER_LIGHT), ("VALIGN", (0,0), (-1,-1), "TOP"),
+			("TOPPADDING", (0,0), (-1,-1), 6), ("BOTTOMPADDING", (0,0), (-1,-1), 6), ("LEFTPADDING", (0,0), (0,-1), 8),
+		]))
+		elements.append(ql_table)
+		elements.append(Spacer(1, 5*mm))
+
+	# ── 8. VIỆC CẦN LÀM ──────────────────────────────────────────────────────
 	viec = r.get("viec_can_lam") or eval_data.get("viec_can_lam", [])
 	if viec:
 		elements.append(Paragraph("▌ VIỆC CẦN LÀM TIẾP THEO", ParagraphStyle(
@@ -243,7 +280,7 @@ def generate_thu_viec_pdf(eval_data):
 		elements.append(v_table)
 		elements.append(Spacer(1, 5*mm))
 
-	# ── 8. FOOTER ─────────────────────────────────────────────────────────────
+	# ── 9. FOOTER ─────────────────────────────────────────────────────────────
 	elements.append(Spacer(1, 10*mm))
 	elements.append(HRFlowable(width="100%", thickness=0.5, color=_CLR_BORDER_LIGHT, spaceBefore=2*mm, spaceAfter=3*mm))
 	elements.append(Paragraph(
@@ -256,139 +293,9 @@ def generate_thu_viec_pdf(eval_data):
 		canvas.setFont(_FONT_NAME, 7.5)
 		canvas.setFillColor(CLR_GRAY)
 		canvas.drawRightString(A4[0]-2*cm, 1.2*cm, f"Trang {pn}")
-		canvas.drawString(2*cm, 1.2*cm, "CT Group – Báo cáo đánh giá thử việc")
+		canvas.drawString(2*cm, 1.2*cm, f"CT Group – Báo cáo đánh giá {_loai}")
 		canvas.restoreState()
 
 	doc.build(elements, onFirstPage=_page_num, onLaterPages=_page_num)
-	buffer.seek(0)
-	return buffer
-	buffer = io.BytesIO()
-	styles = _get_styles()
-
-	doc = SimpleDocTemplate(
-		buffer, pagesize=A4, leftMargin=2*cm, rightMargin=2*cm,
-		topMargin=1.8*cm, bottomMargin=1.8*cm,
-		title="Ket Qua Danh Gia Thu Viec",
-	)
-
-	elements = []
-	page_width = A4[0] - 4*cm
-	current_time = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-
-	elements.append(Spacer(1, 4 * mm))
-	elements.append(Paragraph(_safe("BÁO CÁO KẾT QUẢ ĐÁNH GIÁ THỬ VIỆC"), styles["PDFTitle"]))
-	elements.append(Paragraph(_safe("Hệ thống Đánh giá AI — Tự động và Khách quan"), styles["PDFSubtitle"]))
-	elements.append(Paragraph(_safe(f"Thời gian xuất báo cáo: {current_time}"), styles["PDFSubtitle"]))
-	elements.append(_section_divider())
-
-	r = eval_data.get("re_review", {}) if "re_review" in eval_data else eval_data
-	nv = eval_data.get("nhan_vien", {})
-
-	# Status
-	status = r.get("status", "CHƯA RÕ")
-	elements.append(Paragraph(f"KẾT QUẢ: <b>{status}</b>", styles["PDFSection"]))
-	elements.append(Spacer(1, 4*mm))
-
-	col_label_w = 3.2 * cm
-	col_value_w = page_width / 2 - col_label_w
-	info_left = [
-		[Paragraph("Họ tên NV:", styles["PDFSmall"]), Paragraph(_safe(nv.get("ten_nhan_vien", "—")), styles["PDFCellBold"])],
-		[Paragraph("Mã NV:", styles["PDFSmall"]), Paragraph(_safe(nv.get("ma_nhan_vien", "—")), styles["PDFCell"])],
-		[Paragraph("Chức danh:", styles["PDFSmall"]), Paragraph(_safe(nv.get("chuc_danh", "—")), styles["PDFCell"])],
-		[Paragraph("Đơn vị:", styles["PDFSmall"]), Paragraph(_safe(nv.get("don_vi", "—")), styles["PDFCell"])],
-	]
-	info_right = [
-		[Paragraph("Họ tên QL:", styles["PDFSmall"]), Paragraph(_safe(nv.get("ten_hod", "—")), styles["PDFCellBold"])],
-		[Paragraph("Mã QL:", styles["PDFSmall"]), Paragraph(_safe(nv.get("ma_hod", "—")), styles["PDFCell"])],
-		[Paragraph("Chức danh:", styles["PDFSmall"]), Paragraph(_safe(nv.get("chuc_danh_hod", "—")), styles["PDFCell"])],
-		[Paragraph("", styles["PDFSmall"]), Paragraph("", styles["PDFCell"])],
-	]
-	info_data = []
-	for i in range(len(info_left)):
-		info_data.append(info_left[i] + info_right[i])
-	info_table = Table(info_data, colWidths=[col_label_w, col_value_w, col_label_w, col_value_w])
-	info_table.setStyle(TableStyle([
-		("FONTNAME", (0, 0), (-1, -1), _FONT_NAME),
-		("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-		("TOPPADDING", (0, 0), (-1, -1), 4),
-		("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-		("LINEBELOW", (0, 0), (-1, -1), 0.3, _CLR_BORDER_LIGHT),
-	]))
-	elements.append(info_table)
-
-	tong_quan = r.get("tong_quan", "")
-	if tong_quan:
-		elements.append(_section_divider())
-		elements.append(Paragraph("NHẬN XÉT TỔNG QUAN", styles["PDFSection"]))
-		elements.append(Paragraph(_safe(tong_quan, 1000), styles["PDFBody"]))
-
-	kpi_rows = r.get("xlsx_kpi", [])
-	if kpi_rows:
-		elements.append(_section_divider())
-		elements.append(Paragraph("BẢNG KPI", styles["PDFSection"]))
-		kpi_data = [[
-			Paragraph("STT", styles["PDFTableHeader"]),
-			Paragraph("Công việc", styles["PDFTableHeader"]),
-			Paragraph("Tỷ lệ", styles["PDFTableHeader"]),
-			Paragraph("Trạng thái", styles["PDFTableHeader"])
-		]]
-		style_cell_center = ParagraphStyle("_CellCenter", parent=styles["PDFCell"], alignment=TA_CENTER)
-		for k in kpi_rows:
-			pct = "—"
-			if k.get("ty_le_thuc_hien") is not None:
-				try:
-					pct = f"{float(k['ty_le_thuc_hien']) * 100:.0f}%"
-				except (ValueError, TypeError):
-					pass
-			kpi_data.append([
-				Paragraph(str(k.get("stt", "")), style_cell_center),
-				Paragraph(_safe(k.get("cong_viec", ""), 150), styles["PDFCell"]),
-				Paragraph(pct, style_cell_center),
-				Paragraph(str(k.get("status", "")), style_cell_center),
-			])
-		kpi_table = Table(kpi_data, colWidths=[page_width*0.08, page_width*0.62, page_width*0.15, page_width*0.15])
-		kpi_table.setStyle(TableStyle([
-			("FONTNAME", (0, 0), (-1, -1), _FONT_NAME),
-			("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-			("BACKGROUND", (0, 0), (-1, 0), _CLR_BG_HEADER),
-			("BOX", (0, 0), (-1, -1), 0.5, _CLR_BORDER),
-			("LINEBELOW", (0, 0), (-1, -1), 0.3, _CLR_BORDER_LIGHT),
-			("LINEBEFORE", (1, 0), (-1, -1), 0.3, _CLR_BORDER_LIGHT),
-		]))
-		elements.append(kpi_table)
-
-	uu_diem = r.get("uu_diem", [])
-	if uu_diem:
-		elements.append(_section_divider())
-		elements.append(Paragraph("ĐIỂM TỐT", styles["PDFSection"]))
-		for u in uu_diem:
-			elements.append(Paragraph("• " + _safe(u, 300), styles["PDFBody"]))
-
-	van_de = r.get("van_de", [])
-	if van_de:
-		elements.append(_section_divider())
-		elements.append(Paragraph("VẤN ĐỀ CẦN SỬA", styles["PDFSection"]))
-		for v in van_de:
-			loai = v.get("loai", "")
-			ntc = v.get("nhom_tieu_chi", "")
-			lbl = f"[{loai}] " + (f"[{ntc}] " if ntc else "")
-			elements.append(Paragraph("<b>" + _safe(lbl) + "</b> " + _safe(v.get("van_de", ""), 300), styles["PDFBody"]))
-			elements.append(Paragraph("<i>→ Cần làm:</i> " + _safe(v.get("yeu_cau", ""), 300), styles["PDFWarning"]))
-			elements.append(Spacer(1, 2*mm))
-
-	elements.append(Spacer(1, 12 * mm))
-	elements.append(_section_divider())
-	elements.append(Paragraph(_safe("Báo cáo được tạo tự động bởi Hệ thống Đánh giá AI. Kết quả mang tính tham khảo và cần được xem xét bởi cấp quản lý."), styles["PDFFooter"]))
-
-	def _add_page_number(canvas, doc):
-		page_num = canvas.getPageNumber()
-		text = f"Trang {page_num}"
-		canvas.saveState()
-		canvas.setFont(_FONT_NAME, 8)
-		canvas.setFillColor(_CLR_MEDIUM)
-		canvas.drawRightString(A4[0] - 2 * cm, 1 * cm, text)
-		canvas.restoreState()
-
-	doc.build(elements, onFirstPage=_add_page_number, onLaterPages=_add_page_number)
 	buffer.seek(0)
 	return buffer

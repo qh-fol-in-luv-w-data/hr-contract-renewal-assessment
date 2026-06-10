@@ -382,7 +382,7 @@ def ocr_sxkd():
     file_bytes = file_obj.read()
 
     from openai import OpenAI
-    client = OpenAI(api_key=_get_openai_key())
+    client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
 
     # Convert PDF pages to images
     pages_b64 = _pdf_to_images(file_bytes)

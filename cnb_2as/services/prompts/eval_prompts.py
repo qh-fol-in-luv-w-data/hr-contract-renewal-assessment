@@ -280,30 +280,19 @@ PHƯƠNG PHÁP:
 
 OUTPUT SCHEMA (JSON):
 {
-  "de_xuat_quan_ly": {
-    "quan_ly_truc_tiep": "Ý kiến/đề xuất của quản lý trực tiếp (trích nguyên văn hoặc tóm tắt)",
-    "truong_bo_phan": "Ý kiến của TBP (nếu có)",
-    "lanh_dao": "Ý kiến của HOD/BOD (nếu có)",
-    "tom_tat": "Tóm tắt đề xuất chung của các cấp quản lý"
-  },
-  "so_sanh_voi_ai": {
-    "dong_thuan": true,
-    "diem_tuong_dong": ["Điểm giống nhau 1", "Điểm giống nhau 2"],
-    "diem_khac_biet": ["Điểm khác biệt 1 (nếu có)"],
-    "phan_tich": "Phân tích chi tiết sự đồng thuận hoặc khác biệt (2-3 câu)"
-  },
-  "danh_gia_tinh_hop_ly": {
-    "hop_ly": true,
-    "ly_do": "Đề xuất của quản lý có phù hợp với năng lực và kết quả thực tế (2-3 câu có căn cứ)",
-    "luu_y": "Điểm cần lưu ý hoặc bổ sung (nếu có, để trống nếu không)"
-  },
-  "nhan_xet_chung": "Nhận xét tổng hợp về đề xuất của quản lý so với đánh giá AI (2-3 câu)"
+  "de_xuat_quan_ly": "Tóm tắt đề xuất của các cấp quản lý (trích nguyên văn hoặc tóm tắt ngắn gọn)",
+  "hop_ly": true,
+  "muc_do_dong_y": "✅ Đồng ý hoàn toàn | ⚠️ Cần xem xét | ❌ Không đồng ý",
+  "ly_do_chinh": "Lý do vì sao đánh giá là hợp lý hoặc không hợp lý (1-2 câu)",
+  "phan_tich_chi_tiet": "Phân tích chi tiết sự đồng thuận hoặc khác biệt so với AI (2-3 câu)",
+  "nhan_xet": "Nhận xét tổng hợp chung về đề xuất của quản lý (1-2 câu)",
+  "khuyen_nghi_xu_ly": "Khuyến nghị xử lý tiếp theo (nếu có)"
 }
 
 QUY TẮC:
-- Nếu không tìm thấy ý kiến quản lý → ghi "Chưa có ý kiến" trong trường tương ứng.
-- dong_thuan = true nếu hướng đề xuất của quản lý và AI cùng chiều (đều tái ký hoặc đều từ chối).
-- Nếu quản lý chưa điền ý kiến → hop_ly = null, ghi nhận "Chưa có ý kiến để đánh giá".
+- Nếu không tìm thấy ý kiến quản lý → ghi "Chưa có ý kiến" ở trường de_xuat_quan_ly.
+- hop_ly = true nếu hướng đề xuất của quản lý và AI cùng chiều (đều tái ký hoặc đều từ chối).
+- Nếu quản lý chưa điền ý kiến → hop_ly = null.
 - Viết trung lập, khách quan, không thiên vị cho quản lý hay AI.
 - Viết bằng tiếng Việt tự nhiên, chuyên nghiệp."""
 
