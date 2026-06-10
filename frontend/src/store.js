@@ -24,7 +24,7 @@ export const dict = {
   vi: {
     portal_title: 'CỔNG THÔNG TIN NHÂN SỰ',
     portal_sub: 'Hệ thống AI đánh giá nhân sự – CT Group',
-    thuviec_title: 'Đánh giá Hoàn thành Thử việc',
+    thuviec_title: 'Đánh giá Hoàn thành Thử việc/Học việc',
     thuviec_desc: 'AI kiểm tra phiếu đánh giá và bảng KPI, phát hiện thiếu sót, yêu cầu bổ sung cho đến khi hồ sơ hoàn thiện.',
     taiky_title: 'Đánh giá Tái ký Hợp đồng',
     taiky_desc: 'Tự động trích xuất bằng chứng từ báo cáo, chấm điểm năng lực theo trọng số và đưa ra khuyến nghị tái ký hợp đồng.',
@@ -118,7 +118,7 @@ export const dict = {
   en: {
     portal_title: 'HR INFORMATION PORTAL',
     portal_sub: 'AI Personnel Evaluation System – CT Group',
-    thuviec_title: 'Probation Completion Evaluation',
+    thuviec_title: 'Probation/Apprenticeship Completion Evaluation',
     thuviec_desc: 'AI checks evaluation forms and KPI tables, detects omissions, and requests updates until the profile is complete.',
     taiky_title: 'Contract Renewal Evaluation',
     taiky_desc: 'Automatically extracts evidence from reports, scores competencies by weight, and provides renewal recommendations.',

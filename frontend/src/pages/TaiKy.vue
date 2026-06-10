@@ -193,8 +193,8 @@
         <p>{{ error }}</p>
       </div>
 
-      <!-- OCR Review Screen -->
-      <div v-if="ocrReview && !loading && !result" class="results-scroll ocr-review-screen">
+      <!-- OCR Review Screen (show even after result, so user can edit and re-evaluate) -->
+      <div v-if="ocrReview && !loading" class="results-scroll ocr-review-screen">
 
         <!-- Header Bar -->
         <div class="ocr-review-header">
@@ -557,14 +557,25 @@
         <div class="ocr-confirm-bottom">
           <button class="sb-btn-primary ocr-confirm-btn-lg" :disabled="loading" @click="confirmOcr">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-            {{ t('confirm_evaluate') }}
+            {{ loading ? t('analyzing') : (result ? '⚙️ Chỉnh sửa & Đánh giá lại' : t('confirm_evaluate')) }}
           </button>
-          <p class="ocr-confirm-hint">AI sẽ sử dụng nội dung phía trên để đánh giá</p>
+          <p class="ocr-confirm-hint">{{ result ? 'Chỉnh sửa nội dung phía trên và gửi đánh giá lại' : 'AI sẽ sử dụng nội dung phía trên để đánh giá' }}</p>
         </div>
+
+        <!-- Results shown inside OCR review (after confirm button) -->
+        <template v-if="result && !loading">
+          <div class="from-scan-banner" style="margin-top: 20px;">
+            <span class="fs-icon">🔍</span>
+            <div>
+              <div class="fs-title" style="font-weight:700;font-size:.88rem;">Kết quả đánh giá từ Scan OCR</div>
+              <div class="fs-sub" style="font-size:.78rem;color:#64748b;">Dữ liệu được trích xuất và phân tích bởi AI. Chỉnh sửa nội dung phía trên rồi bấm "Đánh giá lại" nếu cần.</div>
+            </div>
+          </div>
+        </template>
       </div>
 
       <!-- Results -->
-      <div v-if="result && !loading" class="results-scroll">
+      <div v-if="result && !loading" class="results-scroll" :class="{'results-with-ocr': ocrReview}">
         <!-- Employee Info -->
         <div class="emp-info-card">
           <div class="emp-info-header">
@@ -1287,7 +1298,8 @@ async function doEvaluate() {
 
 async function confirmOcr() {
   if (!evalName) return
-  loading.value = true; error.value = ''; ocrReview.value = false
+  loading.value = true; error.value = ''
+  // Giữ ocrReview = true để user vẫn thấy form chỉnh sửa phía trên và có thể sửa rồi gửi đánh giá lại
   progress.step = 1; progress.message = store.lang==='en'?'AI is analyzing...':'AI đang phân tích...'
 
   try {
@@ -1391,306 +1403,304 @@ async function downloadPdf() {
   // ── Helper: escape HTML ──────────────────────────────────
   const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
 
-  // ── Section builders ────────────────────────────────────
-  function secHeader(icon, title, bgColor='#1e293b') {
-    return `<div style="background:${bgColor};color:#fff;padding:8px 14px;border-radius:6px 6px 0 0;margin-top:18px;margin-bottom:0;">
-      <span style="font-size:.85rem;font-weight:700;letter-spacing:.04em;">${icon} ${esc(title)}</span>
-    </div><div style="border:1px solid #cbd5e1;border-top:none;border-radius:0 0 6px 6px;padding:14px 16px;margin-bottom:4px;">`
-  }
-  const secEnd = () => `</div>`
-
-  function tableRow(cells, header=false) {
-    const tag = header ? 'th' : 'td'
-    const style = header
-      ? 'background:#f1f5f9;padding:6px 10px;border:1px solid #e2e8f0;font-weight:700;font-size:.78rem;color:#475569;'
-      : 'padding:6px 10px;border:1px solid #e2e8f0;font-size:.78rem;color:#334155;'
-    return `<tr>${cells.map(c => `<${tag} style="${style}">${esc(c)}</${tag}>`).join('')}</tr>`
-  }
+  // ── Helper: section heading (ThuViec style) ──────────────
+  const secH3 = (title, extra='') =>
+    `<div style="page-break-inside:avoid"><h3 style="margin-top:24px;border-left:4px solid #555;padding-left:10px;font-size:15px;color:#111">${title}${extra}</h3>`
 
   // ─────────────────────────────────────────────────────────
-  // 1. HEADER
+  // 1. HEADER + INFO TABLE
   // ─────────────────────────────────────────────────────────
-  const evalDate = r.evaluation_date || new Date().toLocaleDateString('vi-VN')
+  const evalDate = r.evaluation_date || new Date().toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' })
   let html = `
-<div style="font-family:Arial,sans-serif;font-size:13px;color:#1e293b;max-width:780px;margin:0 auto;">
-
-  <!-- TIÊU ĐỀ -->
-  <div style="text-align:center;border-bottom:2px solid #1e293b;padding-bottom:14px;margin-bottom:18px;">
-    <div style="font-size:.75rem;font-weight:700;letter-spacing:.12em;color:#64748b;text-transform:uppercase;">CT GROUP – PHÒNG NHÂN SỰ</div>
-    <div style="font-size:1.25rem;font-weight:900;margin:6px 0 2px;color:#1e293b;">BÁO CÁO ĐÁNH GIÁ TÁI KÝ HỢP ĐỒNG</div>
-    <div style="font-size:.78rem;color:#64748b;">Ngày đánh giá: ${esc(evalDate)}</div>
-  </div>
-
-  <!-- THÔNG TIN NHÂN VIÊN -->
-  <table style="width:100%;border-collapse:collapse;margin-bottom:18px;">
+<div style="font-family:'Segoe UI',Arial,sans-serif;font-size:14px;color:#111;max-width:860px;margin:0 auto;padding:40px">
+  <h2 style="border-bottom:2px solid #333;padding-bottom:10px;color:#111">BÁO CÁO ĐÁNH GIÁ TÁI KÝ HỢP ĐỒNG</h2>
+  <p style="color:#555">CT Group · ${esc(evalDate)}</p>
+  <table style="width:100%;border-collapse:collapse;margin:16px 0">
     <tr>
-      <td style="padding:6px 10px;border:1px solid #e2e8f0;font-weight:700;background:#f8fafc;width:28%;font-size:.8rem;">Họ và tên</td>
-      <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:.85rem;font-weight:700;">${esc(r.employee_name || '—')}</td>
-      <td style="padding:6px 10px;border:1px solid #e2e8f0;font-weight:700;background:#f8fafc;width:22%;font-size:.8rem;">Chức danh</td>
-      <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:.82rem;">${esc(r.job_title || '—')}</td>
+      <td style="padding:6px;background:#f5f5f5;width:130px;font-weight:600;border:1px solid #ddd">Họ và tên</td>
+      <td style="padding:6px;border:1px solid #ddd">${esc(r.employee_name || '—')}</td>
+      <td style="padding:6px;background:#f5f5f5;width:130px;font-weight:600;border:1px solid #ddd">Chức danh</td>
+      <td style="padding:6px;border:1px solid #ddd">${esc(r.job_title || '—')}</td>
     </tr>
     <tr>
-      <td style="padding:6px 10px;border:1px solid #e2e8f0;font-weight:700;background:#f8fafc;font-size:.8rem;">Phòng ban / Đơn vị</td>
-      <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:.82rem;">${esc(r.department || '—')}</td>
-      <td style="padding:6px 10px;border:1px solid #e2e8f0;font-weight:700;background:#f8fafc;font-size:.8rem;">Ngày đánh giá</td>
-      <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:.82rem;">${esc(evalDate)}</td>
+      <td style="padding:6px;background:#f5f5f5;font-weight:600;border:1px solid #ddd">Phòng ban / Đơn vị</td>
+      <td style="padding:6px;border:1px solid #ddd">${esc(r.department || '—')}</td>
+      <td style="padding:6px;background:#f5f5f5;font-weight:600;border:1px solid #ddd">Ngày đánh giá</td>
+      <td style="padding:6px;border:1px solid #ddd">${esc(evalDate)}</td>
+    </tr>
+    <tr>
+      <td style="padding:6px;background:#f5f5f5;font-weight:600;border:1px solid #ddd">Ngày bắt đầu HĐ</td>
+      <td style="padding:6px;border:1px solid #ddd">${esc(r.contract_start_date || r.ngay_bat_dau_hd || '—')}</td>
+      <td style="padding:6px;background:#f5f5f5;font-weight:600;border:1px solid #ddd">Ngày kết thúc HĐ</td>
+      <td style="padding:6px;border:1px solid #ddd">${esc(r.contract_end_date || r.ngay_het_han_hd || '—')}</td>
     </tr>
   </table>
+
+  <h3 style="color:#111">Kết quả đánh giá: <span style="font-weight:800">${esc(r.recommendation || '—')}</span>
+    ${r.overall_score != null ? `<span style="margin-left:10px;font-size:13px;border:1px solid #ccc;padding:2px 10px;border-radius:4px;font-weight:700">Điểm tổng: ${Number(r.overall_score).toFixed(1)}</span>` : ''}
+  </h3>
+  <p style="background:#f5f5f5;padding:12px;border-radius:4px;line-height:1.7;border:1px solid #ddd">${esc(r.recommendation_reasoning || '—')}</p>
 `
 
   // ─────────────────────────────────────────────────────────
-  // 2. TỔNG QUAN
-  // ─────────────────────────────────────────────────────────
-  html += secHeader('📋', 'TỔNG QUAN KẾT QUẢ ĐÁNH GIÁ')
-  html += `
-  <div style="display:flex;gap:12px;margin-bottom:10px;">
-    <div style="flex:1;padding:10px 12px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
-      <div style="font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Điểm tổng</div>
-      <div style="font-size:1.4rem;font-weight:900;color:#7c3aed;">${r.overall_score?.toFixed(1) || '—'}<span style="font-size:.8rem;font-weight:400;color:#94a3b8;">/10</span></div>
-    </div>
-    <div style="flex:2;padding:10px 12px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
-      <div style="font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Kết quả chung</div>
-      <div style="font-size:.9rem;font-weight:700;color:#1e293b;">${esc(r.recommendation || '—')}</div>
-    </div>
-  </div>
-  ${r.recommendation_reasoning ? `<div style="font-size:.8rem;color:#475569;line-height:1.6;padding:8px 10px;background:#f8fafc;border-radius:6px;border-left:3px solid #8b5cf6;">${esc(r.recommendation_reasoning)}</div>` : ''}
-`
-  html += secEnd()
-
-  // ─────────────────────────────────────────────────────────
-  // 3. BẢNG ĐIỂM NĂNG LỰC
+  // 2. BẢNG ĐIỂM NĂNG LỰC
   // ─────────────────────────────────────────────────────────
   if (r.competency_scores?.length) {
-    html += secHeader('📊', 'BẢNG ĐIỂM NĂNG LỰC')
-    html += `<table style="width:100%;border-collapse:collapse;">`
-    html += tableRow(['STT', 'Năng lực', 'Trọng số (%)', 'Điểm'], true)
+    html += secH3('Bảng Điểm Năng Lực')
+    html += `<table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px;page-break-inside:avoid">
+      <thead><tr style="background:#eee">
+        <th style="padding:8px 10px;border:1px solid #ccc;width:40px;text-align:center">STT</th>
+        <th style="padding:8px 10px;border:1px solid #ccc">Năng lực</th>
+        <th style="padding:8px 10px;border:1px solid #ccc;width:90px;text-align:center">Trọng số (%)</th>
+        <th style="padding:8px 10px;border:1px solid #ccc;width:70px;text-align:center">Điểm</th>
+      </tr></thead>
+      <tbody>`
     r.competency_scores.forEach((c, i) => {
       const score = typeof c.score === 'number' ? c.score.toFixed(1) : (c.score || '—')
-      const scoreColor = (c.score >= 7) ? '#16a34a' : (c.score >= 5) ? '#d97706' : '#dc2626'
-      html += `<tr style="${i%2===0?'background:#fff':'background:#f8fafc'}">
-        <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center;font-size:.78rem;">${i+1}</td>
-        <td style="padding:6px 10px;border:1px solid #e2e8f0;font-size:.78rem;">${esc(c.name || c.competency_name)}</td>
-        <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center;font-size:.78rem;">${c.weight}%</td>
-        <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center;font-weight:700;color:${scoreColor};font-size:.82rem;">${score}</td>
+      html += `<tr style="background:${i%2===0?'#f9f9f9':'#fff'}">
+        <td style="padding:6px 10px;border:1px solid #ddd;text-align:center">${i+1}</td>
+        <td style="padding:6px 10px;border:1px solid #ddd">${esc(c.name || c.competency_name)}</td>
+        <td style="padding:6px 10px;border:1px solid #ddd;text-align:center">${c.weight}%</td>
+        <td style="padding:6px 10px;border:1px solid #ddd;text-align:center;font-weight:700">${score}</td>
       </tr>`
     })
-    html += `<tr style="background:#f1f5f9;font-weight:700;">
-      <td colspan="3" style="padding:6px 10px;border:1px solid #e2e8f0;font-size:.78rem;text-align:right;">ĐIỂM TỔNG</td>
-      <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:center;font-weight:900;color:#7c3aed;font-size:.88rem;">${r.overall_score?.toFixed(1) || '—'}</td>
-    </tr>`
-    html += `</table>`
-    html += secEnd()
+    html += `</tbody>
+      <tfoot><tr style="background:#eee;font-weight:700">
+        <td colspan="3" style="padding:8px 10px;border:1px solid #ccc;text-align:right">ĐIỂM TỔNG</td>
+        <td style="padding:8px 10px;border:1px solid #ccc;text-align:center;font-size:16px">${r.overall_score?.toFixed(1) || '—'}</td>
+      </tr></tfoot>
+    </table>
+    <div style="border-left:3px solid #999;padding:6px 10px;font-size:12px;margin-bottom:8px;font-style:italic">📌 Dựa trên vị trí/chuyên môn công việc để xác định tỷ trọng đánh giá phù hợp.</div>
+    </div>`
   }
 
   // ─────────────────────────────────────────────────────────
-  // 4. BÁO CÁO NGÀY (nếu có)
+  // 3. BÁO CÁO NGÀY
   // ─────────────────────────────────────────────────────────
   if (r.bao_cao_ngay) {
-    const bcn = r.bao_cao_ngay
-    html += secHeader('📅', 'BÁO CÁO NGÀY', '#0f766e')
-    html += `<div style="display:flex;gap:12px;margin-bottom:10px;">
-      <div style="flex:1;padding:8px 10px;background:#f0fdf4;border-radius:6px;border:1px solid #bbf7d0;text-align:center;">
-        <div style="font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;">Số ngày đã BC</div>
-        <div style="font-size:1.2rem;font-weight:900;color:#16a34a;">${esc(bcn.so_ngay_da_bc || '—')}<span style="font-size:.72rem;color:#64748b;">/${esc(bcn.so_ngay_can_bc || '?')}</span></div>
+    const bc = r.bao_cao_ngay
+    html += secH3('Báo cáo ngày',
+      ` <span style="margin-left:10px;font-size:12px;border:1px solid #ccc;padding:2px 8px;border-radius:4px">${bc.so_ngay_da_bc??'?'}/${bc.so_ngay_can_bc??'?'} ngày</span>`)
+    html += `<div style="border:1px solid #ccc;border-radius:4px;padding:14px;background:#f9f9f9">
+      <div style="background:#fff;border:1px solid #ddd;border-radius:3px;height:10px;overflow:hidden;margin-bottom:10px">
+        <div style="height:100%;background:#555;width:${Math.min(100,Math.round((bc.so_ngay_da_bc||0)/(bc.so_ngay_can_bc||1)*100))}%"></div>
       </div>
-      <div style="flex:2;padding:8px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;">
-        <div style="font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:3px;">Nhận xét</div>
-        <div style="font-size:.8rem;color:#334155;line-height:1.5;">${esc(bcn.nhan_xet || '—')}</div>
-      </div>
-    </div>`
-    if (bcn.doi_chieu_cong_viec?.length) {
-      html += `<table style="width:100%;border-collapse:collapse;font-size:.77rem;">
-        ${tableRow(['Hạng mục báo cáo', 'Có trong phiếu', 'Ghi chú'], true)}
-        ${bcn.doi_chieu_cong_viec.map((row, i) => `<tr style="${i%2===0?'background:#fff':'background:#f8fafc'}">
-          <td style="padding:5px 10px;border:1px solid #e2e8f0;">${esc(row.hang_muc)}</td>
-          <td style="padding:5px 8px;border:1px solid #e2e8f0;text-align:center;">${row.co_trong_phieu ? '✓' : '✗'}</td>
-          <td style="padding:5px 10px;border:1px solid #e2e8f0;color:#64748b;">${esc(row.ghi_chu || '—')}</td>
-        </tr>`).join('')}
-      </table>`
-    }
-    html += secEnd()
+      ${bc.nhan_xet?`<div style="font-weight:600;margin-bottom:8px">${esc(bc.nhan_xet)}</div>`:''}
+      ${bc.ngay_thieu_bao_cao?.length?`<div style="font-size:12px;margin-bottom:4px">Thiếu báo cáo: ${bc.ngay_thieu_bao_cao.join(', ')}</div>`:''}
+      ${bc.ngay_thieu_hang_muc?.length?`<div style="font-size:12px;margin-bottom:8px">Thiếu hạng mục: ${bc.ngay_thieu_hang_muc.join(', ')}</div>`:''}
+      ${bc.doi_chieu_cong_viec?.length ? `
+        <div style="margin-top:10px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:6px">Đối chiếu nội dung báo cáo ngày vs Phiếu đánh giá</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead><tr style="background:#eee">
+              <th style="padding:6px 8px;border:1px solid #ccc">Hạng mục (Báo cáo ngày)</th>
+              <th style="padding:6px 8px;border:1px solid #ccc;width:100px;text-align:center">Có trong phiếu</th>
+              <th style="padding:6px 8px;border:1px solid #ccc">Ghi chú</th>
+            </tr></thead>
+            <tbody>
+              ${bc.doi_chieu_cong_viec.map((d,i) => `<tr style="background:${i%2===0?'#f5f5f5':'#fff'}">
+                <td style="padding:5px 8px;border:1px solid #ddd">${esc(d.hang_muc||'—')}</td>
+                <td style="padding:5px 8px;border:1px solid #ddd;text-align:center;font-weight:700">${d.co_trong_phieu?'Có':'Không'}</td>
+                <td style="padding:5px 8px;border:1px solid #ddd">${esc(d.ghi_chu||'')}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+    </div></div>`
   }
 
   // ─────────────────────────────────────────────────────────
-  // 5. ĐÁNH GIÁ ĐIỀU KIỆN HỢP ĐỒNG — SECTION ĐỘC LẬP
+  // 4. ĐÁNH GIÁ ĐIỀU KIỆN HỢP ĐỒNG
   // ─────────────────────────────────────────────────────────
   if (r.danh_gia_hop_dong) {
     const hd = r.danh_gia_hop_dong
-    const hdOk = hd.du_dieu_kien
-    const hdBg = hdOk ? '#14532d' : '#7f1d1d'
-    html += secHeader('📋', 'ĐÁNH GIÁ ĐIỀU KIỆN HỢP ĐỒNG', hdBg)
-
-    // Kết luận
-    html += `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:6px;margin-bottom:12px;background:${hdOk?'#f0fdf4':'#fef2f2'};border:1px solid ${hdOk?'#bbf7d0':'#fecaca'};">
-      <div style="font-size:1.6rem;">${hdOk ? '📋' : '🚫'}</div>
-      <div>
-        <div style="font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;">Loại hợp đồng đề xuất</div>
-        <div style="font-size:1rem;font-weight:900;color:${hdOk?'#16a34a':'#dc2626'};">${esc(hd.loai_hop_dong_de_xuat || '—')}</div>
-        ${hd.thoi_han_de_xuat ? `<div style="font-size:.8rem;color:#475569;margin-top:2px;">Thời hạn: ${esc(hd.thoi_han_de_xuat)}</div>` : ''}
-        ${hd.muc_do_khuyen_nghi ? `<div style="font-size:.78rem;font-weight:600;color:${hdOk?'#16a34a':'#d97706'};margin-top:2px;">${esc(hd.muc_do_khuyen_nghi)}</div>` : ''}
+    html += secH3('Đánh giá điều kiện hợp đồng')
+    html += `<div style="border:1px solid #ccc;border-radius:4px;padding:14px;background:#f9f9f9">
+      <div style="font-weight:800;font-size:15px;margin-bottom:6px">${esc(hd.loai_hop_dong_de_xuat || '—')}
+        ${hd.thoi_han_de_xuat ? ` · <span style="font-weight:400;font-size:13px">${esc(hd.thoi_han_de_xuat)}</span>` : ''}
       </div>
-    </div>`
+      ${hd.muc_do_khuyen_nghi ? `<div style="font-size:13px;margin-bottom:8px"><b>Mức độ khuyến nghị:</b> ${esc(hd.muc_do_khuyen_nghi)}</div>` : ''}
+      ${hd.phan_tich_tong_the ? `<div style="font-size:13px;line-height:1.75;margin-bottom:10px;padding:8px 10px;background:#fff;border-left:3px solid #999;border-radius:2px">${esc(hd.phan_tich_tong_the)}</div>` : ''}`
 
-    // Phân tích tổng thể
-    if (hd.phan_tich_tong_the) {
-      html += `<div style="padding:8px 12px;background:#f8fafc;border-radius:6px;border-left:3px solid #6366f1;margin-bottom:12px;">
-        <div style="font-size:.68rem;font-weight:700;color:#6366f1;text-transform:uppercase;margin-bottom:4px;">Phân tích tổng thể</div>
-        <div style="font-size:.82rem;color:#334155;line-height:1.6;">${esc(hd.phan_tich_tong_the)}</div>
-      </div>`
-    }
-
-    // Bảng tiêu chí với cột Căn cứ
+    // Bảng tiêu chí
     if (hd.cac_tieu_chi?.length) {
-      html += `<div style="font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:6px;">📊 Đánh giá từng tiêu chí</div>
-      <table style="width:100%;border-collapse:collapse;font-size:.77rem;margin-bottom:12px;">
-        <tr style="background:#f1f5f9;">
-          <th style="padding:6px 10px;border:1px solid #e2e8f0;font-weight:700;color:#475569;width:26%;">Tiêu chí</th>
-          <th style="padding:6px 8px;border:1px solid #e2e8f0;font-weight:700;color:#475569;width:8%;text-align:center;">Đạt</th>
-          <th style="padding:6px 8px;border:1px solid #e2e8f0;font-weight:700;color:#475569;width:10%;text-align:center;">Điểm</th>
-          <th style="padding:6px 10px;border:1px solid #e2e8f0;font-weight:700;color:#475569;">Mô tả</th>
-          <th style="padding:6px 10px;border:1px solid #e2e8f0;font-weight:700;color:#475569;width:28%;">Căn cứ</th>
-        </tr>
-        ${hd.cac_tieu_chi.map((tc, i) => {
-          const scoreColor = tc.diem_so >= 7 ? '#16a34a' : tc.diem_so >= 5 ? '#d97706' : '#dc2626'
-          return `<tr style="${i%2===0?'background:#fff':'background:#f8fafc'}">
-            <td style="padding:6px 10px;border:1px solid #e2e8f0;font-weight:600;">${esc(tc.tieu_chi)}</td>
-            <td style="padding:6px 8px;border:1px solid #e2e8f0;text-align:center;font-weight:700;color:${tc.dat?'#16a34a':'#dc2626'};">${tc.dat ? '✓' : '✗'}</td>
-            <td style="padding:6px 8px;border:1px solid #e2e8f0;text-align:center;font-weight:700;color:${scoreColor};">${typeof tc.diem_so === 'number' ? tc.diem_so.toFixed(1)+'/10' : '—'}</td>
-            <td style="padding:6px 10px;border:1px solid #e2e8f0;color:#475569;">${esc(tc.mo_ta || '—')}</td>
-            <td style="padding:6px 10px;border:1px solid #e2e8f0;color:#64748b;font-style:italic;">${esc(tc.can_cu || '—')}</td>
-          </tr>`
-        }).join('')}
+      html += `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px">
+        <thead><tr style="background:#eee">
+          <th style="padding:6px 10px;border:1px solid #ccc">Tiêu chí</th>
+          <th style="padding:6px 8px;border:1px solid #ccc;width:55px;text-align:center">Đạt</th>
+          <th style="padding:6px 8px;border:1px solid #ccc;width:70px;text-align:center">Điểm</th>
+          <th style="padding:6px 10px;border:1px solid #ccc">Mô tả</th>
+          <th style="padding:6px 10px;border:1px solid #ccc;width:28%">Căn cứ</th>
+        </tr></thead>
+        <tbody>
+          ${hd.cac_tieu_chi.map((tc, i) => `<tr style="background:${i%2===0?'#f9f9f9':'#fff'};page-break-inside:avoid">
+            <td style="padding:6px 10px;border:1px solid #ddd;font-weight:600">${esc(tc.tieu_chi)}</td>
+            <td style="padding:6px 8px;border:1px solid #ddd;text-align:center;font-weight:700">${tc.dat ? 'Đạt' : 'Chưa đạt'}</td>
+            <td style="padding:6px 8px;border:1px solid #ddd;text-align:center;font-weight:700">${typeof tc.diem_so === 'number' ? tc.diem_so.toFixed(1)+'/10' : '—'}</td>
+            <td style="padding:6px 10px;border:1px solid #ddd">${esc(tc.mo_ta || '—')}</td>
+            <td style="padding:6px 10px;border:1px solid #ddd;font-style:italic;color:#555">${esc(tc.can_cu || '—')}</td>
+          </tr>`).join('')}
+        </tbody>
       </table>`
     }
 
     // Lý do & Khuyến nghị
-    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">`
     if (hd.ly_do) {
-      html += `<div style="padding:8px 10px;background:#f8fafc;border-radius:6px;border-left:3px solid #6366f1;">
-        <div style="font-size:.68rem;font-weight:700;color:#6366f1;text-transform:uppercase;margin-bottom:3px;">Lý do</div>
-        <div style="font-size:.8rem;color:#334155;line-height:1.6;">${esc(hd.ly_do)}</div>
+      html += `<div style="margin-bottom:8px;padding:7px 10px;background:#fff;border-left:3px solid #999;border-radius:2px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Lý do</div>
+        <div style="font-size:13px;line-height:1.75">${esc(hd.ly_do)}</div>
       </div>`
     }
     if (hd.khuyen_nghi) {
-      html += `<div style="padding:8px 10px;background:${hdOk?'#f0fdf4':'#fff7ed'};border-radius:6px;border-left:3px solid ${hdOk?'#22c55e':'#f59e0b'};">
-        <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;margin-bottom:3px;color:${hdOk?'#16a34a':'#d97706'};">Khuyến nghị</div>
-        <div style="font-size:.8rem;color:#334155;line-height:1.6;">${esc(hd.khuyen_nghi)}</div>
+      html += `<div style="margin-bottom:8px;padding:7px 10px;background:#fff;border-left:3px solid #555;border-radius:2px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Khuyến nghị</div>
+        <div style="font-size:13px;font-weight:600;line-height:1.75">${esc(hd.khuyen_nghi)}</div>
       </div>`
     }
-    html += `</div>`
-
     if (hd.dieu_kien_kem_theo) {
-      html += `<div style="padding:8px 10px;background:#fffbeb;border-radius:6px;border:1px solid #fde68a;margin-bottom:6px;">
-        <div style="font-size:.68rem;font-weight:700;color:#d97706;text-transform:uppercase;margin-bottom:3px;">⚠ Điều kiện kèm theo</div>
-        <div style="font-size:.8rem;color:#334155;line-height:1.5;">${esc(hd.dieu_kien_kem_theo)}</div>
+      html += `<div style="padding:7px 10px;background:#fff;border:1px solid #ddd;border-radius:2px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">⚠ Điều kiện kèm theo</div>
+        <div style="font-size:13px;line-height:1.6">${esc(hd.dieu_kien_kem_theo)}</div>
       </div>`
     }
-    html += secEnd()
+    html += `</div></div>`
   }
 
   // ─────────────────────────────────────────────────────────
-  // 6. ĐÁNH GIÁ ĐỀ XUẤT NHÂN SỰ — SECTION ĐỘC LẬP
+  // 5. ĐÁNH GIÁ ĐỀ XUẤT NHÂN SỰ
   // ─────────────────────────────────────────────────────────
   if (r.danh_gia_de_xuat_nhan_su) {
     const dxns = r.danh_gia_de_xuat_nhan_su
-    html += secHeader('📝', 'ĐÁNH GIÁ ĐỀ XUẤT NHÂN SỰ', '#4c1d95')
+    html += secH3('Đánh giá đề xuất nhân sự')
+    html += `<div style="border:1px solid #ccc;border-radius:4px;padding:14px;background:#f9f9f9">`
     if (!dxns.co_de_xuat || !dxns.de_xuat?.length) {
-      html += `<div style="text-align:center;padding:16px;color:#94a3b8;font-size:.85rem;">Không tìm thấy đề xuất nhân sự trong phiếu đánh giá.</div>`
+      html += `<div style="text-align:center;padding:12px;color:#999;font-style:italic">Không tìm thấy đề xuất nhân sự trong phiếu đánh giá.</div>`
     } else {
       dxns.de_xuat.forEach((dx, i) => {
-        const dxOk = dx.phu_hop
-        html += `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;margin-bottom:10px;border-left:4px solid ${dxOk?'#22c55e':'#f59e0b'};background:${dxOk?'#f0fdf4':'#fff7ed'};">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <span style="font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;background:${dxOk?'rgba(34,197,94,.15)':'rgba(245,158,11,.15)'};color:${dxOk?'#16a34a':'#d97706'};">${esc(dx.loai)}</span>
-            <span style="font-size:.78rem;font-weight:700;color:${dxOk?'#16a34a':'#d97706'};">${dx.muc_do || (dxOk ? 'Đồng ý' : 'Cần xem lại')}</span>
-          </div>
-          <div style="font-size:.88rem;font-weight:700;color:#1e293b;margin-bottom:8px;">${esc(dx.noi_dung)}</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
-            ${dx.can_cu ? `<div style="padding:6px 8px;background:rgba(255,255,255,.7);border-radius:5px;"><div style="font-size:.62rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:2px;">📌 Căn cứ</div><div style="font-size:.75rem;color:#334155;line-height:1.4;">${esc(dx.can_cu)}</div></div>` : ''}
-            ${dx.ly_do ? `<div style="padding:6px 8px;background:rgba(255,255,255,.7);border-radius:5px;"><div style="font-size:.62rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:2px;">💬 Lý do</div><div style="font-size:.75rem;color:#334155;line-height:1.4;">${esc(dx.ly_do)}</div></div>` : ''}
-            ${dx.khuyen_nghi ? `<div style="padding:6px 8px;background:rgba(255,255,255,.7);border-radius:5px;"><div style="font-size:.62rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:2px;">🔜 Khuyến nghị</div><div style="font-size:.75rem;color:#334155;line-height:1.4;">${esc(dx.khuyen_nghi)}</div></div>` : ''}
-          </div>
-          ${dx.tac_dong_du_kien ? `<div style="font-size:.75rem;color:#475569;padding:5px 8px;background:rgba(255,255,255,.5);border-radius:5px;border-left:2px solid #8b5cf6;"><strong>Tác động dự kiến:</strong> ${esc(dx.tac_dong_du_kien)}</div>` : ''}
-          ${dx.uu_tien ? `<div style="margin-top:6px;"><span style="font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:4px;background:${dx.uu_tien==='Cao'?'#fee2e2':dx.uu_tien==='Trung bình'?'#fef9c3':'#f0fdf4'};color:${dx.uu_tien==='Cao'?'#dc2626':dx.uu_tien==='Trung bình'?'#ca8a04':'#16a34a'};">Ưu tiên: ${esc(dx.uu_tien)}</span></div>` : ''}
+        html += `<div style="border:1px solid #ddd;border-radius:4px;padding:10px;margin-bottom:8px;background:#fff">
+          <div style="font-weight:700;font-size:13px;margin-bottom:6px">[${esc(dx.loai)}] ${esc(dx.noi_dung)}</div>
+          <div style="font-size:13px;margin-bottom:4px"><b>Mức độ:</b> ${esc(dx.muc_do || '—')}${dx.uu_tien ? ` · <b>Ưu tiên:</b> ${esc(dx.uu_tien)}` : ''}</div>
+          ${dx.can_cu ? `<div style="font-size:12px;margin-bottom:4px"><b>Căn cứ:</b> ${esc(dx.can_cu)}</div>` : ''}
+          ${dx.ly_do ? `<div style="font-size:12px;margin-bottom:4px"><b>Lý do:</b> ${esc(dx.ly_do)}</div>` : ''}
+          ${dx.khuyen_nghi ? `<div style="font-size:12px;margin-bottom:4px"><b>Khuyến nghị:</b> ${esc(dx.khuyen_nghi)}</div>` : ''}
+          ${dx.tac_dong_du_kien ? `<div style="font-size:12px;border-left:3px solid #999;padding-left:8px;margin-top:4px"><i>Tác động dự kiến: ${esc(dx.tac_dong_du_kien)}</i></div>` : ''}
         </div>`
       })
       if (dxns.nhan_xet_chung) {
-        html += `<div style="padding:8px 12px;background:#f8fafc;border-radius:6px;border-left:3px solid #8b5cf6;font-size:.82rem;color:#334155;line-height:1.6;">
-          <strong style="color:#7c3aed;">Nhận xét chung: </strong>${esc(dxns.nhan_xet_chung)}
-        </div>`
+        html += `<div style="padding:8px 10px;border-left:3px solid #555;background:#fff;font-size:13px;line-height:1.7"><b>Nhận xét chung:</b> ${esc(dxns.nhan_xet_chung)}</div>`
       }
     }
-    html += secEnd()
+    html += `</div></div>`
   }
 
   // ─────────────────────────────────────────────────────────
-  // 7. ĐÁNH GIÁ ĐỀ XUẤT QUẢN LÝ
+  // 6. ĐÁNH GIÁ ĐỀ XUẤT QUẢN LÝ
   // ─────────────────────────────────────────────────────────
   if (r.danh_gia_quan_ly) {
-    const dql = r.danh_gia_quan_ly
-    html += secHeader('👔', 'ĐÁNH GIÁ ĐỀ XUẤT QUẢN LÝ', dql.hop_ly ? '#14532d' : '#92400e')
-    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div style="padding:8px 10px;background:#f8fafc;border-radius:6px;">
-        <div style="font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:3px;">Đề xuất của Quản lý</div>
-        <div style="font-size:.85rem;font-weight:600;color:#1e293b;">${esc(dql.de_xuat_quan_ly || '—')}</div>
-      </div>
-      <div style="padding:8px 10px;background:${dql.hop_ly?'#f0fdf4':'#fff7ed'};border-radius:6px;border:1px solid ${dql.hop_ly?'#bbf7d0':'#fed7aa'};">
-        <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;margin-bottom:3px;color:${dql.hop_ly?'#16a34a':'#d97706'};">Đánh giá của 2AS</div>
-        <div style="font-size:.82rem;color:#334155;line-height:1.5;">${esc(dql.nhan_xet || '—')}</div>
-      </div>
-    </div>`
-    html += secEnd()
+    const ql = r.danh_gia_quan_ly
+    html += secH3('Đánh giá đề xuất quản lý',
+      ql.hop_ly != null ? ` <span style="margin-left:8px;font-size:12px;border:1px solid #ccc;padding:2px 8px;border-radius:4px">${ql.muc_do_dong_y || (ql.hop_ly !== false ? 'Đồng ý' : 'Cần xem xét')}</span>` : '')
+    html += `<div style="border:1px solid #ccc;border-radius:4px;padding:14px;background:#f9f9f9">
+      ${ql.de_xuat_quan_ly ? `<div style="font-weight:700;font-size:13px;font-style:italic;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #ddd">
+        <span style="font-size:11px;font-weight:600;font-style:normal;display:block;margin-bottom:2px;text-transform:uppercase;letter-spacing:.04em">Đề xuất của Quản lý / TBP / HOD</span>
+        ${esc(ql.de_xuat_quan_ly)}
+      </div>` : ''}
+      ${ql.ly_do_chinh ? `<div style="margin-bottom:8px;padding:7px 10px;background:#fff;border-left:3px solid #999;border-radius:2px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Lý do chính</div>
+        <div style="font-size:13px;font-weight:600">${esc(ql.ly_do_chinh)}</div>
+      </div>` : ''}
+      ${ql.phan_tich_chi_tiet ? `<div style="margin-bottom:8px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Phân tích chi tiết</div>
+        <div style="font-size:13px;line-height:1.75">${esc(ql.phan_tich_chi_tiet)}</div>
+      </div>` : ''}
+      ${ql.nhan_xet ? `<div style="margin-bottom:8px;padding:7px 10px;background:#fff;border:1px solid #ddd;border-radius:2px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Nhận xét</div>
+        <div style="font-size:13px;line-height:1.7">${esc(ql.nhan_xet)}</div>
+      </div>` : ''}
+      ${ql.khuyen_nghi_xu_ly ? `<div style="padding:7px 10px;background:#fff;border-left:3px solid #555;border-radius:2px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Khuyến nghị xử lý</div>
+        <div style="font-size:13px;font-weight:600">${esc(ql.khuyen_nghi_xu_ly)}</div>
+      </div>` : ''}
+    </div></div>`
   }
 
   // ─────────────────────────────────────────────────────────
-  // 8. GỢI Ý JD
+  // 7. GỢI Ý JD
   // ─────────────────────────────────────────────────────────
   if (r.jd_goi_y) {
     const jd = r.jd_goi_y
-    html += secHeader('💼', `GỢI Ý JD – ${jd.chuc_danh || ''}`, '#1e1b4b')
-    html += `<table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
-      <tr>
-        <td style="padding:5px 10px;border:1px solid #e2e8f0;font-weight:700;background:#f8fafc;font-size:.78rem;width:25%;">Chức danh</td>
-        <td style="padding:5px 10px;border:1px solid #e2e8f0;font-size:.8rem;">${esc(jd.chuc_danh || '—')}</td>
-        <td style="padding:5px 10px;border:1px solid #e2e8f0;font-weight:700;background:#f8fafc;font-size:.78rem;width:20%;">Cấp bậc</td>
-        <td style="padding:5px 10px;border:1px solid #e2e8f0;font-size:.8rem;">${esc(jd.cap_bac || '—')}</td>
-      </tr>
-    </table>`
-    if (jd.tom_tat) {
-      html += `<div style="font-size:.82rem;color:#334155;line-height:1.6;margin-bottom:10px;padding:8px 10px;background:#f8fafc;border-radius:6px;">${esc(jd.tom_tat)}</div>`
-    }
-    if (jd.nhiem_vu_chinh?.length) {
-      html += `<div style="font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Nhiệm vụ chính</div>
-      <ul style="margin:0 0 10px;padding-left:18px;">${jd.nhiem_vu_chinh.map(t=>`<li style="font-size:.8rem;color:#334155;margin-bottom:3px;">${esc(t)}</li>`).join('')}</ul>`
-    }
-    if (jd.kpi_tham_chieu?.length) {
-      html += `<div style="font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px;">KPI tham chiếu</div>
-      <ul style="margin:0 0 6px;padding-left:18px;">${jd.kpi_tham_chieu.map(k=>`<li style="font-size:.78rem;color:#334155;margin-bottom:2px;">${esc(k)}</li>`).join('')}</ul>`
-    }
-    html += secEnd()
+    html += `<div style="page-break-inside:avoid;margin-top:28px">
+    <h3 style="border-left:4px solid #333;padding-left:10px;font-size:15px;color:#111;margin-bottom:0">Gợi ý Mô tả Công việc (JD)</h3>
+    <div style="border:1px solid #bbb;border-radius:4px;overflow:hidden;margin-top:10px">
+      <div style="background:#333;color:#fff;padding:10px 16px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:14px;font-weight:700;letter-spacing:.02em">${esc(jd.chuc_danh||'—')}</div>
+          ${jd.phong_ban?`<div style="font-size:11px;opacity:.8;margin-top:2px">${esc(jd.phong_ban)}</div>`:''}
+        </div>
+        ${jd.cap_bac?`<div style="font-size:11px;border:1px solid rgba(255,255,255,.5);padding:2px 10px;border-radius:3px">${esc(jd.cap_bac)}</div>`:''}
+      </div>
+      <div style="padding:16px;background:#fff">
+        ${jd.tom_tat?`<p style="line-height:1.75;margin:0 0 16px;font-size:13px;color:#333;font-style:italic;border-bottom:1px solid #eee;padding-bottom:12px">${esc(jd.tom_tat)}</p>`:''}
+        ${jd.nhiem_vu_chinh?.length?`
+          <div style="margin-bottom:16px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #eee">Nhiệm vụ chính</div>
+            <ol style="margin:0;padding-left:18px">
+              ${jd.nhiem_vu_chinh.map(t=>`<li style="margin-bottom:5px;font-size:13px;line-height:1.6">${esc(t)}</li>`).join('')}
+            </ol>
+          </div>`:''}
+        ${jd.yeu_cau_nang_luc?.length?`
+          <div style="margin-bottom:16px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #eee">Yêu cầu năng lực</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              ${jd.yeu_cau_nang_luc.map((y,i)=>`
+                <tr style="background:${i%2===0?'#f9f9f9':'#fff'}">
+                  <td style="padding:6px 10px;border:1px solid #e5e5e5;font-weight:600;width:120px;vertical-align:top">${esc(y.loai)}</td>
+                  <td style="padding:6px 10px;border:1px solid #e5e5e5;line-height:1.6">${esc(y.mo_ta)}</td>
+                </tr>`).join('')}
+            </table>
+          </div>`:''}
+        ${(jd.yeu_cau_kinh_nghiem||jd.trinh_do_hoc_van)?`
+          <div style="margin-bottom:8px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #eee">Yêu cầu khác</div>
+            <div style="display:flex;gap:24px;font-size:13px">
+              ${jd.yeu_cau_kinh_nghiem?`<div><b>Kinh nghiệm:</b> ${esc(jd.yeu_cau_kinh_nghiem)}</div>`:''}
+              ${jd.trinh_do_hoc_van?`<div><b>Học vấn:</b> ${esc(jd.trinh_do_hoc_van)}</div>`:''}
+            </div>
+          </div>`:''}
+        ${jd.kpi_tham_chieu?.length?`
+          <div style="margin-bottom:8px">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #eee">KPI tham chiếu</div>
+            <ul style="margin:0;padding-left:18px">
+              ${jd.kpi_tham_chieu.map(k=>`<li style="font-size:13px;margin-bottom:3px">${esc(k)}</li>`).join('')}
+            </ul>
+          </div>`:''}
+        ${jd.ghi_chu?`<div style="margin-top:12px;padding:8px 12px;background:#f5f5f5;border-left:3px solid #999;font-size:12px;font-style:italic">${esc(jd.ghi_chu)}</div>`:''}
+      </div>
+    </div></div>`
   }
 
   // ─────────────────────────────────────────────────────────
-  // 9. VIỆC CẦN LÀM TIẾP THEO
+  // 8. VIỆC CẦN LÀM TIẾP THEO
   // ─────────────────────────────────────────────────────────
   const nsList = nextStepsList.value
   if (nsList.length) {
-    html += secHeader('🔜', 'VIỆC CẦN LÀM TIẾP THEO', '#0c4a6e')
-    nsList.forEach((ns, i) => {
-      const priColor = ns.priority === 'Cao' ? '#dc2626' : ns.priority === 'Trung bình' ? '#d97706' : '#16a34a'
-      html += `<div style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f1f5f9;">
-        <span style="width:22px;height:22px;border-radius:50%;background:#0c4a6e;color:#fff;font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${i+1}</span>
-        <div style="flex:1;">
-          <div style="font-size:.82rem;color:#1e293b;font-weight:500;">${esc(ns.action)}</div>
-          <div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;">
-            ${ns.priority ? `<span style="font-size:.65rem;padding:1px 6px;border-radius:4px;background:${priColor}22;color:${priColor};font-weight:600;">${esc(ns.priority)}</span>` : ''}
-            ${ns.responsible ? `<span style="font-size:.65rem;color:#64748b;">👤 ${esc(ns.responsible)}</span>` : ''}
-            ${ns.deadline_note ? `<span style="font-size:.65rem;color:#64748b;">⏰ ${esc(ns.deadline_note)}</span>` : ''}
-          </div>
-        </div>
-      </div>`
-    })
-    html += secEnd()
+    html += secH3('Việc cần làm tiếp theo')
+    html += `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:#eee">
+        <th style="padding:6px 8px;border:1px solid #ccc;width:36px">#</th>
+        <th style="padding:6px 8px;border:1px solid #ccc">Nội dung</th>
+        <th style="padding:6px 8px;border:1px solid #ccc;width:70px">Ưu tiên</th>
+        <th style="padding:6px 8px;border:1px solid #ccc;width:90px">Người phụ trách</th>
+      </tr></thead>
+      <tbody>
+        ${nsList.map((ns, i) => `<tr style="background:${i%2===0?'#f9f9f9':'#fff'}">
+          <td style="padding:6px 8px;border:1px solid #ddd;text-align:center">${i+1}</td>
+          <td style="padding:6px 8px;border:1px solid #ddd">${esc(ns.action)}${ns.deadline_note ? `<br><small style="color:#666">⏰ ${esc(ns.deadline_note)}</small>` : ''}</td>
+          <td style="padding:6px 8px;border:1px solid #ddd;text-align:center">${esc(ns.priority || '')}</td>
+          <td style="padding:6px 8px;border:1px solid #ddd;text-align:center">${esc(ns.responsible || '')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`
   }
 
   // Close main div
@@ -1721,11 +1731,23 @@ async function downloadPdf() {
     const total = pdf.internal.getNumberOfPages()
     const w = pdf.internal.pageSize.getWidth()
     const h = pdf.internal.pageSize.getHeight()
-    for (let p = 1; p <= total; p++) {
+    // Remove blank trailing pages
+    for (let p = total; p > 1; p--) {
+      pdf.setPage(p)
+      const pageText = pdf.internal.pages[p]
+      const contentLines = Array.isArray(pageText) ? pageText.filter(l => typeof l === 'string' && l.trim().length > 0) : []
+      if (contentLines.length <= 2) {
+        pdf.deletePage(p)
+      } else {
+        break
+      }
+    }
+    const finalTotal = pdf.internal.getNumberOfPages()
+    for (let p = 1; p <= finalTotal; p++) {
       pdf.setPage(p)
       pdf.setFontSize(8)
       pdf.setTextColor(150)
-      pdf.text(`Trang ${p} / ${total}`, w / 2, h - 6, { align: 'center' })
+      pdf.text(`Trang ${p} / ${finalTotal}`, w / 2, h - 6, { align: 'center' })
     }
   }).save()
 }
@@ -2151,5 +2173,12 @@ body.theme-dark .rd-list { color: #94a3b8; }
 body.theme-dark .rd-text { color: #94a3b8; }
 body.theme-dark .ev-text { color: #cbd5e1; }
 body.theme-dark .ev-item { border-bottom-color: rgba(255,255,255,.06); }
+
+/* ── Scan result banner ── */
+.from-scan-banner { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; background: rgba(99,102,241,.06); border: 1px solid rgba(99,102,241,.15); margin-bottom: 16px; }
+.from-scan-banner .fs-icon { font-size: 24px; flex-shrink: 0; }
+.from-scan-banner .fs-title { font-weight: 700; font-size: .88rem; color: #6366f1; }
+.from-scan-banner .fs-sub { font-size: .78rem; color: #64748b; margin-top: 2px; }
+.results-with-ocr { border-top: 2px solid rgba(99,102,241,.15); padding-top: 16px; }
 </style>
 

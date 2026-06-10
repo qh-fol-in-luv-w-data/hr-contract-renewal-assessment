@@ -7,57 +7,90 @@
 
 ## ✨ Tính năng
 
-| Module | Mô tả |
-|--------|-------|
-| **Đánh giá Thử việc / Học việc** | Upload phiếu đánh giá (DOCX) + báo cáo KPI (XLSX/PDF) → AI phân tích 5 agents, chấm điểm, khuyến nghị |
-| **Đánh giá Tái ký HĐ** | Upload phiếu tái ký + báo cáo công việc → AI đánh giá điều kiện hợp đồng, đề xuất nhân sự |
-| **Scan bằng OCR** | Chụp/upload PDF scan → OpenAI Vision OCR → review → đánh giá AI |
-| **Báo cáo ngày** | Tùy chọn upload báo cáo ngày → AI đối chiếu, thống kê tần suất báo cáo |
-| **Xuất PDF** | Xuất báo cáo PDF đầy đủ client-side (html2pdf.js) |
-| **Gợi ý JD** | AI tự động sinh Job Description chuẩn theo chức danh |
+### 📋 Đánh giá Thử việc / Học việc
+
+| Tính năng | Mô tả |
+|-----------|-------|
+| **2 loại đánh giá** | Chọn **Thử việc** hoặc **Học việc** — toàn bộ UI/PDF tự động đổi theo loại |
+| **2 chế độ đầu vào** | **File mặc định** (DOCX + XLSX) hoặc **File Scan** (PDF scan → OCR) |
+| **AI 5-Agent Pipeline** | Phân tích đa chiều: KPI, năng lực, hội nhập, đề xuất quản lý, JD gợi ý |
+| **7 Tiêu chí 2AS** | Chấm điểm theo 7 tiêu chí đánh giá nội bộ CT Group |
+| **Bảng Tỷ Trọng Năng Lực** | AI tự động chấm điểm theo trọng số vị trí |
+| **Báo cáo ngày** | Upload báo cáo ngày → đếm ngày deterministic + AI đối chiếu nội dung vs Phiếu/KPI |
+| **Đánh giá đề xuất quản lý** | Sub-agent riêng đánh giá đề xuất HOD/TBP, mức độ đồng ý, phân tích chi tiết |
+| **Gợi ý JD** | AI tự động sinh Job Description chuẩn theo chức danh/vị trí |
+| **Xuất PDF** | Báo cáo PDF đầy đủ (html2pdf.js) – tự xóa trang trắng thừa, page numbers |
+
+### 📄 Đánh giá Tái ký Hợp đồng
+
+| Tính năng | Mô tả |
+|-----------|-------|
+| **2 chế độ đầu vào** | **File mặc định** hoặc **File Scan** (PDF → OCR → chỉnh sửa → đánh giá) |
+| **Scan OCR persist** | Sau đánh giá, form OCR vẫn hiển thị để chỉnh sửa & đánh giá lại |
+| **Bảng năng lực + ghi chú** | PDF bao gồm bảng điểm năng lực với ghi chú tỷ trọng |
+| **PDF layout chuẩn** | Header bảng + nội dung không bị tách trang, có ngày BĐ/KT hợp đồng |
+
+### 🔍 Scan OCR (Chung)
+
+| Tính năng | Mô tả |
+|-----------|-------|
+| **ScanCombined** | Upload PDF scan phiếu + SXKD → OpenAI Vision OCR |
+| **Chỉnh sửa trước đánh giá** | OCR kết quả hiển thị editable form → user review → xác nhận đánh giá |
+| **Hỗ trợ đa định dạng** | PDF, DOCX, XLSX, ảnh scan |
 
 ---
 
 ## 📁 Cấu trúc thư mục
 
 ```
-2as-employee-assessment/
-├── frontend/                        # Vue 3 SPA (Vite)
+cnb_2as/
+├── frontend/                            # Vue 3 SPA (Vite)
 │   ├── src/
 │   │   ├── pages/
-│   │   │   ├── Portal.vue           # Trang chủ chọn loại đánh giá
-│   │   │   ├── ThuViec.vue          # Đánh giá thử việc / học việc
-│   │   │   ├── TaiKy.vue            # Đánh giá tái ký hợp đồng
-│   │   │   └── ScanCombined.vue     # Scan + OCR review
+│   │   │   ├── Portal.vue               # Trang chủ chọn loại đánh giá
+│   │   │   ├── ThuViec.vue              # Đánh giá thử việc / học việc
+│   │   │   ├── TaiKy.vue                # Đánh giá tái ký hợp đồng
+│   │   │   ├── ScanCombined.vue         # Scan + OCR review (phiếu + SXKD)
+│   │   │   ├── ScanPhieu.vue            # Scan phiếu đánh giá riêng
+│   │   │   └── ScanSXKD.vue             # Scan SXKD riêng
 │   │   ├── components/
-│   │   │   └── JdGoiY.vue           # Component hiển thị gợi ý JD
-│   │   ├── store.js                 # Global state (ngôn ngữ, config)
-│   │   ├── main.js                  # Vue Router setup
+│   │   │   └── JdGoiY.vue               # Component hiển thị gợi ý JD
+│   │   ├── store.js                     # Global state + i18n (VI/EN)
+│   │   ├── main.js                      # Vue Router setup
 │   │   └── App.vue
 │   ├── package.json
 │   └── vite.config.js
 │
-├── cnb_2as/                         # Frappe Python App
+├── cnb_2as/                             # Frappe Python App
 │   ├── api/
-│   │   ├── evaluation.py            # API endpoints đánh giá tái ký
-│   │   ├── thu_viec.py              # API endpoints đánh giá thử việc
-│   │   └── scan_phieu.py            # API OCR scan
+│   │   ├── thu_viec.py                  # API: review_files, review_from_scan, chat_review
+│   │   ├── evaluation.py               # API: đánh giá tái ký
+│   │   ├── scan_phieu.py               # API: OCR scan phiếu
+│   │   └── scan_sxkd.py                # API: OCR scan SXKD
 │   ├── services/
-│   │   ├── agents.py                # 5+N AI Agent pipeline (OpenAI)
-│   │   ├── openai_client.py         # OpenAI client wrapper
-│   │   ├── document_parser.py       # Parse DOCX / XLSX / PDF
-│   │   ├── ocr_service.py           # OCR via OpenAI Vision
-│   │   ├── scan_service.py          # Scan flow orchestration
-│   │   ├── thu_viec_service.py      # Thử việc evaluation logic
-│   │   ├── validators.py            # Input validation
+│   │   ├── agents.py                    # Multi-agent pipeline (manager proposal, etc.)
+│   │   ├── openai_client.py             # OpenAI client wrapper
+│   │   ├── document_parser.py           # Parse daily report (DOCX/XLSX/PDF/image)
+│   │   ├── thu_viec_parsers.py          # Parse phiếu DOCX + Excel KPI chi tiết
+│   │   ├── thu_viec_service.py          # Business logic thử việc (prompts, filters)
+│   │   ├── thu_viec_pdf.py              # PDF generation thử việc
+│   │   ├── ocr_service.py               # OCR via OpenAI Vision
+│   │   ├── ocr_report_to_excel.py       # Chuyển OCR report → Excel format
+│   │   ├── scan_service.py              # Scan flow orchestration
+│   │   ├── scan_readers.py              # Đọc & parse scan PDF
+│   │   ├── pdf_generator.py             # PDF generation tái ký
+│   │   ├── validators.py                # Input validation & E1 check
 │   │   └── prompts/
-│   │       ├── eval_prompts.py      # Prompts cho đánh giá tái ký
-│   │       ├── review_prompts.py    # Prompts cho đánh giá thử việc
-│   │       └── scan_prompts.py      # Prompts cho OCR scan
+│   │       ├── __init__.py              # Export shared prompts
+│   │       ├── eval_prompts.py          # Prompts cho đánh giá tái ký
+│   │       ├── review_prompts.py        # Prompts cho đánh giá thử việc
+│   │       └── scan_prompts.py          # Prompts cho OCR scan
 │   ├── hooks.py
 │   ├── modules.txt
-│   └── public/frontend/             # ⚡ Vite build output (auto-generated)
+│   └── public/frontend/                 # ⚡ Vite build output (auto-generated)
 │
+├── note/
+│   └── update-code.md                   # Ghi chú yêu cầu cập nhật
 ├── pyproject.toml
 └── README.md
 ```
@@ -109,20 +142,22 @@ cd /path/to/frappe-bench
 source env/bin/activate
 
 # Cài các thư viện cần thiết
-pip install openai python-docx openpyxl pypdf PyMuPDF
+pip install openai python-docx openpyxl pypdf PyMuPDF python-dotenv
 ```
 
 ### Bước 4: Cấu hình OpenAI API Key
 
+Tạo file `.env` tại thư mục app:
+
 ```bash
-cd /path/to/frappe-bench
+# Cách 1: File .env (khuyến nghị)
+cat > apps/cnb_2as/cnb_2as/.env << 'EOF'
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+OPENAI_MODEL=gpt-4o
+EOF
 
-# Cách 1: Qua bench config (khuyến nghị)
+# Cách 2: Qua bench config
 bench --site mysite.localhost set-config openai_api_key "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
-
-# Cách 2: Sửa trực tiếp file
-nano sites/mysite.localhost/site_config.json
-# Thêm: "openai_api_key": "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
 ### Bước 5: Build Frontend
@@ -132,11 +167,9 @@ cd /path/to/frappe-bench/apps/cnb_2as/frontend
 
 # Cài Node dependencies
 npm install
-# hoặc: yarn install
 
 # Build production → output vào cnb_2as/public/frontend/
 npm run build
-# hoặc: yarn build
 
 # Về bench root và build static assets
 cd /path/to/frappe-bench
@@ -159,10 +192,61 @@ bench start
 | Trang | URL |
 |-------|-----|
 | Portal (Trang chủ) | `http://localhost:8000/assets/cnb_2as/frontend/index.html` |
-| Đánh giá Thử việc | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/thu-viec` |
+| Đánh giá Thử việc/Học việc | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/thu-viec` |
 | Đánh giá Tái ký | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/tai-ky` |
+| Scan OCR (Combined) | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/scan` |
 
 > **Dev mode** (Vite dev server): `http://localhost:5181`
+
+---
+
+## 🏗️ Kiến trúc AI Pipeline
+
+### Đánh giá Thử việc / Học việc
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        User Input                               │
+│  File mặc định: DOCX + XLSX          File Scan: PDF → OCR       │
+│  (review_files API)                   (review_from_scan API)    │
+└─────────────────┬───────────────────────────┬───────────────────┘
+                  │                           │
+                  ▼                           ▼
+         ┌────────────────────────────────────────────┐
+         │         Main AI Review (GPT-4o)            │
+         │  • Phân tích phiếu + KPI                   │
+         │  • 7 Tiêu chí 2AS                          │
+         │  • Bảng tỷ trọng năng lực                  │
+         │  • Đề xuất xử lý                           │
+         │  • Vấn đề + Ưu điểm                        │
+         └────────────────┬───────────────────────────┘
+                          │
+              ┌───────────┼───────────┐
+              ▼           ▼           ▼
+    ┌──────────────┐ ┌──────────┐ ┌──────────────┐
+    │ Báo cáo ngày │ │ Đánh giá │ │  JD Gợi ý    │
+    │ Deterministic│ │ Đề xuất  │ │ (GPT-4o)     │
+    │ + CrossCheck │ │ Quản lý  │ │              │
+    │   (GPT-4o)   │ │ (GPT-4o) │ │              │
+    └──────────────┘ └──────────┘ └──────────────┘
+```
+
+### Kết quả trả về (cả 2 mode)
+
+| Field | Mô tả |
+|-------|-------|
+| `status` | ĐẠT / CHƯA ĐẠT |
+| `tong_quan` | Tổng quan nhận xét |
+| `van_de` | Danh sách vấn đề cần bổ sung |
+| `uu_diem` | Danh sách điểm tốt |
+| `phan_tich_2as` | 7 tiêu chí đánh giá 2AS |
+| `bang_ty_trong` | Bảng tỷ trọng năng lực + điểm |
+| `de_xuat_xu_ly` | Đề xuất xử lý (ký HĐ / gia hạn / ...) |
+| `bao_cao_ngay` | Thống kê + đối chiếu báo cáo ngày |
+| `danh_gia_quan_ly` | Đánh giá đề xuất HOD/TBP |
+| `jd_goi_y` | Gợi ý Job Description theo vị trí |
+| `canh_bao_han` | Cảnh báo thời hạn hồ sơ |
+| `xlsx_kpi` | Bảng KPI chi tiết (minh chứng, tỷ lệ) |
 
 ---
 
@@ -185,11 +269,12 @@ bench build --app cnb_2as
 ### Chỉnh sửa Backend (Python)
 
 Sửa trực tiếp các file trong `cnb_2as/api/` hoặc `cnb_2as/services/`.  
-Frappe tự động reload khi `bench start` đang chạy.
+Frappe tự động reload khi `bench start` đang chạy (dev mode).
 
 ### Kiểm tra syntax Python
 
 ```bash
+python3 -m py_compile cnb_2as/api/thu_viec.py
 python3 -m py_compile cnb_2as/services/agents.py
 python3 -m py_compile cnb_2as/services/prompts/eval_prompts.py
 ```
@@ -200,15 +285,16 @@ python3 -m py_compile cnb_2as/services/prompts/eval_prompts.py
 
 ### Thay đổi AI model
 
-Trong `cnb_2as/services/openai_client.py`, tìm và sửa:
+Trong file `.env` hoặc environment variables:
 
-```python
-MODEL = "gpt-4o"        # Đổi thành gpt-4o-mini để tiết kiệm chi phí
+```bash
+OPENAI_MODEL=gpt-4o          # Mặc định
+OPENAI_MODEL=gpt-4o-mini     # Tiết kiệm chi phí
 ```
 
 ### Timeout và retry
 
-Trong `openai_client.py`:
+Trong `cnb_2as/services/openai_client.py`:
 
 ```python
 MAX_RETRIES = 3
@@ -223,17 +309,18 @@ TIMEOUT = 120  # seconds
 
 | Package | Mục đích |
 |---------|----------|
-| `openai` | Gọi API OpenAI (GPT-4o) |
+| `openai` | Gọi API OpenAI (GPT-4o, Vision) |
 | `python-docx` | Parse file Word (.docx) |
 | `openpyxl` | Parse file Excel (.xlsx) |
 | `pypdf` | Parse file PDF |
-| `PyMuPDF` | OCR/đọc PDF nâng cao |
+| `PyMuPDF` | OCR / đọc PDF nâng cao |
+| `python-dotenv` | Load biến môi trường từ .env |
 
 ### Node.js (Frontend)
 
 | Package | Mục đích |
 |---------|----------|
-| `vue` | Framework UI |
+| `vue` (3.x) | Framework UI |
 | `vue-router` | Routing SPA |
 | `vite` | Build tool |
 | `@vitejs/plugin-vue` | Vue plugin cho Vite |
@@ -246,6 +333,10 @@ TIMEOUT = 120  # seconds
 ### Lỗi "openai_api_key not configured"
 
 ```bash
+# Kiểm tra file .env
+cat apps/cnb_2as/cnb_2as/.env
+
+# Hoặc set qua bench
 bench --site mysite.localhost set-config openai_api_key "sk-..."
 bench restart
 ```
@@ -262,12 +353,22 @@ rm -rf frontend/node_modules frontend/.vite
 cd frontend && npm install && npm run build
 ```
 
-### Frappe không nhận API mới
+### Backend code không reload
 
 ```bash
+# Frappe auto-reload khi detect file changes
+# Nếu không tự reload, restart bench:
+# Ctrl+C bench start → chạy lại bench start
+
+# Clear cache nếu cần:
 bench --site mysite.localhost clear-cache
-bench restart
 ```
+
+### PDF xuất bị lỗi layout
+
+- Đảm bảo kết nối internet (html2pdf.js load từ CDN)
+- Thử hard refresh (Ctrl+Shift+R) trình duyệt
+- Kiểm tra browser console cho lỗi JavaScript
 
 ---
 

@@ -877,12 +877,114 @@ def review_files():
     except Exception as _e:
         frappe.logger("cnb_review").warning(f"[MANAGER_PROPOSAL] Lỗi sub-agent: {_e}")
 
+    # ── Deterministic báo cáo ngày (giống review_from_scan) ──────────────────
+    import re as _re_bc
+    from datetime import datetime as _dt_bc, timedelta as _td_bc
+
+    _bao_cao_ngay = None
+    if daily_report_text:
+        _so_ngay_da_bc = 0
+        _ngay_list_found = []
+
+        try:
+            _report_data = json.loads(daily_report_text)
+            if _report_data.get("ngay_list"):
+                _ngay_list_found = [d.strip() for d in _report_data["ngay_list"] if d.strip()]
+                _so_ngay_da_bc = len(_ngay_list_found)
+            else:
+                _bao_cao_arr = _report_data.get("bao_cao", [])
+                _seen_ngay = set()
+                for _item in _bao_cao_arr:
+                    _ngay = (_item.get("ngay") or "").strip()
+                    if _ngay and _ngay not in _seen_ngay:
+                        _seen_ngay.add(_ngay)
+                        _ngay_list_found.append(_ngay)
+                _so_ngay_da_bc = len(_ngay_list_found) or int(_report_data.get("so_ngay_tim_thay", 0))
+        except Exception:
+            _date_patterns = [
+                r'\b(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})\b',
+                r'\b(\d{4}[/\-]\d{1,2}[/\-]\d{1,2})\b',
+                r'Ngày\s+(\d{1,2}[/\-]\d{1,2}(?:[/\-]\d{2,4})?)',
+            ]
+            _found_dates = set()
+            for _pat in _date_patterns:
+                for _m in _re_bc.finditer(_pat, daily_report_text, _re_bc.IGNORECASE):
+                    _found_dates.add(_m.group(1).strip())
+            _ngay_list_found = sorted(_found_dates)
+            _so_ngay_da_bc = len(_found_dates)
+
+        _so_ngay_can = int(so_ngay_can_bc_str) if so_ngay_can_bc_str else 0
+        _ngay_thieu_bao_cao = []
+
+        def _parse_date_bc(s):
+            for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%Y-%m-%d"):
+                try: return _dt_bc.strptime(s.strip(), fmt).date()
+                except Exception: pass
+            return None
+
+        def _workdays_range_bc(s0, s1):
+            d0 = _parse_date_bc(s0) if s0 else None
+            d1 = _parse_date_bc(s1) if s1 else None
+            if not d0 or not d1 or d1 < d0: return []
+            days, cur = [], d0
+            while cur <= d1:
+                if cur.weekday() < 5: days.append(cur.strftime("%d/%m/%Y"))
+                cur += _td_bc(days=1)
+            return days
+
+        if ngay_bd and ngay_kt:
+            _all_wd = _workdays_range_bc(ngay_bd, ngay_kt)
+            if _all_wd:
+                def _norm_d(d):
+                    p = _parse_date_bc(d)
+                    return p.strftime("%d/%m/%Y") if p else d
+                _found_norm = set(_norm_d(d) for d in _ngay_list_found)
+                _ngay_thieu_bao_cao = [d for d in _all_wd if d not in _found_norm]
+                if _so_ngay_can == 0:
+                    _so_ngay_can = len(_all_wd)
+        elif _so_ngay_can > 0 and _so_ngay_da_bc < _so_ngay_can:
+            _ngay_thieu_bao_cao = [f"Ngày {i+1}" for i in range(_so_ngay_can - _so_ngay_da_bc)]
+
+        if _so_ngay_can > 0:
+            _diff_bc = _so_ngay_can - _so_ngay_da_bc
+            _nhan_xet_bc = f"Tìm thấy {_so_ngay_da_bc}/{_so_ngay_can} ngày báo cáo trong file." + (
+                f" Thiếu {_diff_bc} ngày." if _diff_bc > 0 else " Đủ ngày báo cáo."
+            )
+        else:
+            _nhan_xet_bc = f"Tìm thấy {_so_ngay_da_bc} ngày báo cáo trong file. (Chưa nhập kỳ hạn để so sánh)"
+
+        _bao_cao_ngay = {
+            "so_ngay_can_bc": _so_ngay_can,
+            "so_ngay_da_bc": _so_ngay_da_bc,
+            "so_ngay_du_hang_muc": _so_ngay_da_bc,
+            "ngay_thieu_hang_muc": [],
+            "ngay_thieu_bao_cao": _ngay_thieu_bao_cao,
+            "nhan_xet": _nhan_xet_bc,
+            "ngay_bd": ngay_bd,
+            "ngay_kt": ngay_kt,
+        }
+
+    # Cross-check báo cáo ngày vs phiếu word
+    _word_raw = docx_parsed.get("full_text", "") or sess.get("docx_text", "")
+    _excel_raw = xlsx_parsed.get("full_text", "")
+    if _bao_cao_ngay:
+        _bao_cao_ngay = _cross_check_bao_cao_vs_word(
+            _bao_cao_ngay, daily_report_text, _word_raw, client, _excel_raw
+        )
+
+    # ── JD Gợi ý (giống review_from_scan) ─────────────────────────────────────
+    _nv_info = docx_parsed.get("nhan_vien_info") or xlsx_parsed.get("nhan_vien_info", {})
+    _jd_goi_y = _generate_jd_goi_y_thu_viec(
+        client, _nv_info, _word_raw, _excel_raw, result
+    )
+
     # ── Debug: log sự có mặt của các field quan trọng ──────────────────────────
     _logger = frappe.logger("cnb_review", allow_site=True)
     _logger.info(
         f"[RESULT_FIELDS] bang_ty_trong={'CÓ' if result.get('bang_ty_trong') else 'THIẾU'} "
-        f"| bao_cao_ngay={'CÓ' if result.get('bao_cao_ngay') else 'THIẾU'} "
+        f"| bao_cao_ngay={'CÓ' if _bao_cao_ngay else 'THIẾU'} "
         f"| danh_gia_quan_ly={'CÓ' if result.get('danh_gia_quan_ly') else 'THIẾU'} "
+        f"| jd_goi_y={'CÓ' if _jd_goi_y else 'THIẾU'} "
         f"| daily_text_len={len(daily_report_text)} "
         f"| total_tokens={resp.usage.total_tokens if resp.usage else '?'}"
     )
@@ -963,9 +1065,11 @@ def review_files():
             str((docx_parsed.get("nhan_vien_info") or {}).get("ngay_het_han_thu_viec", ""))
         ),
         "bang_ty_trong": result.get("bang_ty_trong", None),
-        "bao_cao_ngay": result.get("bao_cao_ngay", None),
+        "bao_cao_ngay": _bao_cao_ngay if _bao_cao_ngay else result.get("bao_cao_ngay", None),
         "danh_gia_quan_ly": result.get("danh_gia_quan_ly", None),
+        "jd_goi_y": _jd_goi_y,
         "eval_type": eval_type,
+        "from_scan": False,
     }
 
 

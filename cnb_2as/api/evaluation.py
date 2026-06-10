@@ -625,15 +625,40 @@ def _save_evaluation_results(eval_doc, result):
 	framework = result.get("evaluation_framework", [])
 	score_details = scores_data.get("scores", [])
 
-	# Create a lookup for scores by competency name
+	# Create a lookup for scores by competency name (normalized for fuzzy matching)
+	import unicodedata as _ud
+	def _norm_comp(s):
+		"""Normalize competency name for matching: lowercase, strip, remove accents."""
+		s = str(s).strip().lower()
+		# Remove Vietnamese diacritics for comparison
+		nfkd = _ud.normalize('NFKD', s)
+		return ''.join(c for c in nfkd if not _ud.combining(c)).replace('/', ' ').replace('-', ' ').replace('  ', ' ').strip()
+
 	score_lookup = {}
+	score_lookup_norm = {}
 	for s in score_details:
 		name = s.get("competency_name", "")
 		score_lookup[name] = s
+		score_lookup_norm[_norm_comp(name)] = s
+
+	def _find_score(comp_name):
+		"""Find score for a competency, trying exact match then normalized match then substring."""
+		# 1. Exact match
+		if comp_name in score_lookup:
+			return score_lookup[comp_name]
+		# 2. Normalized match
+		norm = _norm_comp(comp_name)
+		if norm in score_lookup_norm:
+			return score_lookup_norm[norm]
+		# 3. Substring/partial match (e.g. "Kết quả công việc" in "Năng lực: Kết quả công việc")
+		for sn, sv in score_lookup_norm.items():
+			if norm in sn or sn in norm:
+				return sv
+		return {}
 
 	for comp in framework:
 		comp_name = comp.get("competency_name", "")
-		score_info = score_lookup.get(comp_name, {})
+		score_info = _find_score(comp_name)
 
 		eval_doc.append("competency_scores", {
 			"competency_name": comp_name,
@@ -759,7 +784,21 @@ def get_evaluation_result(evaluation_name):
 		try:
 			raw = json.loads(eval_doc.raw_ai_response)
 			result["recommendation_details"] = raw.get("recommendation", None)
-			result["extracted_info"] = raw.get("extracted_info", {})
+			_ext_info = raw.get("extracted_info", {})
+			result["extracted_info"] = _ext_info
+			# Map contract dates to top-level for frontend PDF export
+			result["contract_start_date"] = (
+				_ext_info.get("contract_start_date") or
+				_ext_info.get("start_date") or
+				_ext_info.get("ngay_bat_dau_hd") or
+				_ext_info.get("ngay_bat_dau") or ""
+			)
+			result["contract_end_date"] = (
+				_ext_info.get("contract_end_date") or
+				_ext_info.get("end_date") or
+				_ext_info.get("ngay_het_han_hd") or
+				_ext_info.get("ngay_het_han") or ""
+			)
 			result["bao_cao_ngay"] = raw.get("bao_cao_ngay", None)
 			result["danh_gia_quan_ly"] = raw.get("danh_gia_quan_ly", None)
 			result["danh_gia_hop_dong"] = raw.get("danh_gia_hop_dong", None)

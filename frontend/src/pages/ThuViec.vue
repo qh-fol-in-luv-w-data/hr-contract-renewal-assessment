@@ -16,6 +16,15 @@
       </div>
 
       <div class="sb-body">
+        <!-- Loại đánh giá: Học việc / Thử việc (ĐẶT LÊN TRƯỚC) -->
+        <div class="sb-section">
+          <div class="sb-section-title">Loại đánh giá</div>
+          <div class="eval-type-toggle">
+            <button class="etype-btn" :class="{active: evalType==='thu_viec'}" @click="evalType='thu_viec'">🎯 Thử việc</button>
+            <button class="etype-btn" :class="{active: evalType==='hoc_viec'}" @click="evalType='hoc_viec'">🎓 Học việc</button>
+          </div>
+        </div>
+
         <!-- Input Mode Toggle -->
         <div class="sb-section">
           <div class="sb-section-title">{{ t('input_mode') }}</div>
@@ -28,15 +37,6 @@
               <span class="mode-icon">📷</span>
               {{ t('mode_scan') }}
             </button>
-          </div>
-        </div>
-
-        <!-- Loại đánh giá: Học việc / Thử việc -->
-        <div class="sb-section">
-          <div class="sb-section-title">Loại đánh giá</div>
-          <div class="eval-type-toggle">
-            <button class="etype-btn" :class="{active: evalType==='thu_viec'}" @click="evalType='thu_viec'">🎯 Thử việc</button>
-            <button class="etype-btn" :class="{active: evalType==='hoc_viec'}" @click="evalType='hoc_viec'">🎓 Học việc</button>
           </div>
         </div>
 
@@ -90,13 +90,23 @@
           <div v-if="dailyReportFile" class="daily-date-range">
             <div class="ddr-row">
               <label class="ddr-label">Từ ngày</label>
-              <input type="text" v-model="ngayBD" class="ddr-input" placeholder="dd/mm/yyyy" maxlength="10"
-                @input="e => ngayBD = fmtDateInput(e.target.value)"/>
+              <div class="ddr-input-wrap">
+                <input type="text" v-model="ngayBD" class="ddr-input" placeholder="dd/mm/yyyy" maxlength="10"
+                  @input="e => ngayBD = fmtDateInput(e.target.value)"/>
+                <input type="date" class="ddr-date-hidden" ref="rDateBD"
+                  @change="e => { if(e.target.value) { const [y,m,d]=e.target.value.split('-'); ngayBD=d+'/'+m+'/'+y } }"/>
+                <button class="ddr-cal-btn" @click.prevent="$refs.rDateBD.showPicker?.()" title="Chọn ngày">📅</button>
+              </div>
             </div>
             <div class="ddr-row">
               <label class="ddr-label">Đến ngày</label>
-              <input type="text" v-model="ngayKT" class="ddr-input" placeholder="dd/mm/yyyy" maxlength="10"
-                @input="e => ngayKT = fmtDateInput(e.target.value)"/>
+              <div class="ddr-input-wrap">
+                <input type="text" v-model="ngayKT" class="ddr-input" placeholder="dd/mm/yyyy" maxlength="10"
+                  @input="e => ngayKT = fmtDateInput(e.target.value)"/>
+                <input type="date" class="ddr-date-hidden" ref="rDateKT"
+                  @change="e => { if(e.target.value) { const [y,m,d]=e.target.value.split('-'); ngayKT=d+'/'+m+'/'+y } }"/>
+                <button class="ddr-cal-btn" @click.prevent="$refs.rDateKT.showPicker?.()" title="Chọn ngày">📅</button>
+              </div>
             </div>
             <div v-if="ngayBD && ngayKT && soNgayLamViec > 0" class="ddr-calc">
               📅 <b>{{ soNgayLamViec }}</b> ngày làm việc (đã trừ T7, CN)
@@ -211,7 +221,7 @@
         <!-- Phiếu results -->
         <template v-if="scanPhieuResult && (scanTab==='phieu' || !scanMonths.length)">
           <div class="phieu-doc">
-            <div class="phieu-title">PHIỀU ĐÁNH GIÁ HOÀN THÀNH THỬ VIỆC</div>
+            <div class="phieu-title">PHIỀU ĐÁNH GIÁ HOÀN THÀNH {{ evalType==='hoc_viec' ? 'HỌC VIỆC' : 'THỬ VIỆC' }}</div>
             <div class="phieu-subtitle">CT Group – CTG-GO-NLCD-QT16-BM01</div>
 
             <div class="phieu-section-head">A. THÔNG TIN CHUNG</div>
@@ -445,7 +455,7 @@
       <!-- Default Loading -->
       <div v-if="loading && inputMode!=='scan'" class="loading-screen">
         <div class="loading-spinner"></div>
-        <p>{{ store.lang==='en'?'AI is analyzing profile...':'AI đang phân tích hồ sơ thử việc...' }}</p>
+        <p>{{ store.lang==='en'?'AI is analyzing profile...':`AI đang phân tích hồ sơ ${evalType==='hoc_viec'?'học việc':'thử việc'}...` }}</p>
         <p class="loading-sub">{{ store.lang==='en'?'This might take 30-60 seconds':'Quá trình này có thể mất 30–60 giây' }}</p>
       </div>
 
@@ -573,7 +583,7 @@
         <!-- ── Đề xuất xử lý ────────────────────────────────────── -->
         <div v-if="result" class="result-card dexuat-card">
           <div class="rc-header rc-h-dexuat" @click="toggle('dexuat')">
-            <span>📋 Đề xuất xử lý thử việc</span>
+            <span>📋 Đề xuất xử lý {{ evalType==='hoc_viec' ? 'học việc' : 'thử việc' }}</span>
             <span v-if="aiDx?.ket_qua_tv" class="dx-chip" :class="deXuatChipCls">{{ aiDx.ket_qua_tv }}</span>
             <span class="rc-arrow" :class="{open:sec.dexuat}">›</span>
           </div>
@@ -593,7 +603,7 @@
             <!-- Kết quả TV & Mức độ (AI) -->
             <div class="dx-ai-row">
               <div class="dx-ai-block">
-                <div class="dxg-label">Kết quả thử việc (2AS đề xuất)</div>
+                <div class="dxg-label">Kết quả {{ evalType==='hoc_viec' ? 'học việc' : 'thử việc' }} (2AS đề xuất)</div>
                 <div class="dx-ai-badge" :class="aiDx?.ket_qua_tv?.includes('Đạt')?'dxb-pass':aiDx?.ket_qua_tv?.includes('Gia hạn')?'dxb-extend':'dxb-fail'">
                   {{ aiDx?.ket_qua_tv?.includes('Đạt') ? '✅' : aiDx?.ket_qua_tv?.includes('Gia hạn') ? '🔄' : '❌' }}
                   {{ aiDx?.ket_qua_tv || '—' }}
@@ -1388,11 +1398,25 @@ async function exportReport() {
     const total = pdf.internal.getNumberOfPages()
     const w = pdf.internal.pageSize.getWidth()
     const h = pdf.internal.pageSize.getHeight()
-    for (let p = 1; p <= total; p++) {
+    // Remove blank trailing pages
+    for (let p = total; p > 1; p--) {
+      pdf.setPage(p)
+      const pageText = pdf.internal.pages[p]
+      // Check if page has minimal content (only page number footer or empty)
+      const contentLines = Array.isArray(pageText) ? pageText.filter(l => typeof l === 'string' && l.trim().length > 0) : []
+      if (contentLines.length <= 2) {
+        pdf.deletePage(p)
+      } else {
+        break
+      }
+    }
+    // Re-add page numbers after cleanup
+    const finalTotal = pdf.internal.getNumberOfPages()
+    for (let p = 1; p <= finalTotal; p++) {
       pdf.setPage(p)
       pdf.setFontSize(8)
       pdf.setTextColor(150)
-      pdf.text(`Trang ${p} / ${total}`, w / 2, h - 6, { align: 'center' })
+      pdf.text(`Trang ${p} / ${finalTotal}`, w / 2, h - 6, { align: 'center' })
     }
   }).save()
 }
@@ -1824,6 +1848,10 @@ async function doReview() {
 .ddr-row { display: flex; align-items: center; gap: 8px; }
 .ddr-label { font-size: .75rem; color: #94a3b8; font-weight: 600; width: 55px; flex-shrink: 0; }
 .ddr-input { flex: 1; padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(99,102,241,.2); background: transparent; color: inherit; font-size: .8rem; }
+.ddr-input-wrap { flex: 1; display: flex; align-items: center; gap: 4px; position: relative; }
+.ddr-date-hidden { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+.ddr-cal-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(99,102,241,.2); background: rgba(99,102,241,.06); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all .2s; flex-shrink: 0; }
+.ddr-cal-btn:hover { background: rgba(99,102,241,.15); border-color: rgba(99,102,241,.4); }
 .ddr-calc { font-size: .78rem; color: #818cf8; font-weight: 600; text-align: center; padding-top: 2px; }
 
 /* ── Bảng Tỷ Trọng ─────────────────────────────────── */
