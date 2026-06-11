@@ -83,9 +83,9 @@ def ocr_pdf_with_vision(pdf_path, api_key, model="gpt-4o"):
     Returns:
         dict: Dữ liệu đã trích xuất dưới dạng JSON.
     """
-    from openai import OpenAI
+    from cnb_2as.services.openai_client import get_client as _get_client
     
-    client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
+    client = _get_client()
     
     # Convert PDF → ảnh
     base64_images = pdf_to_images(pdf_path)

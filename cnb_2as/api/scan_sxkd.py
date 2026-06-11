@@ -12,14 +12,9 @@ import fitz  # PyMuPDF
 from PIL import Image
 
 # ──────────────────────────────────────────────────────────────────
-# Helper: lấy OpenAI key
+# Helper: lấy OpenAI key (from Agent Hub Settings → site_config → env)
 # ──────────────────────────────────────────────────────────────────
-def _get_openai_key():
-    cfg = frappe.get_site_config()
-    key = cfg.get("openai_api_key", "")
-    if not key:
-        frappe.throw("Chưa cấu hình openai_api_key trong site_config.json")
-    return key
+from cnb_2as.services.openai_client import get_api_key, get_client as _get_openai_client
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -381,8 +376,7 @@ def ocr_sxkd():
     file_obj = frappe.request.files["file"]
     file_bytes = file_obj.read()
 
-    from openai import OpenAI
-    client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
+    client = _get_openai_client()
 
     # Convert PDF pages to images
     pages_b64 = _pdf_to_images(file_bytes)

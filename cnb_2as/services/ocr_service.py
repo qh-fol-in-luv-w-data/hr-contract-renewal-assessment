@@ -140,13 +140,9 @@ def ocr_pdf_to_json(file_path, doc_type="eval"):
 		if not base64_images:
 			raise ValueError("Không thể chuyển PDF thành hình ảnh")
 
-		from openai import OpenAI
+		from cnb_2as.services.openai_client import get_client as _get_client
 
-		api_key = frappe.conf.get("openai_api_key")
-		if not api_key:
-			raise ValueError("OpenAI API key chưa được cấu hình. Chạy: bench set-config openai_api_key 'sk-xxx'")
-
-		client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
+		client = _get_client()
 		model = os.environ.get("OPENAI_MODEL", "gpt-4o")
 
 		# ── Build prompts based on doc_type ──
@@ -421,12 +417,9 @@ def ocr_daily_report_from_docx(file_path):
 
 	print(f"[OCR-Daily] Tìm thấy {len(img_entries)} ảnh. Bắt đầu Vision API...")
 
-	from openai import OpenAI
-	api_key = frappe.conf.get("openai_api_key")
-	if not api_key:
-		raise ValueError("OpenAI API key chưa được cấu hình")
+	from cnb_2as.services.openai_client import get_client as _get_client
 
-	client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
+	client = _get_client()
 	model = os.environ.get("OPENAI_MODEL", "gpt-4o")
 
 	SYSTEM_MSG = (
@@ -571,12 +564,9 @@ def ocr_daily_report_from_pdf(file_path, max_pages=25):
 	if not img_entries:
 		raise ValueError("Không có trang nào trong PDF")
 
-	from openai import OpenAI
-	api_key = frappe.conf.get("openai_api_key")
-	if not api_key:
-		raise ValueError("OpenAI API key chưa được cấu hình")
+	from cnb_2as.services.openai_client import get_client as _get_client
 
-	client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
+	client = _get_client()
 	model = os.environ.get("OPENAI_MODEL", "gpt-4o")
 
 	SYSTEM_MSG = (
