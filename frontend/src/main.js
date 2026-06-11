@@ -5,7 +5,7 @@ import Portal from './pages/Portal.vue'
 import ThuViec from './pages/ThuViec.vue'
 import TaiKy from './pages/TaiKy.vue'
 import ScanCombined from './pages/ScanCombined.vue'
-import { getSessionId } from '@/utils/session';
+import { getSessionId } from './utils/session';
 
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {

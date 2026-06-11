@@ -8,8 +8,8 @@
 <script setup>
 import { onMounted } from 'vue';
 import { store } from './store';
-import { useSession, initSession } from '@/utils/session';
-import CTAccessDenied from '@/components/CTAccessDenied.vue';
+import { useSession, initSession } from './utils/session';
+import CTAccessDenied from './components/CTAccessDenied.vue';
 
 const { authState } = useSession();
 
