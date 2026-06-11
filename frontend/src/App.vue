@@ -1,9 +1,21 @@
 <template>
-  <router-view />
+  <div v-if="authState === 'authorized'">
+    <router-view />
+  </div>
+  <CTAccessDenied v-else-if="authState === 'denied'" />
 </template>
 
 <script setup>
-import { store } from './store'
+import { onMounted } from 'vue';
+import { store } from './store';
+import { useSession, initSession } from '@/utils/session';
+import CTAccessDenied from '@/components/CTAccessDenied.vue';
+
+const { authState } = useSession();
+
+onMounted(async () => {
+  await initSession('/api/method/cnb_2as.api.get_context');
+});
 </script>
 
 <style>

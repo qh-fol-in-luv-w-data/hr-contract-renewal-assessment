@@ -5,6 +5,22 @@ import Portal from './pages/Portal.vue'
 import ThuViec from './pages/ThuViec.vue'
 import TaiKy from './pages/TaiKy.vue'
 import ScanCombined from './pages/ScanCombined.vue'
+import { getSessionId } from '@/utils/session';
+
+const originalFetch = window.fetch;
+window.fetch = async (...args) => {
+  let [resource, config] = args;
+  config = config || {};
+  config.headers = config.headers || {};
+  
+  if (config.headers instanceof Headers) {
+    config.headers.set('X-App-Session-Id', getSessionId());
+  } else {
+    config.headers['X-App-Session-Id'] = getSessionId();
+  }
+  
+  return originalFetch(resource, config);
+};
 
 const routes = [
   { path: '/', component: Portal },
