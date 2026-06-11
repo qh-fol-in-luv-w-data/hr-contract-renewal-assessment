@@ -240,19 +240,96 @@ def _analyze_daily_report(daily_report_content, eval_content, ngay_bd, ngay_kt, 
 		except Exception:
 			is_vision_json = False
 
+		# ── Deterministic counting (code-based) for Vision JSON ──
+		pre_computed = None  # will be dict if computed
 		if is_vision_json:
-			so_ngay_found = vision_obj.get("so_ngay_tim_thay", len(vision_obj.get("bao_cao", [])))
-			ngay_dau_found = vision_obj.get("ngay_dau", "")
-			ngay_cuoi_found = vision_obj.get("ngay_cuoi", "")
+			import re as _re
+			from datetime import date, timedelta
+
+			bao_cao_list = vision_obj.get("bao_cao", [])
+
+			# Parse ngay strings "DD/MM/YYYY" → date objects
+			def _parse_ngay(s):
+				m = _re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", str(s).strip())
+				if m:
+					try:
+						return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+					except ValueError:
+						return None
+				return None
+
+			# Collect all unique reported dates
+			reported_dates = set()
+			for item in bao_cao_list:
+				d = _parse_ngay(item.get("ngay", ""))
+				if d:
+					reported_dates.add(d)
+
+			# Build full working-day set in range
+			working_days = set()
+			if ngay_bd and ngay_kt:
+				try:
+					d_start = date.fromisoformat(ngay_bd)
+					d_end = date.fromisoformat(ngay_kt)
+					cur = d_start
+					while cur <= d_end:
+						if cur.weekday() < 5:  # Mon–Fri
+							working_days.add(cur)
+						cur += timedelta(days=1)
+				except ValueError:
+					pass
+
+			# Missing days = working days not in reported set
+			missing_dates = sorted(working_days - reported_dates) if working_days else []
+
+			so_ngay_can = int(so_ngay_can_bc) if so_ngay_can_bc and str(so_ngay_can_bc).isdigit() else len(working_days)
+			so_ngay_da = len(reported_dates)
+			ngay_thieu_list = [f"{d.day:02d}/{d.month:02d}" for d in missing_dates]
+
+			# Days with hang_muc filled: at least 1 hang_muc entry with non-empty cong_viec
+			def _has_hang_muc(item):
+				hm = item.get("hang_muc", [])
+				if not hm:
+					return False
+				return any(str(h.get("cong_viec", "")).strip() for h in hm)
+
+			so_ngay_du_hm = sum(1 for item in bao_cao_list if _parse_ngay(item.get("ngay", "")) and _has_hang_muc(item))
+
+			# Days in bao_cao_list but with missing/empty hang_muc
+			ngay_thieu_hm = []
+			for item in bao_cao_list:
+				d = _parse_ngay(item.get("ngay", ""))
+				if d and not _has_hang_muc(item):
+					ngay_thieu_hm.append(f"{d.day:02d}/{d.month:02d}")
+
+			pre_computed = {
+				"so_ngay_da_bc": so_ngay_da,
+				"so_ngay_can_bc": so_ngay_can,
+				"so_ngay_du_hang_muc": so_ngay_du_hm,
+				"ngay_thieu_bao_cao": ngay_thieu_list,
+				"ngay_thieu_hang_muc": sorted(ngay_thieu_hm),
+			}
+
+			# Slim down bao_cao for AI prompt: only send first 15 entries, summarised
+			slim_bao_cao = []
+			for item in bao_cao_list[:15]:
+				slim_bao_cao.append({
+					"ngay": item.get("ngay", ""),
+					"hang_muc": [h.get("hang_muc", "") for h in (item.get("hang_muc") or [])],
+				})
+
 			context_note = (
-				f"Dữ liệu đã được Vision API trích xuất: {so_ngay_found} ngày báo cáo "
-				f"từ {ngay_dau_found} đến {ngay_cuoi_found}.\n"
-				f"Số ngày làm việc cần báo cáo (T2-T6, ngày_bd→ngày_kt): {so_ngay_can_bc or '?'}"
+				f"[ĐÃ TÍNH TỪ CODE] Số ngày đã báo cáo: {so_ngay_da}/{so_ngay_can}. "
+				f"Ngày thiếu báo cáo: {ngay_thieu_list or 'không có'}. "
+				f"Ngày thiếu hạng mục: {sorted(ngay_thieu_hm) or 'không có'}.\n"
+				f"Dữ liệu hạng mục (tóm tắt {len(slim_bao_cao)} ngày đầu):\n"
+				+ json.dumps(slim_bao_cao, ensure_ascii=False)
 			)
-			daily_content_for_prompt = daily_report_content[:10000]
 		else:
 			context_note = f"Số ngày làm việc cần báo cáo (T2–T6): {so_ngay_can_bc or '?'}"
-			daily_content_for_prompt = daily_report_content[:8000]
+			slim_bao_cao = None
+
+		daily_content_for_prompt = daily_report_content[:8000] if not is_vision_json else ""
 
 		prompt = f"""Phân tích báo cáo công việc hàng ngày trong khoảng thời gian:
 - Từ ngày: {ngay_bd or 'không rõ'}
@@ -263,17 +340,22 @@ NỘI DUNG PHIẾU ĐÁNH GIÁ (nhiệm vụ tuần tương ứng để đối c
 ---
 {eval_content[:3000]}
 ---
+{"DỮ LIỆU BÁO CÁO NGÀY:" + chr(10) + "---" + chr(10) + daily_content_for_prompt + chr(10) + "---" if daily_content_for_prompt else ""}
 
-DỮ LIỆU BÁO CÁO NGÀY:
----
-{daily_content_for_prompt}
----
-
-Phân tích: đếm số ngày đã báo cáo, xác định ngày thiếu báo cáo, đối chiếu hạng mục với phiếu.
+{"QUAN TRỌNG: Các trường so_ngay_da_bc, so_ngay_can_bc, ngay_thieu_bao_cao, ngay_thieu_hang_muc, so_ngay_du_hang_muc đã được TÍNH SẴN bằng code ở trên. Bạn PHẢI sử dụng đúng các con số đó, KHÔNG tự đếm lại." if pre_computed else "Phân tích: đếm số ngày đã báo cáo, xác định ngày thiếu báo cáo, đối chiếu hạng mục với phiếu."}
+Chỉ cần: đối chiếu hạng mục với nhiệm vụ trong phiếu (doi_chieu_cong_viec) và viết nhan_xet.
 Trả về JSON theo schema đã cho."""
-		return chat_completion_json(_DAILY_REPORT_SYSTEM, prompt)
+
+		ai_result = chat_completion_json(_DAILY_REPORT_SYSTEM, prompt)
+
+		# Merge pre-computed counts into AI result (override unreliable AI counts)
+		if pre_computed and isinstance(ai_result, dict):
+			ai_result.update(pre_computed)
+
+		return ai_result
 	except Exception:
 		return None
+
 
 
 # ============================================================

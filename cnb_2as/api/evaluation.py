@@ -68,6 +68,20 @@ def run_evaluation(eval_file, work_report_file, daily_report_file="", ngay_bd=""
 	if not work_report_file:
 		frappe.throw("Vui lòng upload file Báo cáo kết quả công việc")
 
+	# Parse daily report content synchronously NOW (before enqueue)
+	# This avoids file-access issues in background workers with private files.
+	daily_report_content_cached = ""
+	if daily_report_file:
+		try:
+			daily_report_content_cached = parse_daily_report(file_url=daily_report_file) or ""
+			frappe.logger("cnb_eval").info(
+				f"[run_evaluation] Daily report parsed: {len(daily_report_content_cached)} chars"
+			)
+		except Exception as _de:
+			frappe.logger("cnb_eval").warning(
+				f"[run_evaluation] Daily report parse error: {str(_de)[:200]}"
+			)
+
 	# Create evaluation record (employee info will be filled by AI)
 	eval_doc = frappe.get_doc({
 		"doctype": "Employee Evaluation",
@@ -79,6 +93,9 @@ def run_evaluation(eval_file, work_report_file, daily_report_file="", ngay_bd=""
 		"work_report_file": work_report_file,
 		"input_mode": "default",
 		"status": "Processing",
+		# Store parsed daily report content in ocr_report_content (unused in default mode)
+		# so the background worker can reliably access it without file-permission issues.
+		"ocr_report_content": daily_report_content_cached,
 	})
 	eval_doc.insert(ignore_permissions=False)
 	frappe.db.commit()
@@ -229,7 +246,8 @@ def run_evaluation_scan(eval_file, work_report_file):
 
 
 @frappe.whitelist()
-def confirm_ocr_and_evaluate(evaluation_name, ocr_eval_content, ocr_report_content):
+def confirm_ocr_and_evaluate(evaluation_name, ocr_eval_content, ocr_report_content,
+							  daily_report_file="", ngay_bd="", ngay_kt=""):
 	"""Confirm edited OCR content and start AI evaluation pipeline.
 
 	Called after user reviews and edits OCR output. Saves the confirmed
@@ -239,6 +257,9 @@ def confirm_ocr_and_evaluate(evaluation_name, ocr_eval_content, ocr_report_conte
 		evaluation_name: Name of the Employee Evaluation document.
 		ocr_eval_content: Confirmed/edited Markdown of evaluation form.
 		ocr_report_content: Confirmed/edited Markdown of work report.
+		daily_report_file: Optional Frappe file URL for daily report.
+		ngay_bd: Start date for daily report range (YYYY-MM-DD).
+		ngay_kt: End date for daily report range (YYYY-MM-DD).
 
 	Returns:
 		Dict with status information.
@@ -263,12 +284,15 @@ def confirm_ocr_and_evaluate(evaluation_name, ocr_eval_content, ocr_report_conte
 	eval_doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
-	# Enqueue AI evaluation with OCR content
+	# Enqueue AI evaluation with OCR content + daily report info
 	frappe.enqueue(
 		"cnb_2as.api.evaluation.process_evaluation_from_ocr",
 		queue="long",
 		timeout=300,
 		evaluation_name=evaluation_name,
+		daily_report_file=daily_report_file or "",
+		ngay_bd=ngay_bd or "",
+		ngay_kt=ngay_kt or "",
 	)
 
 	return {
@@ -315,7 +339,7 @@ def get_ocr_preview(evaluation_name):
 	}
 
 
-def process_evaluation_from_ocr(evaluation_name):
+def process_evaluation_from_ocr(evaluation_name, daily_report_file="", ngay_bd="", ngay_kt=""):
 	"""Background job: Run AI evaluation from confirmed OCR content.
 
 	Similar to process_evaluation but uses OCR Markdown content
@@ -323,6 +347,9 @@ def process_evaluation_from_ocr(evaluation_name):
 
 	Args:
 		evaluation_name: Name of the Employee Evaluation document.
+		daily_report_file: Optional Frappe file URL for daily report.
+		ngay_bd: Start date string for daily report range (YYYY-MM-DD).
+		ngay_kt: End date string for daily report range (YYYY-MM-DD).
 	"""
 
 	try:
@@ -355,19 +382,34 @@ def process_evaluation_from_ocr(evaluation_name):
 			except Exception:
 				pass
 
-		# OCR flow không có daily report — khởi tạo các biến optional với giá trị rỗng
+		# Parse daily report if provided (via OCR flow)
 		daily_report_content = ""
-		ngay_bd = ""
-		ngay_kt = ""
 		so_ngay_can_bc = ""
+		if daily_report_file:
+			frappe.publish_realtime(
+				"eval_progress",
+				{"step": 2, "total": 6, "message": "Đang đọc báo cáo ngày..."},
+				user=frappe.session.user,
+			)
+			try:
+				daily_report_content = parse_daily_report(file_url=daily_report_file) or ""
+				frappe.logger("cnb_eval").info(
+					f"[process_evaluation_from_ocr] Daily report parsed: {len(daily_report_content)} chars"
+				)
+			except Exception as _e:
+				frappe.logger("cnb_eval").warning(
+					f"[process_evaluation_from_ocr] Daily report parse failed: {_e}"
+				)
+		if ngay_bd and ngay_kt:
+			so_ngay_can_bc = str(count_working_days(ngay_bd, ngay_kt))
 
 		# Run AI pipeline
 		result = run_evaluation_pipeline(
 			eval_content=eval_content,
 			work_report_content=work_report_content,
 			daily_report_content=daily_report_content,
-			ngay_bd=ngay_bd,
-			ngay_kt=ngay_kt,
+			ngay_bd=ngay_bd or "",
+			ngay_kt=ngay_kt or "",
 			so_ngay_can_bc=so_ngay_can_bc,
 		)
 
@@ -487,10 +529,29 @@ def process_evaluation(evaluation_name, daily_report_file="", ngay_bd="", ngay_k
 		work_report_content = parse_file(eval_doc.work_report_file)
 
 		# Parse daily report (optional) — uses shared utility (Vision fallback included)
+		# PRIMARY: use pre-parsed content cached in ocr_report_content by run_evaluation()
+		# This avoids private-file permission issues when running as background worker.
 		daily_report_content = ""
 		so_ngay_can_bc = ""
 		if daily_report_file:
-			daily_report_content = parse_daily_report(file_url=daily_report_file)
+			# Use cached content stored by run_evaluation() before enqueue (primary path)
+			cached = (eval_doc.ocr_report_content or "").strip()
+			if cached:
+				daily_report_content = cached
+				frappe.logger("cnb_eval").info(
+					f"[process_evaluation] Using cached daily report content: {len(daily_report_content)} chars"
+				)
+			else:
+				# Fallback: re-parse from file URL (e.g., when called directly without run_evaluation)
+				try:
+					daily_report_content = parse_daily_report(file_url=daily_report_file) or ""
+					frappe.logger("cnb_eval").info(
+						f"[process_evaluation] Re-parsed daily report from URL: {len(daily_report_content)} chars"
+					)
+				except Exception as _dpe:
+					frappe.logger("cnb_eval").warning(
+						f"[process_evaluation] Daily report parse failed: {str(_dpe)[:200]}"
+					)
 		so_ngay_can_bc = str(count_working_days(ngay_bd, ngay_kt)) if ngay_bd and ngay_kt else ""
 
 		# Run document completeness check directly from file structure

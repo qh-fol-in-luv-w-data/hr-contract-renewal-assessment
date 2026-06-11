@@ -93,17 +93,29 @@
           </div>
 
           <!-- Date range (hiện khi chọn file báo cáo ngày) -->
-          <div v-if="dailyReportFile" class="sb-date-range">
-            <div class="sb-date-row">
-              <label>Từ ngày</label>
-              <input type="date" v-model="ngayBD" class="sb-date-input" />
+          <div v-if="dailyReportFile" class="daily-date-range">
+            <div class="ddr-row">
+              <label class="ddr-label">Từ ngày</label>
+              <div class="ddr-input-wrap">
+                <input type="text" v-model="ngayBD" class="ddr-input" placeholder="dd/mm/yyyy" maxlength="10"
+                  @input="e => ngayBD = fmtDateInput(e.target.value)"/>
+                <input type="date" class="ddr-date-hidden" ref="rDateBD"
+                  @change="e => { if(e.target.value) { const [y,m,d]=e.target.value.split('-'); ngayBD=d+'/'+m+'/'+y } }"/>
+                <button class="ddr-cal-btn" @click.prevent="$refs.rDateBD.showPicker?.()" title="Chọn ngày">📅</button>
+              </div>
             </div>
-            <div class="sb-date-row">
-              <label>Đến ngày</label>
-              <input type="date" v-model="ngayKT" class="sb-date-input" />
+            <div class="ddr-row">
+              <label class="ddr-label">Đến ngày</label>
+              <div class="ddr-input-wrap">
+                <input type="text" v-model="ngayKT" class="ddr-input" placeholder="dd/mm/yyyy" maxlength="10"
+                  @input="e => ngayKT = fmtDateInput(e.target.value)"/>
+                <input type="date" class="ddr-date-hidden" ref="rDateKT"
+                  @change="e => { if(e.target.value) { const [y,m,d]=e.target.value.split('-'); ngayKT=d+'/'+m+'/'+y } }"/>
+                <button class="ddr-cal-btn" @click.prevent="$refs.rDateKT.showPicker?.()" title="Chọn ngày">📅</button>
+              </div>
             </div>
-            <div v-if="soNgayLamViec > 0" class="sb-days-badge">
-              📊 {{ soNgayLamViec }} ngày làm việc cần báo cáo
+            <div v-if="ngayBD && ngayKT && soNgayLamViec > 0" class="ddr-calc">
+              📅 <b>{{ soNgayLamViec }}</b> ngày làm việc (đã trừ T7, CN)
             </div>
           </div>
 
@@ -780,30 +792,24 @@
 
         <!-- Báo cáo ngày -->
         <div v-if="result.bao_cao_ngay" class="result-card">
-          <div class="rc-header rc-h-teal" @click="toggle('bao_cao_ngay')">
-            <span>📅 Báo cáo ngày – {{ result.bao_cao_ngay.so_ngay_da_bc }}/{{ result.bao_cao_ngay.so_ngay_can_bc }} ngày</span>
+          <div class="rc-header rc-h-daily" @click="toggle('bao_cao_ngay')">
+            <span>📅 Báo cáo ngày</span>
+            <span class="daily-progress-chip">{{ result.bao_cao_ngay.so_ngay_da_bc ?? '?' }}/{{ result.bao_cao_ngay.so_ngay_can_bc ?? '?' }} ngày</span>
             <span class="rc-arrow" :class="{open:sec.bao_cao_ngay}">›</span>
           </div>
           <div v-if="sec.bao_cao_ngay" class="rc-body">
-            <div style="margin-bottom:12px;">
-              <div style="display:flex;justify-content:space-between;font-size:.8rem;color:#64748b;margin-bottom:4px;">
-                <span>Đã báo cáo</span>
-                <span>{{ result.bao_cao_ngay.so_ngay_da_bc }}/{{ result.bao_cao_ngay.so_ngay_can_bc }} ngày</span>
+            <div class="daily-bar-wrap">
+              <div class="daily-bar">
+                <div class="daily-bar-fill" :style="{width: Math.min(100,(result.bao_cao_ngay.so_ngay_da_bc||0)/(result.bao_cao_ngay.so_ngay_can_bc||1)*100)+'%'}"></div>
               </div>
-              <div style="background:#e2e8f0;border-radius:4px;height:8px;">
-                <div :style="{ width: Math.min(100, Math.round((result.bao_cao_ngay.so_ngay_da_bc / result.bao_cao_ngay.so_ngay_can_bc) * 100)) + '%', height: '100%', borderRadius: '4px', background: result.bao_cao_ngay.so_ngay_da_bc >= result.bao_cao_ngay.so_ngay_can_bc ? '#10b981' : '#f59e0b' }"></div>
-
-              </div>
+              <span class="daily-bar-pct">{{ Math.round((result.bao_cao_ngay.so_ngay_da_bc||0)/(result.bao_cao_ngay.so_ngay_can_bc||1)*100) }}%</span>
             </div>
-            <div v-if="result.bao_cao_ngay.ngay_thieu_bao_cao?.length" style="margin-bottom:8px;">
-              <strong style="font-size:.8rem;color:#64748b;">Ngày thiếu báo cáo:</strong>
-              <span v-for="d in result.bao_cao_ngay.ngay_thieu_bao_cao" :key="d" style="display:inline-block;margin:2px 4px;padding:2px 8px;background:#fef3c7;border-radius:4px;font-size:.78rem;color:#92400e;">{{ d }}</span>
+            <div class="daily-stats" style="margin-bottom:10px;">
+              <div v-if="result.bao_cao_ngay.so_ngay_du_hang_muc != null" class="ds-item ds-ok">✅ Đủ hạng mục: <b>{{ result.bao_cao_ngay.so_ngay_du_hang_muc }}</b> ngày</div>
+              <div v-if="result.bao_cao_ngay.ngay_thieu_hang_muc?.length" class="ds-item ds-warn">⚠️ Thiếu hạng mục: <b>{{ result.bao_cao_ngay.ngay_thieu_hang_muc.length }}</b> ngày <span class="ds-dates">({{ result.bao_cao_ngay.ngay_thieu_hang_muc.join(', ') }})</span></div>
+              <div v-if="result.bao_cao_ngay.ngay_thieu_bao_cao?.length" class="ds-item ds-bad">❌ Thiếu báo cáo: <b>{{ result.bao_cao_ngay.ngay_thieu_bao_cao.length }}</b> ngày <span class="ds-dates">({{ result.bao_cao_ngay.ngay_thieu_bao_cao.join(', ') }})</span></div>
             </div>
-            <div v-if="result.bao_cao_ngay.ngay_thieu_hang_muc?.length" style="margin-bottom:8px;">
-              <strong style="font-size:.8rem;color:#64748b;">Ngày thiếu hạng mục:</strong>
-              <span v-for="d in result.bao_cao_ngay.ngay_thieu_hang_muc" :key="d" style="display:inline-block;margin:2px 4px;padding:2px 8px;background:#fce7f3;border-radius:4px;font-size:.78rem;color:#9d174d;">{{ d }}</span>
-            </div>
-            <div v-if="result.bao_cao_ngay.nhan_xet" style="font-size:.85rem;color:#475569;padding:8px 12px;background:#f8fafc;border-radius:6px;margin-bottom:10px">{{ result.bao_cao_ngay.nhan_xet }}</div>
+            <div v-if="result.bao_cao_ngay.nhan_xet" class="ty-trong-note">📌 {{ result.bao_cao_ngay.nhan_xet }}</div>
             <!-- Bảng đối chiếu công việc -->
             <div v-if="result.bao_cao_ngay.doi_chieu_cong_viec?.length">
               <div style="font-size:.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📋 Đối chiếu nội dung với phiếu</div>
@@ -835,6 +841,7 @@
         <!-- Đề xuất Quản lý -->
         <div v-if="result.danh_gia_quan_ly" class="result-card">
           <div class="rc-header" :class="result.danh_gia_quan_ly.hop_ly ? 'rc-h-green' : 'rc-h-warn'" @click="toggle('quan_ly')">
+            <span>👔 Đánh giá đề xuất Quản lý</span>
             <span class="dx-chip" :class="result.danh_gia_quan_ly.hop_ly ? 'chip-pass' : 'chip-extend'">{{ result.danh_gia_quan_ly.muc_do_dong_y || (result.danh_gia_quan_ly.hop_ly ? '✅ Đồng ý' : '⚠️ Cần xem xét') }}</span>
             <span class="rc-arrow" :class="{open:sec.quan_ly}">›</span>
           </div>
@@ -1025,12 +1032,33 @@ const inputMode = ref('default') // 'default' or 'scan'
 const evalFile = ref(null), evalFileName = ref('')
 const reportFile = ref(null), reportFileName = ref('')
 const dailyReportFile = ref(null), dailyReportFileName = ref('')
-const ngayBD = ref(''), ngayKT = ref('')
+const ngayBD = ref(''), ngayKT = ref('')  // format DD/MM/YYYY
+
+// Parse DD/MM/YYYY → Date
+function parseDMY(s) {
+  if (!s) return null
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!m) return null
+  const d = new Date(+m[3], +m[2] - 1, +m[1])
+  return isNaN(d) ? null : d
+}
+// Auto-format as user types DD/MM/YYYY
+function fmtDateInput(v) {
+  const digits = v.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return digits.slice(0,2) + '/' + digits.slice(2)
+  return digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4)
+}
+// Convert DD/MM/YYYY → YYYY-MM-DD for API
+function toISODate(dmy) {
+  const m = dmy?.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : ''
+}
+
 const soNgayLamViec = computed(() => {
-  if (!ngayBD.value || !ngayKT.value) return 0
-  const start = new Date(ngayBD.value)
-  const end = new Date(ngayKT.value)
-  if (end < start) return 0
+  const start = parseDMY(ngayBD.value)
+  const end = parseDMY(ngayKT.value)
+  if (!start || !end || end < start) return 0
   let count = 0
   const cur = new Date(start)
   while (cur <= end) {
@@ -1045,6 +1073,7 @@ const result = ref(null), error = ref('')
 const progress = reactive({ step: 0, total: 5, message: 'Đang chuẩn bị...' })
 const sec = reactive({ comp: true, rec: true, evidence: false, docwarn: true, nextsteps: true, assessment: true, bao_cao_ngay: true, quan_ly: true, hop_dong: true, de_xuat_ns: true, jd: true })
 let evalName = ''
+const uploadedDailyUrl = ref('')  // track uploaded daily report URL across confirm step
 
 // OCR Review state
 const ocrReview = ref(false)
@@ -1285,6 +1314,8 @@ async function doEvaluate() {
       ocrViewMode.value = 'preview'
       ocrReview.value = true
       loading.value = false
+      // Save daily report URL so confirmOcr can pass it to backend
+      uploadedDailyUrl.value = f3?.file_url || ''
 
     } else {
       // Default mode: direct evaluation
@@ -1296,8 +1327,8 @@ async function doEvaluate() {
           eval_file: f1.file_url,
           work_report_file: f2.file_url,
           daily_report_file: f3?.file_url || '',
-          ngay_bd: ngayBD.value || '',
-          ngay_kt: ngayKT.value || '',
+          ngay_bd: toISODate(ngayBD.value) || '',
+          ngay_kt: toISODate(ngayKT.value) || '',
         })
       })
       const j1 = await r1.json()
@@ -1322,6 +1353,9 @@ async function confirmOcr() {
         evaluation_name: evalName,
         ocr_eval_content: JSON.stringify(ocrEvalContent.value),
         ocr_report_content: JSON.stringify(ocrReportContent.value),
+        daily_report_file: uploadedDailyUrl.value || '',
+        ngay_bd: toISODate(ngayBD.value) || '',
+        ngay_kt: toISODate(ngayKT.value) || '',
       })
     })
     const j = await r.json()
@@ -1492,18 +1526,28 @@ async function downloadPdf() {
   // ─────────────────────────────────────────────────────────
   if (r.bao_cao_ngay) {
     const bc = r.bao_cao_ngay
+    const pct = Math.min(100, Math.round((bc.so_ngay_da_bc||0) / (bc.so_ngay_can_bc||1) * 100))
+    const barColor = pct >= 100 ? '#10b981' : pct >= 80 ? '#f59e0b' : '#ef4444'
     html += secH3('Báo cáo ngày',
-      ` <span style="margin-left:10px;font-size:12px;border:1px solid #ccc;padding:2px 8px;border-radius:4px">${bc.so_ngay_da_bc??'?'}/${bc.so_ngay_can_bc??'?'} ngày</span>`)
+      ` <span style="margin-left:8px;font-size:12px;background:#e0f2fe;color:#0369a1;padding:2px 10px;border-radius:999px;font-weight:700">${bc.so_ngay_da_bc??'?'}/${bc.so_ngay_can_bc??'?'} ngày</span>`)
     html += `<div style="border:1px solid #ccc;border-radius:4px;padding:14px;background:#f9f9f9">
-      <div style="background:#fff;border:1px solid #ddd;border-radius:3px;height:10px;overflow:hidden;margin-bottom:10px">
-        <div style="height:100%;background:#555;width:${Math.min(100,Math.round((bc.so_ngay_da_bc||0)/(bc.so_ngay_can_bc||1)*100))}%"></div>
+      <!-- Progress bar -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="flex:1;background:#e2e8f0;border-radius:999px;height:10px;overflow:hidden">
+          <div style="height:100%;background:${barColor};width:${pct}%;border-radius:999px"></div>
+        </div>
+        <span style="font-size:12px;font-weight:700;color:${barColor};width:36px;text-align:right">${pct}%</span>
       </div>
-      ${bc.nhan_xet?`<div style="font-weight:600;margin-bottom:8px">${esc(bc.nhan_xet)}</div>`:''}
-      ${bc.ngay_thieu_bao_cao?.length?`<div style="font-size:12px;margin-bottom:4px">Thiếu báo cáo: ${bc.ngay_thieu_bao_cao.join(', ')}</div>`:''}
-      ${bc.ngay_thieu_hang_muc?.length?`<div style="font-size:12px;margin-bottom:8px">Thiếu hạng mục: ${bc.ngay_thieu_hang_muc.join(', ')}</div>`:''}
+      <!-- Stats -->
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px">
+        ${bc.so_ngay_du_hang_muc != null ? `<div style="font-size:12px;padding:5px 9px;border-radius:4px;background:rgba(16,185,129,.08);color:#065f46">✅ Đủ hạng mục: <b>${bc.so_ngay_du_hang_muc}</b> ngày</div>` : ''}
+        ${bc.ngay_thieu_hang_muc?.length ? `<div style="font-size:12px;padding:5px 9px;border-radius:4px;background:rgba(245,158,11,.08);color:#92400e">⚠️ Thiếu hạng mục: <b>${bc.ngay_thieu_hang_muc.length}</b> ngày (${bc.ngay_thieu_hang_muc.join(', ')})</div>` : ''}
+        ${bc.ngay_thieu_bao_cao?.length ? `<div style="font-size:12px;padding:5px 9px;border-radius:4px;background:rgba(239,68,68,.08);color:#991b1b">❌ Thiếu báo cáo: <b>${bc.ngay_thieu_bao_cao.length}</b> ngày (${bc.ngay_thieu_bao_cao.join(', ')})</div>` : ''}
+      </div>
+      ${bc.nhan_xet ? `<div style="font-size:13px;padding:8px 10px;border-left:3px solid #999;background:#fff;border-radius:2px;margin-bottom:10px">📌 ${esc(bc.nhan_xet)}</div>` : ''}
       ${bc.doi_chieu_cong_viec?.length ? `
         <div style="margin-top:10px">
-          <div style="font-weight:700;font-size:13px;margin-bottom:6px">Đối chiếu nội dung báo cáo ngày vs Phiếu đánh giá</div>
+          <div style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:6px">📋 Đối chiếu nội dung báo cáo ngày vs Phiếu đánh giá</div>
           <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead><tr style="background:#eee">
               <th style="padding:6px 8px;border:1px solid #ccc">Hạng mục (Báo cáo ngày)</th>
@@ -1513,14 +1557,15 @@ async function downloadPdf() {
             <tbody>
               ${bc.doi_chieu_cong_viec.map((d,i) => `<tr style="background:${i%2===0?'#f5f5f5':'#fff'}">
                 <td style="padding:5px 8px;border:1px solid #ddd">${esc(d.hang_muc||'—')}</td>
-                <td style="padding:5px 8px;border:1px solid #ddd;text-align:center;font-weight:700">${d.co_trong_phieu?'Có':'Không'}</td>
-                <td style="padding:5px 8px;border:1px solid #ddd">${esc(d.ghi_chu||'')}</td>
+                <td style="padding:5px 8px;border:1px solid #ddd;text-align:center;font-weight:700;color:${d.co_trong_phieu?'#16a34a':'#dc2626'}">${d.co_trong_phieu?'✅ Có':'❌ Không'}</td>
+                <td style="padding:5px 8px;border:1px solid #ddd;color:#555;font-style:italic">${esc(d.ghi_chu||'—')}</td>
               </tr>`).join('')}
             </tbody>
           </table>
         </div>` : ''}
     </div></div>`
   }
+
 
   // ─────────────────────────────────────────────────────────
   // 4. ĐÁNH GIÁ ĐIỀU KIỆN HỢP ĐỒNG
@@ -1827,6 +1872,32 @@ onUnmounted(() => {
 .sb-date-input { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; font-size: .78rem; color: #334155; background: #fff; outline: none }
 .sb-date-input:focus { border-color: #0d9488; box-shadow: 0 0 0 2px rgba(13,148,136,.12) }
 .sb-days-badge { font-size: .72rem; font-weight: 600; color: #0d9488; background: rgba(13,148,136,.1); border-radius: 6px; padding: 4px 10px; text-align: center; margin-top: 4px }
+
+/* ── Daily date-range picker (ddr-style, same as ThuViec) ── */
+.daily-date-range { background: rgba(99,102,241,.04); border: 1px solid rgba(99,102,241,.12); border-radius: 8px; padding: 10px 12px; margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.ddr-row { display: flex; align-items: center; gap: 8px; }
+.ddr-label { font-size: .75rem; color: #94a3b8; font-weight: 600; width: 55px; flex-shrink: 0; }
+.ddr-input { flex: 1; padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(99,102,241,.2); background: transparent; color: inherit; font-size: .8rem; }
+.ddr-input-wrap { flex: 1; display: flex; align-items: center; gap: 4px; position: relative; }
+.ddr-date-hidden { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+.ddr-cal-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(99,102,241,.2); background: rgba(99,102,241,.06); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all .2s; flex-shrink: 0; }
+.ddr-cal-btn:hover { background: rgba(99,102,241,.15); border-color: rgba(99,102,241,.4); }
+.ddr-calc { font-size: .78rem; color: #818cf8; font-weight: 600; text-align: center; padding-top: 2px; }
+
+/* ── Daily report result card bar ── */
+.rc-h-daily { background: linear-gradient(90deg,rgba(6,182,212,.08),rgba(99,102,241,.05)); }
+.daily-progress-chip { font-size: .78rem; font-weight: 700; padding: 2px 10px; border-radius: 99px; background: rgba(6,182,212,.12); color: #0891b2; margin-left: auto; }
+.daily-bar-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.daily-bar { flex: 1; height: 10px; background: rgba(99,102,241,.1); border-radius: 99px; overflow: hidden; }
+.daily-bar-fill { height: 100%; background: linear-gradient(90deg,#06b6d4,#6366f1); border-radius: 99px; transition: width .4s ease; }
+.daily-bar-pct { font-size: .8rem; font-weight: 700; color: #6366f1; width: 36px; text-align: right; }
+body.theme-dark .daily-date-range { border-color: rgba(99,102,241,.2); }
+body.theme-dark .ddr-input { color: #e2e8f0; border-color: rgba(99,102,241,.25); }
+body.theme-dark .ddr-input:focus { border-color: #8b5cf6; }
+body.theme-dark .ddr-cal-btn { border-color: rgba(99,102,241,.25); }
+body.theme-dark .daily-progress-chip { color: #22d3ee; background: rgba(6,182,212,.15); }
+body.theme-dark .daily-bar-pct { color: #818cf8; }
+
 .upc-icon { font-size: 24px; flex-shrink: 0 }
 .upc-info { flex-grow: 1; min-width: 0 }
 .upc-label { font-size: .72rem; font-weight: 600; color: #64748b }
@@ -2088,7 +2159,7 @@ body.theme-dark .rpt-nq-note { color: #64748b; }
 .results-scroll { padding: 24px; max-width: 900px; margin: 0 auto }
 .result-card { border: 1px solid #e2e8f0; border-radius: 14px; margin-bottom: 16px; overflow: hidden; background: #fff }
 
-.rc-header { padding: 14px 20px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: .9rem; transition: background .2s; user-select: none; background: #fafbfc }
+.rc-header { padding: 14px 20px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: .9rem; transition: background .2s; user-select: none; background: #fafbfc; color: #1e293b }
 .rc-header:hover { background: #f1f5f9 }
 .rc-h-blue { color: #2563eb }
 .rc-h-violet { color: #7c3aed }
@@ -2096,7 +2167,13 @@ body.theme-dark .rpt-nq-note { color: #64748b; }
 .rc-h-warn { color: #d97706 }
 .rc-arrow { font-size: 1.2rem; margin-left: auto; transition: transform .2s; color: #94a3b8 }
 .rc-arrow.open { transform: rotate(90deg) }
-.rc-body { padding: 0 20px 16px; border-top: 1px solid #f1f5f9 }
+.rc-body { padding: 0 20px 16px; border-top: 1px solid #f1f5f9; color: #334155 }
+
+/* Chips */
+.dx-chip { font-size: .72rem; font-weight: 700; padding: 3px 10px; border-radius: 99px; white-space: nowrap; flex-shrink: 0 }
+.chip-pass   { background: rgba(16,185,129,.12); color: #065f46; border: 1px solid rgba(16,185,129,.25) }
+.chip-extend { background: rgba(245,158,11,.12); color: #92400e; border: 1px solid rgba(245,158,11,.25) }
+.chip-fail   { background: rgba(239,68,68,.10);  color: #991b1b; border: 1px solid rgba(239,68,68,.25) }
 
 /* Employee Info Card */
 .emp-info-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 24px; margin-bottom: 16px }
@@ -2177,9 +2254,44 @@ body.theme-dark .ocr-rendered-view :deep(.ocr-md-table th) { background: rgba(13
 body.theme-dark .ocr-rendered-view :deep(.ocr-md-table td) { border-bottom-color: rgba(255,255,255,.06); color: #cbd5e1; }
 body.theme-dark .ocr-rendered-view :deep(strong) { color: #f1f5f9; }
 body.theme-dark .ocr-status-text strong { color: #f1f5f9; }
+
+/* ── Dark mode: Word template (eval scan tab) ── */
 body.theme-dark .word-template-view { background: #14141f; color: #e2e8f0; }
-body.theme-dark .word-th { background: rgba(99,102,241,.06); }
+body.theme-dark .word-h3 { color: #a78bfa; }
+body.theme-dark .word-th { background: rgba(99,102,241,.08); color: #a78bfa; border-color: rgba(255,255,255,.08) }
+body.theme-dark .word-table td, body.theme-dark .word-table th { border-color: rgba(255,255,255,.08); }
+body.theme-dark .word-label { background: rgba(99,102,241,.05); color: #94a3b8; border-color: rgba(255,255,255,.08) }
+body.theme-dark .word-input { color: #e2e8f0; background: transparent; }
+body.theme-dark .word-textarea { color: #e2e8f0; background: transparent; }
+body.theme-dark .word-input:focus, body.theme-dark .word-textarea:focus { background: rgba(139,92,246,.07); }
+body.theme-dark .word-header h2 { color: #a78bfa; }
+
+/* ── Dark mode: OCR info section header ── */
+body.theme-dark .ocr-info-header { color: #a78bfa; }
+body.theme-dark .ocr-info-label { color: #64748b; }
+body.theme-dark .ocr-info-row { background: transparent; }
+
+/* ── Dark mode: Report doc (report scan tab) ── */
+body.theme-dark .rpt-doc { background: #14141f; border-color: rgba(255,255,255,.06); box-shadow: none; }
+body.theme-dark .rpt-title { color: #f1f5f9; }
+body.theme-dark .rpt-field-label { color: #94a3b8; }
+body.theme-dark .rpt-inline-input { color: #e2e8f0; border-bottom-color: rgba(99,102,241,.3); }
+body.theme-dark .rpt-inline-input:focus { border-bottom-color: #8b5cf6; }
+body.theme-dark .rpt-section-label { color: #818cf8; }
+body.theme-dark .rpt-nq-label { color: #fbbf24; }
+body.theme-dark .rpt-nq-note { color: #64748b; }
+body.theme-dark .rpt-input { color: #cbd5e1; }
+body.theme-dark .rpt-ta { color: #cbd5e1; }
+body.theme-dark .rpt-input:focus, body.theme-dark .rpt-ta:focus { background: rgba(99,102,241,.06); }
+body.theme-dark .rpt-td-stt { color: #818cf8; }
+body.theme-dark .rpt-kqb { color: #34d399 !important; }
+body.theme-dark .rpt-link-ta { color: #818cf8; }
+body.theme-dark .rpt-kqc { background: rgba(16,185,129,.04) !important; }
+body.theme-dark .rpt-xd-label { color: #e2e8f0; }
+body.theme-dark .rpt-ranking-input { color: #a78bfa !important; }
+
 body.theme-dark .ns-item { border-bottom-color: rgba(255,255,255,.06); }
+
 body.theme-dark .ns-action { color: #f1f5f9; }
 body.theme-dark .rec-body { color: #cbd5e1; }
 body.theme-dark .rd-list { color: #94a3b8; }
@@ -2187,11 +2299,77 @@ body.theme-dark .rd-text { color: #94a3b8; }
 body.theme-dark .ev-text { color: #cbd5e1; }
 body.theme-dark .ev-item { border-bottom-color: rgba(255,255,255,.06); }
 
+/* ── Dark mode: result card internals ── */
+body.theme-dark .rc-header { background: #1a1a2e; color: #e2e8f0 }
+body.theme-dark .rc-header:hover { background: rgba(99,102,241,.08) }
+body.theme-dark .rc-body { border-top-color: rgba(255,255,255,.06); color: #cbd5e1 }
+body.theme-dark .emp-field-label { color: #64748b }
+body.theme-dark .emp-field-value { color: #e2e8f0 }
+body.theme-dark .emp-info-title { color: #f1f5f9 }
+body.theme-dark .emp-info-card { background: #14141f; border-color: rgba(255,255,255,.06) }
+body.theme-dark .comp-table { background: transparent }
+body.theme-dark .comp-table th { background: #1e2030; color: #94a3b8 }
+body.theme-dark .comp-table td { color: #cbd5e1; border-bottom-color: rgba(255,255,255,.06) }
+body.theme-dark .comp-total td { background: rgba(139,92,246,.06); border-top-color: rgba(139,92,246,.15) }
+body.theme-dark .doc-complete-badge { background: rgba(16,185,129,.08); border-color: rgba(16,185,129,.2); color: #6ee7b7 }
+body.theme-dark .doc-incomplete-badge { background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.2); color: #fcd34d }
+body.theme-dark .warn-item { color: #fcd34d }
+body.theme-dark .chip-pass   { background: rgba(16,185,129,.15); color: #6ee7b7; border-color: rgba(16,185,129,.3) }
+body.theme-dark .chip-extend { background: rgba(245,158,11,.15); color: #fcd34d; border-color: rgba(245,158,11,.3) }
+body.theme-dark .chip-fail   { background: rgba(239,68,68,.15);  color: #fca5a5; border-color: rgba(239,68,68,.3) }
+body.theme-dark .sc { background: rgba(99,102,241,.1) }
+body.theme-dark .sc-lbl { color: #94a3b8 }
+
 /* ── Scan result banner ── */
 .from-scan-banner { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 10px; background: rgba(99,102,241,.06); border: 1px solid rgba(99,102,241,.15); margin-bottom: 16px; }
 .from-scan-banner .fs-icon { font-size: 24px; flex-shrink: 0; }
 .from-scan-banner .fs-title { font-weight: 700; font-size: .88rem; color: #6366f1; }
 .from-scan-banner .fs-sub { font-size: .78rem; color: #64748b; margin-top: 2px; }
 .results-with-ocr { border-top: 2px solid rgba(99,102,241,.15); padding-top: 16px; }
+
+/* ── Báo cáo ngày stats ── */
+.daily-stats { display: flex; flex-direction: column; gap: 6px; }
+.ds-item { font-size: .83rem; padding: 6px 10px; border-radius: 6px; }
+.ds-ok  { background: rgba(16,185,129,.06); color: #065f46; }
+.ds-warn{ background: rgba(245,158,11,.06); color: #92400e; }
+.ds-bad { background: rgba(239,68,68,.06);  color: #991b1b; }
+.ds-dates { font-size: .75rem; opacity: .8; margin-left: 4px; }
+body.theme-dark .ds-ok  { background: rgba(16,185,129,.08); color: #6ee7b7; }
+body.theme-dark .ds-warn { background: rgba(245,158,11,.08); color: #fcd34d; }
+body.theme-dark .ds-bad  { background: rgba(239,68,68,.08);  color: #fca5a5; }
+
+/* ── Dark mode: inline sub-containers ── */
+body.theme-dark .rc-body [style*="background: #fafbfc"],
+body.theme-dark .rc-body [style*="background:#fafbfc"],
+body.theme-dark .rc-body [style*="background: #f8fafc"],
+body.theme-dark .rc-body [style*="background:#f8fafc"] { background: rgba(99,102,241,.05) !important; border-color: rgba(255,255,255,.06) !important; }
+body.theme-dark .rc-body [style*="background: #f0fdf4"],
+body.theme-dark .rc-body [style*="background:#f0fdf4"] { background: rgba(16,185,129,.07) !important; border-color: rgba(16,185,129,.25) !important; }
+body.theme-dark .rc-body [style*="background: #fef2f2"],
+body.theme-dark .rc-body [style*="background:#fef2f2"] { background: rgba(239,68,68,.07) !important; border-color: rgba(239,68,68,.2) !important; }
+body.theme-dark .rc-body [style*="background: #fff7ed"],
+body.theme-dark .rc-body [style*="background:#fff7ed"] { background: rgba(245,158,11,.07) !important; border-color: rgba(245,158,11,.25) !important; }
+body.theme-dark .rc-body [style*="background: #f0f9ff"],
+body.theme-dark .rc-body [style*="background:#f0f9ff"] { background: rgba(14,165,233,.07) !important; border-color: rgba(14,165,233,.25) !important; }
+body.theme-dark .rc-body [style*="background: #fefce8"],
+body.theme-dark .rc-body [style*="background:#fefce8"] { background: rgba(234,179,8,.07) !important; border-color: rgba(234,179,8,.25) !important; }
+body.theme-dark .rc-body [style*="background: #f1f5f9"],
+body.theme-dark .rc-body [style*="background:#f1f5f9"] { background: #1e2030 !important; }
+
+/* ── Dark mode: hardcoded dark text inside rc-body ── */
+body.theme-dark .rc-body [style*="color: #1e293b"],
+body.theme-dark .rc-body [style*="color:#1e293b"] { color: #e2e8f0 !important; }
+body.theme-dark .rc-body [style*="color: #334155"],
+body.theme-dark .rc-body [style*="color:#334155"] { color: #cbd5e1 !important; }
+body.theme-dark .rc-body [style*="color: #374151"],
+body.theme-dark .rc-body [style*="color:#374151"] { color: #cbd5e1 !important; }
+body.theme-dark .rc-body [style*="color: #475569"],
+body.theme-dark .rc-body [style*="color:#475569"] { color: #94a3b8 !important; }
+body.theme-dark .rc-body [style*="color: #0c4a6e"],
+body.theme-dark .rc-body [style*="color:#0c4a6e"] { color: #7dd3fc !important; }
+body.theme-dark .rc-body [style*="color: #78350f"],
+body.theme-dark .rc-body [style*="color:#78350f"] { color: #fcd34d !important; }
+body.theme-dark .rc-body [style*="background: rgba(255,255,255"],
+body.theme-dark .rc-body [style*="background:rgba(255,255,255"] { background: rgba(255,255,255,.04) !important; }
 </style>
 
