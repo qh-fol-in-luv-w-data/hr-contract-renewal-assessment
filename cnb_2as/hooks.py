@@ -9,3 +9,10 @@ app_color = "#6366f1"
 
 # Fixtures
 # fixtures = []
+
+
+# SPA Routing
+website_route_rules = [
+    {"from_route": "/aicenter/2as-employee-assessment/<path:app_path>", "to_route": "cnb_2as_spa"},
+    {"from_route": "/aicenter/2as-employee-assessment", "to_route": "cnb_2as_spa"}
+]
