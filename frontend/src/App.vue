@@ -1,5 +1,9 @@
 <template>
-  <div v-if="authState === 'authorized'">
+  <div v-if="authState === 'loading'" class="auth-loading">
+    <div class="auth-spinner"></div>
+    <p>Đang xác thực quyền truy cập...</p>
+  </div>
+  <div v-else-if="authState === 'authorized'">
     <router-view />
   </div>
   <CTAccessDenied v-else-if="authState === 'denied'" />
@@ -23,6 +27,18 @@ onMounted(async () => {
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
 html, body, #app { height: 100%; overflow: hidden }
 body { font-family: 'Inter', -apple-system, sans-serif; font-size: 15px; transition: background 0.3s, color 0.3s; }
+
+.auth-loading {
+  height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  background: #0f0f14; color: #94a3b8; font-size: 14px;
+}
+.auth-spinner {
+  width: 36px; height: 36px; border: 3px solid rgba(99,102,241,.2);
+  border-top-color: #6366f1; border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg) } }
 
 /* THEME DARK */
 body.theme-dark { background: #0f0f14; color: #e2e8f0; }
