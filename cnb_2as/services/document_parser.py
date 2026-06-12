@@ -369,14 +369,18 @@ def parse_daily_report(file_url=None, raw_bytes=None, filename=None):
 			ext = os.path.splitext(file_path)[1].lower()
 			if ext == ".pdf":
 				content = parse_pdf(file_path)
+				# Vision fallback for scanned/image-only PDFs
+				if not content.strip():
+					from cnb_2as.services.ocr_service import ocr_daily_report_from_pdf
+					content = ocr_daily_report_from_pdf(file_path)
 			elif ext in (".xlsx", ".xls"):
 				content = parse_xlsx(file_path)
 			else:
 				content = parse_docx(file_path)
-			# Vision fallback for image-only docx
-			if not content.strip() and ext == ".docx":
-				from cnb_2as.services.ocr_service import ocr_daily_report_from_docx
-				content = ocr_daily_report_from_docx(file_path)
+				# Vision fallback for image-only docx
+				if not content.strip():
+					from cnb_2as.services.ocr_service import ocr_daily_report_from_docx
+					content = ocr_daily_report_from_docx(file_path)
 			return content
 
 		elif raw_bytes is not None and filename:

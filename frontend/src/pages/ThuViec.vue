@@ -1847,8 +1847,8 @@ async function doReview() {
 .daily-date-range { background: rgba(99,102,241,.04); border: 1px solid rgba(99,102,241,.12); border-radius: 8px; padding: 10px 12px; margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
 .ddr-row { display: flex; align-items: center; gap: 8px; }
 .ddr-label { font-size: .75rem; color: #94a3b8; font-weight: 600; width: 55px; flex-shrink: 0; }
-.ddr-input { flex: 1; padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(99,102,241,.2); background: transparent; color: inherit; font-size: .8rem; }
-.ddr-input-wrap { flex: 1; display: flex; align-items: center; gap: 4px; position: relative; }
+.ddr-input { flex: 1; min-width: 0; width: 100%; padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(99,102,241,.2); background: transparent; color: inherit; font-size: .8rem; }
+.ddr-input-wrap { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; position: relative; }
 .ddr-date-hidden { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
 .ddr-cal-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(99,102,241,.2); background: rgba(99,102,241,.06); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all .2s; flex-shrink: 0; }
 .ddr-cal-btn:hover { background: rgba(99,102,241,.15); border-color: rgba(99,102,241,.4); }
