@@ -1836,7 +1836,7 @@ onUnmounted(() => {
 .app-layout { display: flex; height: 100vh; overflow: hidden; background: #f8fafc }
 
 /* ── SIDEBAR ── */
-.sidebar { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid #e2e8f0; background: #fff }
+.sidebar { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid #e2e8f0; background: #fff }
 .sb-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; border-bottom: 1px solid #e2e8f0; background: #fff }
 .sb-reload { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s; }
 .sb-reload:hover { background: #f1f5f9; color: #3b82f6; border-color: #cbd5e1; }
