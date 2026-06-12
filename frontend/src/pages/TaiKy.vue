@@ -1369,7 +1369,7 @@ async function pollForOcrResults() {
   progress.step = 2; progress.message = store.lang==='en'?'OCR processing in background...':'Đang OCR nền...'
 
   let attempts = 0
-  const maxAttempts = 120 // 6 minutes max
+  const maxAttempts = 300 // 15 minutes max
   while (attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, 3000))
     attempts++
@@ -1409,7 +1409,7 @@ async function pollForResults() {
   progress.step = 3; progress.message = store.lang==='en'?'Waiting for results...':'Đang chờ kết quả...'
 
   let attempts = 0
-  const maxAttempts = 60
+  const maxAttempts = 300 // 15 minutes max
   while (attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, 3000))
     attempts++

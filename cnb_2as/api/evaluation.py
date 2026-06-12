@@ -104,7 +104,7 @@ def run_evaluation(eval_file, work_report_file, daily_report_file="", ngay_bd=""
 	frappe.enqueue(
 		"cnb_2as.api.evaluation.process_evaluation",
 		queue="long",
-		timeout=300,
+		timeout=900,
 		evaluation_name=eval_doc.name,
 		daily_report_file=daily_report_file or "",
 		ngay_bd=ngay_bd or "",
@@ -288,7 +288,7 @@ def confirm_ocr_and_evaluate(evaluation_name, ocr_eval_content, ocr_report_conte
 	frappe.enqueue(
 		"cnb_2as.api.evaluation.process_evaluation_from_ocr",
 		queue="long",
-		timeout=300,
+		timeout=900,
 		evaluation_name=evaluation_name,
 		daily_report_file=daily_report_file or "",
 		ngay_bd=ngay_bd or "",
