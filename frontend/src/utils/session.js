@@ -70,7 +70,11 @@ export async function initSession(contextUrl) {
     }
 
     const data = json.message ?? json
-    if (data?.csrf_token) _csrf.value = data.csrf_token
+    if (data?.csrf_token) {
+      _csrf.value = data.csrf_token
+      window.frappe = window.frappe || {}
+      window.frappe.csrf_token = data.csrf_token
+    }
     if (data?.session_id) _sessionId.value = data.session_id
     if (data?.user) _user.value = data.user
     if (data?.full_name) _fullName.value = data.full_name
