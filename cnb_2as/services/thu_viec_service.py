@@ -165,13 +165,8 @@ QUAN TRỌNG:
 def _get_client() -> OpenAI:
     global _client
     if _client is None:
-        key = os.getenv("OPENAI_API_KEY", "")
-        # Fallback: đọc từ site_config.json nếu .env không có
-        if not key:
-            key = getattr(frappe.conf, "openai_api_key", "") or ""
-        if not key:
-            frappe.throw("Chưa cấu hình OPENAI_API_KEY trong .env hoặc site_config.json")
-        _client = OpenAI(api_key=key)
+        from cnb_2as.services.openai_client import get_api_key
+        _client = OpenAI(api_key=get_api_key())
     return _client
 
 
