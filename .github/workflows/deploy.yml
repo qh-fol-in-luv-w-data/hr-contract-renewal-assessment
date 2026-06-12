@@ -24,7 +24,7 @@ jobs:
               if [ ! -d "/home/frappe/frappe-bench/apps/cnb_2as" ]; then
                   echo "🚀 App cnb_2as chưa tồn tại. Đang tự động clone và cài đặt vào UAT..."
                   cd /home/frappe/frappe-bench
-                  bench get-app --branch uat git@github.com:CTGroup-DAIT/2as-employee-assessment.git
+                  bench get-app --branch uat https://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@github.com/CTGroup-DAIT/2as-employee-assessment.git
                   bench --site uatapp.ctpai.vn install-app cnb_2as
               fi
               cd /home/frappe/frappe-bench/apps/cnb_2as
@@ -64,7 +64,7 @@ jobs:
               if [ ! -d "/home/frappe/frappe-bench/apps/cnb_2as" ]; then
                   echo "🚀 App cnb_2as chưa tồn tại. Đang tự động clone và cài đặt vào PROD..."
                   cd /home/frappe/frappe-bench
-                  bench get-app --branch master git@github.com:CTGroup-DAIT/2as-employee-assessment.git
+                  bench get-app --branch master https://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@github.com/CTGroup-DAIT/2as-employee-assessment.git
                   bench --site app.ctpai.vn install-app cnb_2as
               fi
               cd /home/frappe/frappe-bench/apps/cnb_2as
