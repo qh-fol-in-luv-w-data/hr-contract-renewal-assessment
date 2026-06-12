@@ -171,7 +171,7 @@ def _get_client() -> OpenAI:
             key = getattr(frappe.conf, "openai_api_key", "") or ""
         if not key:
             frappe.throw("Chưa cấu hình OPENAI_API_KEY trong .env hoặc site_config.json")
-        _client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
+        _client = OpenAI(api_key=key)
     return _client
 
 
