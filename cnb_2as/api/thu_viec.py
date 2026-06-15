@@ -111,6 +111,7 @@ def _generate_jd_goi_y_thu_viec(client, nhan_vien_info, word_raw, excel_raw, res
             temperature=0.4,
             max_tokens=2000,
         )
+        _log_tokens(resp, "jd_goi_y_thu_viec")
         return json.loads(resp.choices[0].message.content)
     except Exception:
         return None
@@ -234,6 +235,7 @@ def _cross_check_bao_cao_vs_word(deterministic, daily_report_text, word_raw, cli
             temperature=0.1,
             max_tokens=2000,
         )
+        _log_tokens(resp, "cross_check_bao_cao")
         ai = json.loads(resp.choices[0].message.content)
         return _merge_bao_cao_ngay(deterministic, ai)
     except Exception:
@@ -853,6 +855,11 @@ def review_files():
             temperature=0.1,
             max_tokens=14000,
         )
+        try:
+            from cnb_2as.services.thu_viec_service import _log_tokens
+            _log_tokens(resp, label="thu_viec.py")
+        except Exception as e:
+            print(f"[_log_tokens] Error: {e}")
     except Exception as openai_err:
         err_str = str(openai_err)
         if "insufficient_quota" in err_str or "429" in err_str:
@@ -1368,6 +1375,11 @@ def chat_review():
                     temperature=0.05,
                     max_tokens=6000,
                 )
+                try:
+                    from cnb_2as.services.thu_viec_service import _log_tokens
+                    _log_tokens(resp, label="thu_viec.py")
+                except Exception as e:
+                    print(f"[_log_tokens] Error: {e}")
                 re_review = json.loads(resp.choices[0].message.content)
                 re_review = _filter_result(re_review)
                 # Ngăn AI tự thêm lỗi mới ngoài danh sách gốc khi recheck

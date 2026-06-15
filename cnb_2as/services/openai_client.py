@@ -94,6 +94,12 @@ def chat_completion_json(system_prompt, user_prompt, model="gpt-4o"):
 
 		content = response.choices[0].message.content
 
+		try:
+			from cnb_2as.services.thu_viec_service import _log_tokens
+			_log_tokens(response, label="openai_client.chat_completion_json")
+		except Exception as log_e:
+			frappe.logger("cnb_token").error(f"Lỗi khi log token: {log_e}")
+
 		return json.loads(content)
 
 	except json.JSONDecodeError as e:
