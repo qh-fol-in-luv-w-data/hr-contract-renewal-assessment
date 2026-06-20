@@ -30,6 +30,19 @@
 | **Bảng năng lực + ghi chú** | PDF bao gồm bảng điểm năng lực với ghi chú tỷ trọng |
 | **PDF layout chuẩn** | Header bảng + nội dung không bị tách trang, có ngày BĐ/KT hợp đồng |
 
+### 📊 Báo cáo Đánh giá Nhân sự (Batch)
+
+| Tính năng | Mô tả |
+|-----------|-------|
+| **Upload batch PDF** | Upload nhiều file PAI PDF (NV tự đánh giá + HOD) cùng lúc |
+| **OCR song song** | GPT-4o Vision OCR đồng thời tối đa 6 file (ThreadPoolExecutor) |
+| **Map NV ↔ HOD** | Tự động ghép phiếu tự đánh giá và HOD theo fuzzy name matching |
+| **Tính điểm chuẩn** | Tổng raw (A+B+C) ÷ 75 × 100 (NV) hoặc ÷ 80 × 100 (HOD) |
+| **AI Phân tích** | Nhận xét chênh lệch điểm, đề xuất HOD, lọt khung, tự khai vs HR |
+| **Đối chiếu HR** | Upload file Excel HR → so sánh NV tự khai vs dữ liệu HR xác nhận |
+| **Preview & chỉnh sửa** | Xem kết quả OCR, sửa trực tiếp trước khi xuất |
+| **Export Excel 2 sheet** | Sheet 1: bảng tổng hợp toàn bộ NV; Sheet 2: danh sách CBNV chênh lệch vs HR |
+
 ### 🔍 Scan OCR (Chung)
 
 | Tính năng | Mô tả |
@@ -51,6 +64,8 @@ cnb_2as/
 │   │   │   ├── ThuViec.vue              # Đánh giá thử việc / học việc
 │   │   │   ├── TaiKy.vue                # Đánh giá tái ký hợp đồng
 │   │   │   ├── ScanCombined.vue         # Scan + OCR review (phiếu + SXKD)
+│   │   │   ├── BaoCao.vue               # Báo cáo đánh giá nhân sự (batch OCR + Excel)
+│   │   │   ├── PersonCard.vue           # Card chi tiết từng nhân viên
 │   │   │   ├── ScanPhieu.vue            # Scan phiếu đánh giá riêng
 │   │   │   └── ScanSXKD.vue             # Scan SXKD riêng
 │   │   ├── components/
@@ -66,7 +81,8 @@ cnb_2as/
 │   │   ├── thu_viec.py                  # API: review_files, review_from_scan, chat_review
 │   │   ├── evaluation.py               # API: đánh giá tái ký
 │   │   ├── scan_phieu.py               # API: OCR scan phiếu
-│   │   └── scan_sxkd.py                # API: OCR scan SXKD
+│   │   ├── scan_sxkd.py                # API: OCR scan SXKD
+│   │   └── bao_cao_danh_gia.py         # API: báo cáo đánh giá nhân sự batch
 │   ├── services/
 │   │   ├── agents.py                    # Multi-agent pipeline (manager proposal, etc.)
 │   │   ├── openai_client.py             # OpenAI client wrapper
@@ -79,12 +95,14 @@ cnb_2as/
 │   │   ├── scan_service.py              # Scan flow orchestration
 │   │   ├── scan_readers.py              # Đọc & parse scan PDF
 │   │   ├── pdf_generator.py             # PDF generation tái ký
+│   │   ├── bao_cao_service.py           # OCR batch + map + AI overview + Excel export
 │   │   ├── validators.py                # Input validation & E1 check
 │   │   └── prompts/
 │   │       ├── __init__.py              # Export shared prompts
 │   │       ├── eval_prompts.py          # Prompts cho đánh giá tái ký
 │   │       ├── review_prompts.py        # Prompts cho đánh giá thử việc
-│   │       └── scan_prompts.py          # Prompts cho OCR scan
+│   │       ├── scan_prompts.py          # Prompts cho OCR scan
+│   │       └── bao_cao_prompts.py       # Prompts cho báo cáo đánh giá nhân sự
 │   ├── hooks.py
 │   ├── modules.txt
 │   └── public/frontend/                 # ⚡ Vite build output (auto-generated)
@@ -195,6 +213,7 @@ bench start
 | Đánh giá Thử việc/Học việc | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/thu-viec` |
 | Đánh giá Tái ký | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/tai-ky` |
 | Scan OCR (Combined) | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/scan` |
+| Báo cáo ĐG Nhân sự | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/bao-cao` |
 
 > **Dev mode** (Vite dev server): `http://localhost:5181`
 
