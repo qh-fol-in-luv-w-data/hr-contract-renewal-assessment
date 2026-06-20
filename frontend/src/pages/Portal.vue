@@ -60,6 +60,21 @@
             </div>
           </div>
         </router-link>
+
+        <router-link to="/bao-cao" class="pcard pcard-wide">
+          <div class="pcard-glow glow-emerald"></div>
+          <div class="pcard-inner">
+            <div class="pcard-icon">👥</div>
+            <div class="pcard-body">
+              <h3>{{ t('baocao_title') }}</h3>
+              <p>{{ t('baocao_desc') }}</p>
+            </div>
+            <div class="pcard-footer">
+              <span>{{ t('open_system') }}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>
+            </div>
+          </div>
+        </router-link>
       </div>
 
       <div class="portal-footer">
@@ -101,6 +116,7 @@ function toggleLang() {
 .portal-subtitle { font-size: 1rem; color: #94a3b8; margin-top: 8px }
 
 .portal-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 700px; margin: 0 auto; }
+.pcard-wide { grid-column: 1 / -1; }
 
 
 .pcard {
