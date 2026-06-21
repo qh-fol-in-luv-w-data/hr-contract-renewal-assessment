@@ -373,7 +373,7 @@ def _fill_excel(data: dict) -> bytes:
 # ──────────────────────────────────────────────────────────────────
 # Whitelist API: scan & OCR
 # ──────────────────────────────────────────────────────────────────
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def ocr_sxkd():
     """
     POST /api/method/cnb_2as.api.scan_sxkd.ocr_sxkd
@@ -429,7 +429,7 @@ def ocr_sxkd():
 
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def export_excel():
     """
     POST /api/method/cnb_2as.api.scan_sxkd.export_excel

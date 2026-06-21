@@ -248,7 +248,7 @@ def _cross_check_bao_cao_vs_word(deterministic, daily_report_text, word_raw, cli
 # Endpoint 1b: review_from_scan  (nhận text từ ScanCombined, không cần file)
 # ══════════════════════════════════════════════════════════════════════════════
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def review_from_scan():
     """
     POST application/json:
@@ -730,7 +730,7 @@ Trả về JSON theo đúng schema.
 # Endpoint 1: review_files
 # ══════════════════════════════════════════════════════════════════════════════
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 
 
 def review_files():
@@ -1092,7 +1092,7 @@ def review_files():
 # Endpoint 2: chat_review
 # ══════════════════════════════════════════════════════════════════════════════
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def chat_review():
     """
     POST JSON hoặc form-data:

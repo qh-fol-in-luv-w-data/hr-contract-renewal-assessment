@@ -7,7 +7,7 @@ from cnb_2as.services.bao_cao_service import (
 )
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def ocr_batch_upload():
     """
     POST multipart/form-data với nhiều file PDF.
@@ -55,7 +55,7 @@ def ocr_batch_upload():
         return {"ok": False, "error": err[-1500:]}
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def analyze_ai():
     """
     POST form-data: data=<JSON string của persons list>
@@ -70,7 +70,7 @@ def analyze_ai():
     return {"ok": True, "overviews": overviews}
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def export_excel():
     """
     POST form-data:
@@ -107,7 +107,7 @@ def export_excel():
     frappe.response.display_content_as = "attachment"
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def download_hr_template():
     """
     POST form-data: data=<JSON persons list> (tùy chọn)

@@ -108,7 +108,7 @@ _OCR_API_URL = "http://app.ctpai.vn:8088/layout-parsing-file"
 # ENDPOINT 1 – scan_extract
 # ══════════════════════════════════════════════════════════════════════════════
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 
 
 def scan_extract():
@@ -186,7 +186,7 @@ def scan_extract():
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def scan_analyze():
     """
     POST /api/method/cnb_2as.api.scan_phieu.scan_analyze
@@ -647,7 +647,7 @@ def fill_docx(scan_session_id: str):
 # bao gồm 7 tiêu chí đánh giá 2AS và đề xuất xử lý
 # ══════════════════════════════════════════════════════════════════════════════
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def download_pdf():
     """
     POST /api/method/cnb_2as.api.scan_phieu.download_pdf
