@@ -156,8 +156,8 @@
         <h1>Báo Cáo Đánh Giá Nhân Sự</h1>
         <p>Upload tất cả phiếu đánh giá (file scan PDF). AI sẽ đọc từng phiếu, ghép NV tự đánh giá với HOD đánh giá, hiển thị đầy đủ từng tiêu chí A1–A5, B1–B7, C1–C4.</p>
         <div class="welcome-features">
-          <div class="wf"><div class="wf-icon">📄</div><div>OCR GPT-4o Vision</div></div>
-          <div class="wf"><div class="wf-icon">👥</div><div>Match NV ↔ HOD</div></div>
+          <div class="wf"><div class="wf-icon">📄</div><div>Trích xuất nội dung file</div></div>
+          <div class="wf"><div class="wf-icon">👥</div><div>Bắt cặp file của NV ↔ HOD</div></div>
           <div class="wf"><div class="wf-icon">✏️</div><div>Chỉnh sửa bảng</div></div>
           <div class="wf"><div class="wf-icon">📊</div><div>Xuất Excel tổng hợp</div></div>
         </div>
@@ -167,7 +167,7 @@
       <div v-if="loading" class="loading-screen">
         <div class="loading-spinner"></div>
         <p>{{ loadingMsg }}</p>
-        <p class="loading-sub">GPT-4o đang đọc {{ files.length }} file — khoảng {{ Math.round(files.length * 25 / 6) }}–{{ Math.round(files.length * 35 / 6) }} giây</p>
+        <p class="loading-sub">AI đang đọc {{ files.length }} file — khoảng {{ Math.round(files.length * 25 / 6) }}–{{ Math.round(files.length * 35 / 6) }} giây</p>
       </div>
 
       <!-- Results -->
@@ -350,7 +350,7 @@ async function doOCR() {
     const fd = new FormData()
     files.value.forEach((f, i) => fd.append(`file${i}`, f, f.name))
     hrFiles.value.forEach((f, i) => fd.append(`file_hr_${i}`, f, f.name))
-    loadingMsg.value = `GPT-4o đang đọc ${files.value.length} phiếu song song...`
+    loadingMsg.value = `AI đang đọc ${files.value.length} phiếu song song...`
     const res = await callApi(
       '/api/method/cnb_2as.api.bao_cao_danh_gia.ocr_batch_upload',
       { method: 'POST', headers: { 'X-Frappe-CSRF-Token': csrf() }, body: fd }
