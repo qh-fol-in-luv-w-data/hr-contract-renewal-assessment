@@ -1,8 +1,5 @@
 <template>
-  <div v-if="authState === 'loading'" class="auth-loading">
-    <div class="auth-spinner"></div>
-    <p>Đang xác thực quyền truy cập...</p>
-  </div>
+  <CTSplashScreen v-if="authState === 'loading'" />
   <div v-else-if="authState === 'authorized'">
     <router-view />
   </div>
@@ -13,6 +10,7 @@
 import { onMounted } from 'vue';
 import { store } from './store';
 import { useSession, initSession } from './utils/session';
+import CTSplashScreen from './components/CTSplashScreen.vue';
 import CTAccessDenied from './components/CTAccessDenied.vue';
 
 const { authState } = useSession();
