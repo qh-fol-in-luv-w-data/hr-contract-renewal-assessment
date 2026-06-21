@@ -268,6 +268,11 @@ Trả về JSON với cấu trúc:
 			)
 
 			raw = response.choices[0].message.content
+			try:
+				from cnb_2as.services.thu_viec_service import _log_tokens
+				_log_tokens(response, label="ocr_service.ocr_pdf_to_json")
+			except Exception:
+				pass
 			if response.usage:
 				total_tokens += response.usage.total_tokens
 
@@ -474,6 +479,11 @@ Trả về JSON:
 				temperature=0,
 			)
 			raw = response.choices[0].message.content
+			try:
+				from cnb_2as.services.thu_viec_service import _log_tokens
+				_log_tokens(response, label="ocr_service.ocr_daily_report_from_docx")
+			except Exception:
+				pass
 			if response.usage:
 				total_tokens += response.usage.total_tokens
 			if raw and raw.strip():
@@ -634,6 +644,11 @@ Nếu trang không chứa báo cáo ngày nào, trả về {"bao_cao": []}."""
 				temperature=0,
 			)
 			raw = response.choices[0].message.content
+			try:
+				from cnb_2as.services.thu_viec_service import _log_tokens
+				_log_tokens(response, label="ocr_service.ocr_daily_report_from_pdf")
+			except Exception:
+				pass
 			if response.usage:
 				total_tokens += response.usage.total_tokens
 			if raw and raw.strip():

@@ -208,6 +208,11 @@ def _call_vision_ocr(file_bytes: bytes, filename: str) -> str:
                 temperature=0,
             )
             page_text = resp.choices[0].message.content or ""
+            try:
+                from cnb_2as.services.thu_viec_service import _log_tokens
+                _log_tokens(resp, label="scan_readers._call_vision_ocr")
+            except Exception:
+                pass
             all_pages_text.append(_sanitize_markdown_tables(page_text))
         return "\n\n---\n\n".join(all_pages_text)
     except Exception as e:
@@ -446,6 +451,11 @@ def _merge_ocr_vision(ocr_text: str, vision_text: str) -> str:
             max_tokens=8000,
         )
         merged = resp.choices[0].message.content or ""
+        try:
+            from cnb_2as.services.thu_viec_service import _log_tokens
+            _log_tokens(resp, label="scan_readers._merge_ocr_vision")
+        except Exception:
+            pass
         if merged.strip():
             frappe.logger("cnb_scan").info(f"[SCAN] Merge OK: {len(merged)} chars")
             return merged.strip()

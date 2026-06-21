@@ -163,6 +163,11 @@ QUY TẮC:
     )
     
     raw = response.choices[0].message.content
+    try:
+        from cnb_2as.services.thu_viec_service import _log_tokens
+        _log_tokens(response, label="ocr_report_to_excel.ocr_pdf_with_vision")
+    except Exception:
+        pass
     elapsed = time.time() - start
     tokens = response.usage.total_tokens if response.usage else 0
     print(f"[OCR] Hoàn tất: {elapsed:.1f}s, {tokens} tokens")
