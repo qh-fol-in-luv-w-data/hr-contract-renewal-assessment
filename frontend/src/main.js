@@ -6,7 +6,7 @@ import ThuViec from './pages/ThuViec.vue'
 import TaiKy from './pages/TaiKy.vue'
 import ScanCombined from './pages/ScanCombined.vue'
 import BaoCao from './pages/BaoCao.vue'
-import { getSessionId } from '@/utils/session';
+import { getSessionId } from './utils/session';
 
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
