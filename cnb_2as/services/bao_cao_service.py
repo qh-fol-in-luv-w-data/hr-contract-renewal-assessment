@@ -743,7 +743,7 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
             return ""
         if expected == xl_norm:
             return f"Khớp ({xl_norm}, {tot}đ)"
-        return f"{tot}đ → nên '{expected}', OCR ghi '{xl_norm}'"
+        return f"{tot}đ → đúng ra là '{expected}', nhưng phiếu ghi nhận '{xl_norm}'"
 
     INFO    = 10
     COL_NV  = 11   # 3 cols: Tổng điểm, Xếp loại, Nguyện vọng
@@ -794,7 +794,7 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
     _hcell(ws, SUBHDR_ROW, COL_HOD + 2, "Đề xuất\nbố trí",     FILL_HOD, size=8, color="065F46")
 
     _hcell(ws, SUBHDR_ROW, COL_AI,     "Điểm &\nĐề xuất HOD",       FILL_AI, size=8, color="92400E")
-    _hcell(ws, SUBHDR_ROW, COL_AI + 1, "Lệch NV ↔ HOD\n(≥20% báo động)", FILL_AI, size=8, color="92400E")
+    _hcell(ws, SUBHDR_ROW, COL_AI + 1, "Sự tương đồng đánh giá\nHOD và nhân viên", FILL_AI, size=8, color="92400E")
     _hcell(ws, SUBHDR_ROW, COL_AI + 2, "Xếp loại &\nLọt khung",    FILL_AI, size=8, color="92400E")
     _hcell(ws, SUBHDR_ROW, COL_AI + 3, "Tự khai\nvs HR",            FILL_AI, size=8, color="92400E")
 

@@ -316,7 +316,7 @@
         <div class="ai-item-val">{{ overview.nhan_xet_chung || '—' }}</div>
       </div>
       <div class="ai-item">
-        <div class="ai-item-label">Lệch điểm NV vs HOD</div>
+        <div class="ai-item-label">Sự tương đồng đánh giá HOD và nhân viên</div>
         <div class="ai-item-val">{{ overview.lech_diem || '—' }}</div>
       </div>
       <div class="ai-item">

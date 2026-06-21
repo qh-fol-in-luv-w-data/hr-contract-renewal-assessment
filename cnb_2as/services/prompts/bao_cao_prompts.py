@@ -235,7 +235,7 @@ Trả JSON:
 }}
 
 Giải thích:
-- lech_diem: Phân tích lệch điểm giữa NV và HOD. Nếu lệch ≥ 20%: nêu ai đánh cao/thấp hơn và hàm ý.
+- lech_diem: Nêu mức độ chênh lệch điểm số (tính theo %) giữa HOD và NV, và chỉ rõ ai đánh giá cao hơn. Tuyệt đối không nhắc đến các ngưỡng số (như 20% hay báo động).
 - diem_vs_de_xuat: Điểm NV và HOD có khớp với đề xuất bố trí không? Có bất hợp lý nào không?
 - lot_khung: Kiểm tra tính nhất quán giữa điểm tổng và ô xếp loại đã đánh dấu trong phiếu. NV cộng điểm ra {nv_tot}đ nhưng đánh vô ô "{nv_xl}" — đúng hay sai? HOD chấm {hod_tot}đ đánh vô ô "{hod_xl}" — đúng hay sai? Nêu rõ từng phía, nếu sai thì đúng ra phải đánh vào ô nào.
 - nhat_quan: Nhận xét 1 câu văn xuôi về mức độ khớp giữa NV tự khai (phần II–V) và dữ liệu HR đã xác nhận. Xem mục "So sánh tự khai vs HR" ở trên. Nếu khớp hết → "Tự khai khớp tốt với dữ liệu HR." Nếu lệch 1–2 tiêu chí nhỏ → nêu ngắn. Nếu lệch nhiều (≥ 3) → "Lệch đáng kể (X tiêu chí), cần HR xác minh lại." Nếu không có HR → "Chưa có dữ liệu HR để đối chiếu." """
