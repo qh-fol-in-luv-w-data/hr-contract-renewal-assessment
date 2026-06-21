@@ -3,41 +3,62 @@
 
 """OpenAI client wrapper for HR Contract Evaluation.
 
-Reads API key from Frappe site_config and provides a simple interface
-for calling OpenAI chat completions with structured JSON output.
+Reads API key from Agent Hub Settings DocType (preferred),
+falling back to Frappe site_config, then environment variable.
 """
 
 import json
+import os
 
 import frappe
 from openai import OpenAI
 
 
 def get_api_key():
-	"""Retrieve OpenAI API key from site_config.
+	"""Retrieve OpenAI API key with fallback chain.
+
+	Priority:
+		1. Agent Hub Settings DocType (password field)
+		2. frappe.conf (site_config.json: openai_api_key)
+		3. OPENAI_API_KEY environment variable
 
 	Returns:
 		The API key string.
 
 	Raises:
-		frappe.ValidationError: If key is not configured.
+		frappe.ValidationError: If key is not found in any source.
 	"""
+	# 1. Try Agent Hub Settings DocType
+	try:
+		api_key = frappe.get_doc("Agent Hub Settings").get_password("openai_api_key")
+		if api_key:
+			return api_key
+	except Exception:
+		pass
+
+	# 2. Fallback to site_config.json
 	api_key = frappe.conf.get("openai_api_key")
-	if not api_key:
-		frappe.throw(
-			"OpenAI API key chưa được cấu hình. "
-			"Chạy: bench set-config openai_api_key 'sk-xxx'"
-		)
-	return api_key
+	if api_key:
+		return api_key
+
+	# 3. Fallback to environment variable
+	api_key = os.environ.get("OPENAI_API_KEY")
+	if api_key:
+		return api_key
+
+	frappe.throw(
+		"OpenAI API key chưa được cấu hình. "
+		"Cấu hình trong Agent Hub Settings hoặc chạy: bench set-config openai_api_key 'sk-xxx'"
+	)
 
 
 def get_client():
 	"""Create and return an OpenAI client instance.
 
 	Returns:
-		OpenAI client configured with the site's API key.
+		OpenAI client configured with the resolved API key.
 	"""
-	return OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
+	return OpenAI(api_key=get_api_key())
 
 
 def chat_completion_json(system_prompt, user_prompt, model="gpt-4o"):
@@ -73,8 +94,11 @@ def chat_completion_json(system_prompt, user_prompt, model="gpt-4o"):
 
 		content = response.choices[0].message.content
 
-		# Cost tracking removed (openai_cost_tracker module not available)
-
+		try:
+			from cnb_2as.services.thu_viec_service import _log_tokens
+			_log_tokens(response, label="openai_client.chat_completion_json")
+		except Exception as log_e:
+			frappe.logger("cnb_token").error(f"Lỗi khi log token: {log_e}")
 
 		return json.loads(content)
 

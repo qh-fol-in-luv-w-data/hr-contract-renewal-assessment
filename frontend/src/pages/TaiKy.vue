@@ -1369,7 +1369,7 @@ async function pollForOcrResults() {
   progress.step = 2; progress.message = store.lang==='en'?'OCR processing in background...':'Đang OCR nền...'
 
   let attempts = 0
-  const maxAttempts = 120 // 6 minutes max
+  const maxAttempts = 300 // 15 minutes max
   while (attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, 3000))
     attempts++
@@ -1409,7 +1409,7 @@ async function pollForResults() {
   progress.step = 3; progress.message = store.lang==='en'?'Waiting for results...':'Đang chờ kết quả...'
 
   let attempts = 0
-  const maxAttempts = 60
+  const maxAttempts = 300 // 15 minutes max
   while (attempts < maxAttempts) {
     await new Promise(resolve => setTimeout(resolve, 3000))
     attempts++
@@ -1836,7 +1836,7 @@ onUnmounted(() => {
 .app-layout { display: flex; height: 100vh; overflow: hidden; background: #f8fafc }
 
 /* ── SIDEBAR ── */
-.sidebar { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid #e2e8f0; background: #fff }
+.sidebar { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid #e2e8f0; background: #fff }
 .sb-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; border-bottom: 1px solid #e2e8f0; background: #fff }
 .sb-reload { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s; }
 .sb-reload:hover { background: #f1f5f9; color: #3b82f6; border-color: #cbd5e1; }
@@ -1877,8 +1877,8 @@ onUnmounted(() => {
 .daily-date-range { background: rgba(99,102,241,.04); border: 1px solid rgba(99,102,241,.12); border-radius: 8px; padding: 10px 12px; margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
 .ddr-row { display: flex; align-items: center; gap: 8px; }
 .ddr-label { font-size: .75rem; color: #94a3b8; font-weight: 600; width: 55px; flex-shrink: 0; }
-.ddr-input { flex: 1; padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(99,102,241,.2); background: transparent; color: inherit; font-size: .8rem; }
-.ddr-input-wrap { flex: 1; display: flex; align-items: center; gap: 4px; position: relative; }
+.ddr-input { flex: 1; min-width: 0; width: 100%; padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(99,102,241,.2); background: transparent; color: inherit; font-size: .8rem; }
+.ddr-input-wrap { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; position: relative; }
 .ddr-date-hidden { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
 .ddr-cal-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(99,102,241,.2); background: rgba(99,102,241,.06); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all .2s; flex-shrink: 0; }
 .ddr-cal-btn:hover { background: rgba(99,102,241,.15); border-color: rgba(99,102,241,.4); }
