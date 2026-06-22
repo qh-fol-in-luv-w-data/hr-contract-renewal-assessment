@@ -209,12 +209,23 @@ def map_phieu_list(phieu_list: list[dict]) -> list[dict]:
 # ── OCR batch (parallel) ──────────────────────────────────────────────
 def ocr_batch(files_bytes: list[tuple[str, bytes]], session_name: str = "", action_name: str = "") -> list[dict]:
     client = get_client()
+    site = getattr(frappe.local, "site", None)
+    user = frappe.session.user if getattr(frappe, "session", None) else None
 
     def _process(args):
-        fname, fb = args
-        result = _ocr_one(client, fb, session_name=session_name, action_name=action_name)
-        result["_filename"] = fname
-        return result
+        if site:
+            frappe.init(site)
+            frappe.connect()
+            if user:
+                frappe.set_user(user)
+        try:
+            fname, fb = args
+            result = _ocr_one(client, fb, session_name=session_name, action_name=action_name)
+            result["_filename"] = fname
+            return result
+        finally:
+            if site:
+                frappe.destroy()
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         results = list(ex.map(_process, files_bytes))
@@ -305,13 +316,23 @@ def _ai_overview_one(client, person: dict, session_name: str = "", action_name: 
 def ai_overviews_batch(persons: list[dict], session_name: str = "", action_name: str = "") -> list[dict]:
     """Chạy AI overview song song cho tất cả persons. Trả list dict cùng thứ tự."""
     client = get_client()
+    site = getattr(frappe.local, "site", None)
+    user = frappe.session.user if getattr(frappe, "session", None) else None
 
     def _run(person):
+        if site:
+            frappe.init(site)
+            frappe.connect()
+            if user:
+                frappe.set_user(user)
         try:
             return _ai_overview_one(client, person, session_name=session_name, action_name=action_name)
         except Exception as e:
             frappe.log_error(title="AI Overview Error", message=str(e))
             return {"lech_diem": "", "diem_vs_de_xuat": "", "lot_khung": "", "nhat_quan": ""}
+        finally:
+            if site:
+                frappe.destroy()
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         return list(ex.map(_run, persons))
