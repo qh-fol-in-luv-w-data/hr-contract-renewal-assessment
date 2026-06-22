@@ -209,8 +209,10 @@ def _log_tokens(resp, label: str = "", session_name: str = "", action_name: str 
                 import uuid
                 session_name = _logger.create_session(f"fallback_{uuid.uuid4().hex[:8]}", dept="Auto", role="System")
                 
+        is_local_action = False
         if not action_name:
             action_name = _logger.start_action(session_name, action_type="ai_call", input_summary=label)
+            is_local_action = True
             
         _logger.log_ai_call(
             session_name=session_name,
@@ -221,6 +223,9 @@ def _log_tokens(resp, label: str = "", session_name: str = "", action_name: str 
             completion_tokens=usage.completion_tokens,
             status="success"
         )
+        
+        if is_local_action:
+            _logger.finish_action(action_name, status="success")
     except Exception as e:
         import frappe
         frappe.logger("cnb_token").error(f"Lỗi khi ghi ActivityLogger: {e}")
