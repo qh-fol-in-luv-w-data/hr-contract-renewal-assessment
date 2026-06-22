@@ -117,6 +117,13 @@ export const dict = {
     next_steps: 'Bước xử lý tiếp theo',
     priority: 'Độ ưu tiên',
     responsible: 'Trách nhiệm',
+
+    // Manager Proposal Evaluation
+    dexuat_title: 'Đánh giá Đề xuất Quản lý/HOD',
+    dexuat_subtitle: 'OCR tờ trình, trích xuất, đánh giá tính hợp lý từng đề xuất nhân sự',
+    dexuat_desc: 'Upload tờ trình đề xuất (tăng lương, bổ nhiệm, điều chỉnh chức danh…). AI đọc, trích xuất, đánh giá độc lập từng đề xuất theo 7 tiêu chí 100 điểm và sinh báo cáo PDF.',
+    dexuat_list: 'Danh sách hồ sơ',
+    dexuat_new: 'Tạo hồ sơ mới',
   },
   en: {
     portal_title: 'HR INFORMATION PORTAL',
@@ -214,6 +221,13 @@ export const dict = {
     next_steps: 'Next Steps',
     priority: 'Priority',
     responsible: 'Responsible',
+
+    // Manager Proposal Evaluation
+    dexuat_title: 'Manager/HOD Proposal Evaluation',
+    dexuat_subtitle: 'OCR proposal document, extract, independently evaluate each HR proposal',
+    dexuat_desc: 'Upload proposal letters (salary increase, appointment, title adjustment…). AI reads, extracts, independently evaluates each proposal against 7 criteria (100 points) and generates a PDF report.',
+    dexuat_list: 'Evaluation List',
+    dexuat_new: 'New Record',
   }
 }
 

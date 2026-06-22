@@ -75,6 +75,21 @@
             </div>
           </div>
         </router-link>
+
+        <router-link to="/de-xuat" class="pcard pcard-wide">
+          <div class="pcard-glow glow-teal"></div>
+          <div class="pcard-inner">
+            <div class="pcard-icon">📋</div>
+            <div class="pcard-body">
+              <h3>{{ t('dexuat_title') }}</h3>
+              <p>{{ t('dexuat_desc') }}</p>
+            </div>
+            <div class="pcard-footer">
+              <span>{{ t('open_system') }}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>
+            </div>
+          </div>
+        </router-link>
       </div>
 
       <div class="portal-footer">
