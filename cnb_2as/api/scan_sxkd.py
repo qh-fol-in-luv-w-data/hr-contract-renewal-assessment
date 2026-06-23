@@ -12,14 +12,9 @@ import fitz  # PyMuPDF
 from PIL import Image
 
 # ──────────────────────────────────────────────────────────────────
-# Helper: lấy OpenAI key
+# Helper: lấy OpenAI key (from Agent Hub Settings → site_config → env)
 # ──────────────────────────────────────────────────────────────────
-def _get_openai_key():
-    cfg = frappe.get_site_config()
-    key = cfg.get("openai_api_key", "")
-    if not key:
-        frappe.throw("Chưa cấu hình openai_api_key trong site_config.json")
-    return key
+from cnb_2as.services.openai_client import get_api_key, get_client as _get_openai_client
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -118,6 +113,11 @@ def _ocr_page_title(client, page_b64: str, page_num: int) -> dict:
         response_format={"type": "json_object"},
     )
     raw = resp.choices[0].message.content
+    try:
+        from cnb_2as.services.thu_viec_service import _log_tokens
+        _log_tokens(resp, "scan_sxkd._ocr_page_title")
+    except Exception:
+        pass
     if not raw:
         return {"tieu_de": "", "ho_ten": ""}
     try:
@@ -143,6 +143,11 @@ def _ocr_page_full(client, page_b64: str, page_num: int, known_title: str = "") 
         response_format={"type": "json_object"},
     )
     raw = resp.choices[0].message.content
+    try:
+        from cnb_2as.services.thu_viec_service import _log_tokens
+        _log_tokens(resp, "scan_sxkd._ocr_page_full")
+    except Exception:
+        pass
     if not raw:
         return {}
     try:
@@ -368,7 +373,7 @@ def _fill_excel(data: dict) -> bytes:
 # ──────────────────────────────────────────────────────────────────
 # Whitelist API: scan & OCR
 # ──────────────────────────────────────────────────────────────────
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def ocr_sxkd():
     """
     POST /api/method/cnb_2as.api.scan_sxkd.ocr_sxkd
@@ -381,8 +386,7 @@ def ocr_sxkd():
     file_obj = frappe.request.files["file"]
     file_bytes = file_obj.read()
 
-    from openai import OpenAI
-    client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
+    client = _get_openai_client()
 
     # Convert PDF pages to images
     pages_b64 = _pdf_to_images(file_bytes)
@@ -425,7 +429,7 @@ def ocr_sxkd():
 
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def export_excel():
     """
     POST /api/method/cnb_2as.api.scan_sxkd.export_excel

@@ -6,7 +6,7 @@ import ThuViec from './pages/ThuViec.vue'
 import TaiKy from './pages/TaiKy.vue'
 import ScanCombined from './pages/ScanCombined.vue'
 import BaoCao from './pages/BaoCao.vue'
-import { getSessionId } from '@/utils/session';
+import { getSessionId, getCsrfToken } from './utils/session';
 
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
@@ -14,10 +14,15 @@ window.fetch = async (...args) => {
   config = config || {};
   config.headers = config.headers || {};
 
+  const sid = getSessionId();
+  const csrf = getCsrfToken() || (window.frappe && window.frappe.csrf_token) || '';
+
   if (config.headers instanceof Headers) {
-    config.headers.set('X-App-Session-Id', getSessionId());
+    if (sid) config.headers.set('X-App-Session-Id', sid);
+    if (csrf) config.headers.set('X-Frappe-CSRF-Token', csrf);
   } else {
-    config.headers['X-App-Session-Id'] = getSessionId();
+    if (sid) config.headers['X-App-Session-Id'] = sid;
+    if (csrf) config.headers['X-Frappe-CSRF-Token'] = csrf;
   }
 
   return originalFetch(resource, config);

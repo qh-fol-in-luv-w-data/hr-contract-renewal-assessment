@@ -129,7 +129,10 @@
 
           <div class="sb-divider"></div>
 
-          <button class="sb-btn-primary" :disabled="loadingExcel" @click="downloadExcel">
+          <button class="sb-btn-primary" 
+            :disabled="loadingExcel || loadingAI || aiOutdated" 
+            :title="aiOutdated ? 'Vui lòng Phân tích AI trước khi xuất Excel' : ''"
+            @click="downloadExcel">
             <span v-if="loadingExcel" class="spinner"></span>
             <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             {{ loadingExcel ? excelMsg : '⬇ Xuất Excel tổng hợp' }}
@@ -156,8 +159,8 @@
         <h1>Báo Cáo Đánh Giá Nhân Sự</h1>
         <p>Upload tất cả phiếu đánh giá (file scan PDF). AI sẽ đọc từng phiếu, ghép NV tự đánh giá với HOD đánh giá, hiển thị đầy đủ từng tiêu chí A1–A5, B1–B7, C1–C4.</p>
         <div class="welcome-features">
-          <div class="wf"><div class="wf-icon">📄</div><div>OCR GPT-4o Vision</div></div>
-          <div class="wf"><div class="wf-icon">👥</div><div>Match NV ↔ HOD</div></div>
+          <div class="wf"><div class="wf-icon">📄</div><div>Trích xuất nội dung file</div></div>
+          <div class="wf"><div class="wf-icon">👥</div><div>Bắt cặp file của NV ↔ HOD</div></div>
           <div class="wf"><div class="wf-icon">✏️</div><div>Chỉnh sửa bảng</div></div>
           <div class="wf"><div class="wf-icon">📊</div><div>Xuất Excel tổng hợp</div></div>
         </div>
@@ -167,7 +170,7 @@
       <div v-if="loading" class="loading-screen">
         <div class="loading-spinner"></div>
         <p>{{ loadingMsg }}</p>
-        <p class="loading-sub">GPT-4o đang đọc {{ files.length }} file — khoảng {{ Math.round(files.length * 25 / 6) }}–{{ Math.round(files.length * 35 / 6) }} giây</p>
+        <p class="loading-sub">AI đang đọc {{ files.length }} file — khoảng {{ Math.round(files.length * 25 / 6) }}–{{ Math.round(files.length * 35 / 6) }} giây</p>
       </div>
 
       <!-- Results -->
@@ -195,7 +198,7 @@
             :person="persons[activePerson]"
             :idx="activePerson"
             :overview="overviews[activePerson] || null"
-            @dirty="isDirty = true"
+            @dirty="isDirty = true; aiOutdated = true"
           />
         </div>
       </div>
@@ -222,6 +225,7 @@ const persons = ref([])
 const overviews = ref([])
 const activePerson = ref(0)
 const isDirty = ref(false)
+const aiOutdated = ref(true)
 const isDragging = ref(false)
 const isHrDragging = ref(false)
 const phongBan = ref('')
@@ -350,7 +354,7 @@ async function doOCR() {
     const fd = new FormData()
     files.value.forEach((f, i) => fd.append(`file${i}`, f, f.name))
     hrFiles.value.forEach((f, i) => fd.append(`file_hr_${i}`, f, f.name))
-    loadingMsg.value = `GPT-4o đang đọc ${files.value.length} phiếu song song...`
+    loadingMsg.value = `AI đang đọc ${files.value.length} phiếu song song...`
     const res = await callApi(
       '/api/method/cnb_2as.api.bao_cao_danh_gia.ocr_batch_upload',
       { method: 'POST', headers: { 'X-Frappe-CSRF-Token': csrf() }, body: fd }
@@ -359,6 +363,7 @@ async function doOCR() {
     persons.value = res.message.persons
     activePerson.value = 0
     step.value = 2
+    aiOutdated.value = true
   } catch (e) {
     error.value = e.message
   } finally {
@@ -379,6 +384,7 @@ async function analyzeAI() {
     )
     if (!res.message?.ok) throw new Error(res.message?.error || 'Phân tích thất bại')
     overviews.value = res.message.overviews
+    aiOutdated.value = false
   } catch (e) {
     alert(`Lỗi phân tích AI: ${e.message}`)
   } finally {

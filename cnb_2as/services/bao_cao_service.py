@@ -41,7 +41,7 @@ def _norm_name(s: str) -> str:
 
 
 
-def _ocr_one(client, file_bytes: bytes) -> dict:
+def _ocr_one(client, file_bytes: bytes, session_name: str = "", action_name: str = "") -> dict:
     imgs = _pdf_to_b64(file_bytes)
     content = [{"type": "text", "text": _OCR_PROMPT}]
     for b in imgs:
@@ -51,6 +51,12 @@ def _ocr_one(client, file_bytes: bytes) -> dict:
         messages=[{"role": "system", "content": _OCR_SYS}, {"role": "user", "content": content}],
         response_format={"type": "json_object"},
     )
+    try:
+        from cnb_2as.services.thu_viec_service import _log_tokens
+        _log_tokens(r, label="ocr_phieu", session_name=session_name, action_name=action_name)
+    except Exception as e:
+        frappe.logger("cnb_token").error(f"Lỗi log token ocr_phieu: {e}")
+        
     return json.loads(r.choices[0].message.content)
 
 
@@ -201,14 +207,25 @@ def map_phieu_list(phieu_list: list[dict]) -> list[dict]:
 
 
 # ── OCR batch (parallel) ──────────────────────────────────────────────
-def ocr_batch(files_bytes: list[tuple[str, bytes]]) -> list[dict]:
+def ocr_batch(files_bytes: list[tuple[str, bytes]], session_name: str = "", action_name: str = "") -> list[dict]:
     client = get_client()
+    site = getattr(frappe.local, "site", None)
+    user = frappe.session.user if getattr(frappe, "session", None) else None
 
     def _process(args):
-        fname, fb = args
-        result = _ocr_one(client, fb)
-        result["_filename"] = fname
-        return result
+        if site:
+            frappe.init(site)
+            frappe.connect()
+            if user:
+                frappe.set_user(user)
+        try:
+            fname, fb = args
+            result = _ocr_one(client, fb, session_name=session_name, action_name=action_name)
+            result["_filename"] = fname
+            return result
+        finally:
+            if site:
+                frappe.destroy()
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         results = list(ex.map(_process, files_bytes))
@@ -233,7 +250,8 @@ def _criteria_summary(phieu: dict) -> str:
     return " | ".join(parts)
 
 
-def _ai_overview_one(client, person: dict) -> dict:
+def _ai_overview_one(client, person: dict, session_name: str = "", action_name: str = "") -> dict:
+    """Tạo nhận xét tổng quan cho 1 người dựa trên chênh lệch tự khai vs HOD."""
     nv  = person.get("tu_danh_gia") or {}
     hod = person.get("hod") or {}
 
@@ -286,19 +304,35 @@ def _ai_overview_one(client, person: dict) -> dict:
         ],
         response_format={"type": "json_object"},
     )
+    try:
+        from cnb_2as.services.thu_viec_service import _log_tokens
+        _log_tokens(r, label="ai_overview_phieu", session_name=session_name, action_name=action_name)
+    except Exception as e:
+        frappe.logger("cnb_token").error(f"Lỗi log token ai_overview: {e}")
+        
     return json.loads(r.choices[0].message.content)
 
 
-def ai_overviews_batch(persons: list[dict]) -> list[dict]:
+def ai_overviews_batch(persons: list[dict], session_name: str = "", action_name: str = "") -> list[dict]:
     """Chạy AI overview song song cho tất cả persons. Trả list dict cùng thứ tự."""
     client = get_client()
+    site = getattr(frappe.local, "site", None)
+    user = frappe.session.user if getattr(frappe, "session", None) else None
 
     def _run(person):
+        if site:
+            frappe.init(site)
+            frappe.connect()
+            if user:
+                frappe.set_user(user)
         try:
-            return _ai_overview_one(client, person)
+            return _ai_overview_one(client, person, session_name=session_name, action_name=action_name)
         except Exception as e:
             frappe.log_error(title="AI Overview Error", message=str(e))
             return {"lech_diem": "", "diem_vs_de_xuat": "", "lot_khung": "", "nhat_quan": ""}
+        finally:
+            if site:
+                frappe.destroy()
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         return list(ex.map(_run, persons))
@@ -842,7 +876,7 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
             return ""
         if expected == xl_norm:
             return f"Khớp ({xl_norm}, {tot}đ)"
-        return f"{tot}đ → nên '{expected}', OCR ghi '{xl_norm}'"
+        return f"{tot}đ → đúng ra là '{expected}', nhưng phiếu ghi nhận '{xl_norm}'"
 
     INFO      = 10
     COL_NV    = 11   # 3 cols: Tổng điểm, Xếp loại, Nguyện vọng
@@ -895,7 +929,7 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
     _hcell(ws, SUBHDR_ROW, COL_HOD + 2, "Đề xuất\nbố trí",     FILL_HOD, size=8, color="065F46")
 
     _hcell(ws, SUBHDR_ROW, COL_AI,     "Điểm &\nĐề xuất HOD",       FILL_AI, size=8, color="92400E")
-    _hcell(ws, SUBHDR_ROW, COL_AI + 1, "Lệch NV ↔ HOD\n(≥20% báo động)", FILL_AI, size=8, color="92400E")
+    _hcell(ws, SUBHDR_ROW, COL_AI + 1, "Sự tương đồng đánh giá\nHOD và nhân viên", FILL_AI, size=8, color="92400E")
     _hcell(ws, SUBHDR_ROW, COL_AI + 2, "Xếp loại &\nLọt khung",    FILL_AI, size=8, color="92400E")
     _hcell(ws, SUBHDR_ROW, COL_AI + 3, "Tự khai\nvs HR",            FILL_AI, size=8, color="92400E")
 

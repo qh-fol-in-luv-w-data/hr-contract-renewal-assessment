@@ -55,10 +55,8 @@ _client = None
 def _get_client() -> OpenAI:
     global _client
     if _client is None:
-        key = os.getenv("OPENAI_API_KEY", "") or getattr(frappe.conf, "openai_api_key", "")
-        if not key:
-            frappe.throw("Chưa cấu hình OPENAI_API_KEY")
-        _client = OpenAI(api_key=frappe.conf.get("openai_api_key", ""))
+        from cnb_2as.services.openai_client import get_api_key
+        _client = OpenAI(api_key=get_api_key())
     return _client
 
 
@@ -415,6 +413,11 @@ Lấy NGUYÊN VĂN. Ô trống → ""."""
                 response_format={"type": "json_object"},
             )
             partial = json.loads(resp.choices[0].message.content or "{}")
+            try:
+                from cnb_2as.services.thu_viec_service import _log_tokens
+                _log_tokens(resp, label="scan_service._scan_extract_docx")
+            except Exception:
+                pass
             fields = _merge_docx(fields, partial)
         except Exception as e:
             frappe.logger("cnb_scan").warning(f"[SCAN] DOCX batch {sec_key} lỗi: {e}")
@@ -449,6 +452,11 @@ def _scan_extract_html(file_bytes, client, eval_type):
                 response_format={"type": "json_object"},
             )
             fields = json.loads(resp.choices[0].message.content or "{}")
+            try:
+                from cnb_2as.services.thu_viec_service import _log_tokens
+                _log_tokens(resp, label="scan_service._scan_extract_html")
+            except Exception:
+                pass
         except Exception as e:
             frappe.logger("cnb_scan").warning(f"[SCAN] HTML extract lỗi: {e}")
 
@@ -581,6 +589,11 @@ def _scan_extract_pdf_image(file_bytes, filename, client, eval_type):
                 response_format={"type": "json_object"},
             )
             txt = resp.choices[0].message.content or "{}"
+            try:
+                from cnb_2as.services.thu_viec_service import _log_tokens
+                _log_tokens(resp, label="scan_service._call_batch")
+            except Exception:
+                pass
             return txt, json.loads(txt)
         except Exception as e:
             frappe.logger("cnb_scan").warning(f"[SCAN] Batch {label} lỗi: {e}")
@@ -621,6 +634,11 @@ def _scan_extract_pdf_image(file_bytes, filename, client, eval_type):
                 response_format={"type": "json_object"},
             )
             d = json.loads(r.choices[0].message.content or "{}")
+            try:
+                from cnb_2as.services.thu_viec_service import _log_tokens
+                _log_tokens(r, label="scan_service._detect_section")
+            except Exception:
+                pass
             return d.get("section", "II_kpi"), d.get("page_label", "")
         except Exception:
             return "II_kpi", ""
