@@ -1,5 +1,5 @@
 """Service layer: OCR phiếu đánh giá nhân sự PAI + AI overview + build Excel tổng hợp."""
-import base64, io, json, re, unicodedata
+import base64, datetime, io, json, re, unicodedata
 from concurrent.futures import ThreadPoolExecutor
 
 import fitz
@@ -41,7 +41,7 @@ def _norm_name(s: str) -> str:
 
 
 
-def _ocr_one(client, file_bytes: bytes) -> dict:
+def _ocr_one(client, file_bytes: bytes, session_name: str = "", action_name: str = "") -> dict:
     imgs = _pdf_to_b64(file_bytes)
     content = [{"type": "text", "text": _OCR_PROMPT}]
     for b in imgs:
@@ -51,6 +51,12 @@ def _ocr_one(client, file_bytes: bytes) -> dict:
         messages=[{"role": "system", "content": _OCR_SYS}, {"role": "user", "content": content}],
         response_format={"type": "json_object"},
     )
+    try:
+        from cnb_2as.services.thu_viec_service import _log_tokens
+        _log_tokens(r, label="ocr_phieu", session_name=session_name, action_name=action_name)
+    except Exception as e:
+        frappe.logger("cnb_token").error(f"Lỗi log token ocr_phieu: {e}")
+        
     return json.loads(r.choices[0].message.content)
 
 
@@ -201,14 +207,25 @@ def map_phieu_list(phieu_list: list[dict]) -> list[dict]:
 
 
 # ── OCR batch (parallel) ──────────────────────────────────────────────
-def ocr_batch(files_bytes: list[tuple[str, bytes]]) -> list[dict]:
+def ocr_batch(files_bytes: list[tuple[str, bytes]], session_name: str = "", action_name: str = "") -> list[dict]:
     client = get_client()
+    site = getattr(frappe.local, "site", None)
+    user = frappe.session.user if getattr(frappe, "session", None) else None
 
     def _process(args):
-        fname, fb = args
-        result = _ocr_one(client, fb)
-        result["_filename"] = fname
-        return result
+        if site:
+            frappe.init(site)
+            frappe.connect()
+            if user:
+                frappe.set_user(user)
+        try:
+            fname, fb = args
+            result = _ocr_one(client, fb, session_name=session_name, action_name=action_name)
+            result["_filename"] = fname
+            return result
+        finally:
+            if site:
+                frappe.destroy()
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         results = list(ex.map(_process, files_bytes))
@@ -233,7 +250,8 @@ def _criteria_summary(phieu: dict) -> str:
     return " | ".join(parts)
 
 
-def _ai_overview_one(client, person: dict) -> dict:
+def _ai_overview_one(client, person: dict, session_name: str = "", action_name: str = "") -> dict:
+    """Tạo nhận xét tổng quan cho 1 người dựa trên chênh lệch tự khai vs HOD."""
     nv  = person.get("tu_danh_gia") or {}
     hod = person.get("hod") or {}
 
@@ -286,19 +304,35 @@ def _ai_overview_one(client, person: dict) -> dict:
         ],
         response_format={"type": "json_object"},
     )
+    try:
+        from cnb_2as.services.thu_viec_service import _log_tokens
+        _log_tokens(r, label="ai_overview_phieu", session_name=session_name, action_name=action_name)
+    except Exception as e:
+        frappe.logger("cnb_token").error(f"Lỗi log token ai_overview: {e}")
+        
     return json.loads(r.choices[0].message.content)
 
 
-def ai_overviews_batch(persons: list[dict]) -> list[dict]:
+def ai_overviews_batch(persons: list[dict], session_name: str = "", action_name: str = "") -> list[dict]:
     """Chạy AI overview song song cho tất cả persons. Trả list dict cùng thứ tự."""
     client = get_client()
+    site = getattr(frappe.local, "site", None)
+    user = frappe.session.user if getattr(frappe, "session", None) else None
 
     def _run(person):
+        if site:
+            frappe.init(site)
+            frappe.connect()
+            if user:
+                frappe.set_user(user)
         try:
-            return _ai_overview_one(client, person)
+            return _ai_overview_one(client, person, session_name=session_name, action_name=action_name)
         except Exception as e:
             frappe.log_error(title="AI Overview Error", message=str(e))
             return {"lech_diem": "", "diem_vs_de_xuat": "", "lot_khung": "", "nhat_quan": ""}
+        finally:
+            if site:
+                frappe.destroy()
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         return list(ex.map(_run, persons))
@@ -384,6 +418,105 @@ def _compare_nv_hr(nv_data: dict, hr_row: dict) -> list[dict]:
             if str(nv_val) != str(hr_val):
                 diffs.append({"noi_dung": noi_dung, "nv_val": nv_val, "hr_val": hr_val, "chenh": None})
     return diffs
+
+
+def _get_nv_hr_raw(nv_data: dict, hr_row: dict) -> dict:
+    """Trả {fkey: (nv_val, hr_val)} cho tất cả NV_HR_FIELDS. None nếu thiếu."""
+    result = {}
+    for sec_id, stt, fkey, _ in NV_HR_FIELDS:
+        arr = nv_data.get(sec_id)
+        nv_val = None
+        if isinstance(arr, list):
+            row = next((x for x in arr if x.get("stt") == stt), None)
+            if row is not None:
+                v = row.get("tu_bao_cao")
+                if v is not None and str(v).strip() not in ("", "-", "—"):
+                    try:
+                        nv_val = int(float(str(v)))
+                    except (ValueError, TypeError):
+                        nv_val = v
+        hr_val = hr_row.get(fkey)
+        result[fkey] = (nv_val, hr_val)
+    return result
+
+
+def _parse_date(s: str):
+    """Parse chuỗi ngày VN thành datetime.date. Trả None nếu không parse được."""
+    if not s:
+        return None
+    s = s.strip()
+    for fmt in ("%d/%m/%Y", "%d.%m.%Y", "%d-%m-%Y", "%Y-%m-%d",
+                "%d/%m/%y", "%d.%m.%y", "%d-%m-%y"):
+        try:
+            return datetime.datetime.strptime(s, fmt).date()
+        except ValueError:
+            pass
+    m = re.search(r'(\d{1,2})[/.\-\s]+(\d{1,2})[/.\-\s]+(\d{4})', s)
+    if m:
+        try:
+            return datetime.date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            pass
+    return None
+
+
+def _vn_holidays() -> set:
+    """Ngày lễ VN 2025–2026 theo quy định pháp luật."""
+    h = set()
+    # 2025
+    h.add(datetime.date(2025, 1,  1))   # Tết Dương lịch
+    for d in (27, 28, 29, 30, 31):
+        h.add(datetime.date(2025, 1, d))  # Tết Ất Tỵ (Mùng 1: 29/01)
+    h.add(datetime.date(2025, 2,  1))
+    h.add(datetime.date(2025, 2,  2))
+    h.add(datetime.date(2025, 4,  7))   # Giỗ tổ HV
+    h.add(datetime.date(2025, 4, 30))   # 30/4
+    h.add(datetime.date(2025, 5,  1))   # 01/5
+    h.add(datetime.date(2025, 9,  2))   # Quốc khánh
+    h.add(datetime.date(2025, 9,  3))   # bù Quốc khánh
+    # 2026
+    h.add(datetime.date(2026, 1,  1))   # Tết Dương lịch
+    h.add(datetime.date(2026, 1,  2))   # bù (thứ Sáu)
+    for d in (13, 14, 15, 16, 17, 18, 19):
+        h.add(datetime.date(2026, 2, d))  # Tết Bính Ngọ (Mùng 1: 17/02)
+    h.add(datetime.date(2026, 4,  7))   # Giỗ tổ HV
+    h.add(datetime.date(2026, 4, 30))   # 30/4
+    h.add(datetime.date(2026, 5,  1))   # 01/5
+    h.add(datetime.date(2026, 9,  2))   # Quốc khánh
+    h.add(datetime.date(2026, 9,  3))   # bù
+    return h
+
+
+def _count_working_days(start_str: str, end_str: str):
+    """Đếm ngày T2–T6 trong [start, end] trừ ngày lễ VN. Trả None nếu không parse được."""
+    d1, d2 = _parse_date(start_str), _parse_date(end_str)
+    if not d1 or not d2 or d2 < d1:
+        return None
+    total = (d2 - d1).days + 1
+    full_weeks, rem = divmod(total, 7)
+    count = full_weeks * 5
+    for i in range(rem):
+        if (d1 + datetime.timedelta(days=full_weeks * 7 + i)).weekday() < 5:
+            count += 1
+    holidays = _vn_holidays()
+    for hd in holidays:
+        if d1 <= hd <= d2 and hd.weekday() < 5:
+            count -= 1
+    return max(count, 0)
+
+
+def _count_saturdays(start_str: str, end_str: str):
+    """Đếm ngày T7 trong [start, end]. Trả None nếu không parse được."""
+    d1, d2 = _parse_date(start_str), _parse_date(end_str)
+    if not d1 or not d2 or d2 < d1:
+        return None
+    total = (d2 - d1).days + 1
+    full_weeks, rem = divmod(total, 7)
+    count = full_weeks
+    for i in range(rem):
+        if (d1 + datetime.timedelta(days=full_weeks * 7 + i)).weekday() == 5:
+            count += 1
+    return count
 
 
 def _norm_hr_header(s: str) -> str:
@@ -745,12 +878,11 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
             return f"Khớp ({xl_norm}, {tot}đ)"
         return f"{tot}đ → đúng ra là '{expected}', nhưng phiếu ghi nhận '{xl_norm}'"
 
-    INFO    = 10
-    COL_NV  = 11   # 3 cols: Tổng điểm, Xếp loại, Nguyện vọng
-    COL_HOD = 14   # 3 cols: Tổng điểm, Xếp loại, Đề xuất
-    COL_AI  = 17   # 4 cols: AI tổng quan
-    AI_COLS = 4
-
+    INFO      = 10
+    COL_NV    = 11   # 3 cols: Tổng điểm, Xếp loại, Nguyện vọng
+    COL_HOD   = 14   # 3 cols: Tổng điểm, Xếp loại, Đề xuất
+    COL_AI    = 17   # 4 cols: AI tổng quan
+    AI_COLS   = 4
     HEADER_ROW = 10
     SUBHDR_ROW = 11
     DATA_START = 12
@@ -798,8 +930,9 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
     _hcell(ws, SUBHDR_ROW, COL_AI + 2, "Xếp loại &\nLọt khung",    FILL_AI, size=8, color="92400E")
     _hcell(ws, SUBHDR_ROW, COL_AI + 3, "Tự khai\nvs HR",            FILL_AI, size=8, color="92400E")
 
+
     ws.row_dimensions[HEADER_ROW].height = 26
-    ws.row_dimensions[SUBHDR_ROW].height = 34
+    ws.row_dimensions[SUBHDR_ROW].height = 40
 
     # ── Data rows ──────────────────────────────────────────────────────
     for pi, (person, ov) in enumerate(zip(persons, overviews)):
@@ -877,91 +1010,145 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
 
     ws.freeze_panes = f"C{DATA_START}"
 
-    # ── Sheet 2: CBNV tu khai vs HR chenh lech ────────────────────────
+    # ── Sheet 2: So sánh NV vs HR — bảng nằm ngang ───────────────────
+    # Mỗi cột = 1 tiêu chí, chia 3 cột con: NV tự khai / HR xác nhận / Chênh (NV−HR)
     if hr_data:
-        ws2 = wb.create_sheet("Chênh lệch CBNV vs HR")
+        ws2 = wb.create_sheet("So sánh NV vs HR")
+        N_CRIT   = len(NV_HR_FIELDS)
+        S2_STATS = 4   # col 2-5: stats
+        CRIT_START = 2 + S2_STATS  # criteria bắt đầu từ col 6
+        S2_COLS  = 1 + S2_STATS + N_CRIT * 3
 
-        ws2.merge_cells("A1:F1")
-        c = ws2.cell(row=1, column=1,
-                     value="DANH SÁCH CBNV TỰ KHAI KHÔNG KHỚP DỮ LIỆU HR")
-        c.font      = _font(bold=True, size=12, color="FFFFFF")
+        FILL_STATS2 = _fill("F0FFF4")
+
+        # Row 1: title
+        ws2.merge_cells(start_row=1, start_column=1, end_row=1, end_column=S2_COLS)
+        c = ws2.cell(row=1, column=1, value="SO SÁNH NV TỰ KHAI vs DỮ LIỆU HR XÁC NHẬN + THỐNG KÊ KỲ ĐÁNH GIÁ")
+        c.font = _font(bold=True, size=12, color="FFFFFF")
         c.alignment = _align(h="center")
-        c.fill      = FILL_TITLE
+        c.fill = FILL_TITLE
         ws2.row_dimensions[1].height = 28
 
-        s2_hdrs   = ["STT", "Họ và tên", "Chỉ tiêu", "CBNV tự khai", "HR xác nhận", "Ghi chú (chênh lệch)"]
-        s2_fills  = [FILL_HEADER, FILL_HEADER, FILL_HEADER, FILL_NV, FILL_HOD, FILL_AI]
-        s2_colors = ["FFFFFF",    "FFFFFF",     "FFFFFF",    "1D4ED8", "065F46",  "92400E"]
-        for ci2, (hdr2, f2, col2) in enumerate(zip(s2_hdrs, s2_fills, s2_colors), 1):
-            c2 = ws2.cell(row=2, column=ci2, value=hdr2)
-            c2.font      = _font(bold=True, size=9, color=col2)
-            c2.alignment = _align(h="center")
+        # Row 2-3: col 1 = "Nhân viên" merged, col 2-5 = stats merged, col 6+ = criteria merged 3 cols
+        ws2.merge_cells(start_row=2, start_column=1, end_row=3, end_column=1)
+        _hcell(ws2, 2, 1, "Nhân viên", FILL_HEADER, size=9)
+
+        STATS_LABELS = [
+            "Ngày làm việc\nT2–T6 (trừ lễ)",
+            "Tỉ lệ\nđi trễ (%)",
+            "Tổng ngày\nT7 trong kỳ",
+            "Tỉ lệ T7 vắng\nK.Phép (%)",
+        ]
+        for si, lbl in enumerate(STATS_LABELS):
+            col_s = 2 + si
+            ws2.merge_cells(start_row=2, start_column=col_s, end_row=3, end_column=col_s)
+            _hcell(ws2, 2, col_s, lbl, FILL_STATS2, size=7, color="065F46")
+
+        for gi, (_, _, fkey, noi_dung) in enumerate(NV_HR_FIELDS):
+            cs = CRIT_START + gi * 3
+            ws2.merge_cells(start_row=2, start_column=cs, end_row=2, end_column=cs + 2)
+            c2 = ws2.cell(row=2, column=cs, value=noi_dung)
+            c2.font      = _font(bold=True, size=7, color="FFFFFF")
+            c2.alignment = _align(h="center", wrap=True)
             c2.border    = _border()
-            c2.fill      = f2
-        ws2.row_dimensions[2].height = 22
+            c2.fill      = FILL_HEADER
+        ws2.row_dimensions[2].height = 42
 
-        row2 = 3
-        stt2 = 0
-        for person2 in persons:
+        # Row 3: sub-headers cho criteria (stats cols đã merged rows 2-3)
+        for gi in range(N_CRIT):
+            cs = CRIT_START + gi * 3
+            _hcell(ws2, 3, cs,     "NV\ntự khai",    FILL_NV,         size=7, color="1D4ED8")
+            _hcell(ws2, 3, cs + 1, "HR\nxác nhận",   FILL_HOD,        size=7, color="065F46")
+            _hcell(ws2, 3, cs + 2, "Chênh\n(NV−HR)", _fill("FEF9C3"), size=7, color="92400E")
+        ws2.row_dimensions[3].height = 30
+
+        # Data rows
+        FILL_CHENH_POS = _fill("FEE2E2")
+        FILL_CHENH_NEG = _fill("DBEAFE")
+        FILL_CHENH_EQ  = _fill("D1FAE5")
+        FILL_CHENH_NA  = _fill("F9FAFB")
+
+        for pi2, person2 in enumerate(persons):
+            r2 = 4 + pi2
             ho_ten2  = person2.get("ho_ten", "")
-            hr_row2  = hr_data.get(_norm_name(ho_ten2), {})
-            if not hr_row2:
-                continue
             nv_data2 = person2.get("tu_danh_gia") or {}
-            diffs2   = _compare_nv_hr(nv_data2, hr_row2)
-            if not diffs2:
-                continue
-            stt2 += 1
-            first_r = row2
-            for d in diffs2:
-                nv_v  = d["nv_val"]
-                hr_v  = d["hr_val"]
-                ch    = d.get("chenh")
-                if ch is not None:
-                    direction = "NV khai cao hơn" if ch > 0 else "NV khai thấp hơn"
-                    ghi_chu = f"Chênh {abs(ch)} ({direction})"
+            hr_row2  = hr_data.get(_norm_name(ho_ten2), {})
+            raw2     = _get_nv_hr_raw(nv_data2, hr_row2)
+
+            # Col 1: Nhân viên
+            c2 = ws2.cell(row=r2, column=1, value=ho_ten2)
+            c2.font = _font(bold=True, size=8, color="1E293B")
+            c2.alignment = _align(h="left")
+            c2.border = _border()
+            c2.fill = _fill("F0F9FF")
+
+            # Col 2-5: stats
+            ky_tu2  = person2.get("ky_danh_gia_tu", "")
+            ky_den2 = person2.get("ky_danh_gia_den", "")
+            nlv2  = _count_working_days(ky_tu2, ky_den2)
+            nt72  = _count_saturdays(ky_tu2, ky_den2)
+            tre2  = hr_row2.get("di_lam_tre")
+            t7v2  = hr_row2.get("sang_t7_vang_khong_phep")
+            try:
+                tl_tre2 = round(int(tre2) / nlv2 * 100, 1) if nlv2 and tre2 is not None else None
+            except (ValueError, ZeroDivisionError):
+                tl_tre2 = None
+            try:
+                tl_t72  = round(int(t7v2) / nt72 * 100, 1) if nt72 and t7v2 is not None else None
+            except (ValueError, ZeroDivisionError):
+                tl_t72  = None
+
+            stat_vals = [
+                nlv2 if nlv2 is not None else "—",
+                f"{tl_tre2}%" if tl_tre2 is not None else "—",
+                nt72 if nt72 is not None else "—",
+                f"{tl_t72}%" if tl_t72 is not None else "—",
+            ]
+            for si, sv in enumerate(stat_vals):
+                cs2 = ws2.cell(row=r2, column=2 + si, value=sv)
+                cs2.font = _font(size=8)
+                cs2.alignment = _align(h="center")
+                cs2.border = _border()
+                cs2.fill = FILL_STATS2
+
+            # Col 6+: criteria NV/HR/Chênh
+            for gi, (_, _, fkey, _) in enumerate(NV_HR_FIELDS):
+                cs = CRIT_START + gi * 3
+                nv_v, hr_v = raw2.get(fkey, (None, None))
+
+                cn = ws2.cell(row=r2, column=cs)
+                cn.value = nv_v if nv_v is not None else "—"
+                cn.fill = FILL_NV; cn.font = _font(size=8)
+                cn.alignment = _align(h="center"); cn.border = _border()
+
+                ch_ = ws2.cell(row=r2, column=cs + 1)
+                ch_.value = hr_v if hr_v is not None else "—"
+                ch_.fill = FILL_HOD; ch_.font = _font(size=8)
+                ch_.alignment = _align(h="center"); ch_.border = _border()
+
+                cc = ws2.cell(row=r2, column=cs + 2)
+                if isinstance(nv_v, (int, float)) and isinstance(hr_v, (int, float)):
+                    chenh = int(nv_v) - int(hr_v)
+                    cc.value = chenh
+                    cc.fill  = FILL_CHENH_EQ if chenh == 0 else (FILL_CHENH_POS if chenh > 0 else FILL_CHENH_NEG)
+                    cc.font  = _font(size=8, bold=(chenh != 0))
                 else:
-                    ghi_chu = f"NV: {nv_v} / HR: {hr_v}"
+                    cc.value = "—"; cc.fill = FILL_CHENH_NA; cc.font = _font(size=8)
+                cc.alignment = _align(h="center"); cc.border = _border()
 
-                for ci2 in range(1, 7):
-                    c2 = ws2.cell(row=row2, column=ci2)
-                    c2.border    = _border()
-                    c2.font      = _font(size=9)
-                    c2.alignment = _align(h="left" if ci2 in (3, 6) else "center")
-                ws2.cell(row=row2, column=3).value = d["noi_dung"]
-                nv_c = ws2.cell(row=row2, column=4)
-                nv_c.value = nv_v; nv_c.fill = FILL_NV; nv_c.font = _font(size=9, bold=True)
-                hr_c = ws2.cell(row=row2, column=5)
-                hr_c.value = hr_v; hr_c.fill = FILL_HOD; hr_c.font = _font(size=9, bold=True)
-                gc_c = ws2.cell(row=row2, column=6)
-                gc_c.value = ghi_chu; gc_c.fill = FILL_AI
-                ws2.row_dimensions[row2].height = 18
-                row2 += 1
+            ws2.row_dimensions[r2].height = 16
 
-            if row2 - first_r > 1:
-                ws2.merge_cells(start_row=first_r, start_column=1,
-                                end_row=row2 - 1, end_column=1)
-                ws2.merge_cells(start_row=first_r, start_column=2,
-                                end_row=row2 - 1, end_column=2)
-            c_stt = ws2.cell(row=first_r, column=1)
-            c_stt.value = stt2; c_stt.font = _font(bold=True, size=9)
-            c_stt.alignment = _align(h="center", v="center")
-            c_stt.fill = _fill("F0F9FF"); c_stt.border = _border()
-            c_nm = ws2.cell(row=first_r, column=2)
-            c_nm.value = ho_ten2; c_nm.font = _font(bold=True, size=9)
-            c_nm.alignment = _align(h="left", v="top")
-            c_nm.fill = _fill("F0F9FF"); c_nm.border = _border()
+        # Column widths
+        ws2.column_dimensions[get_column_letter(1)].width = 22
+        for si in range(S2_STATS):
+            ws2.column_dimensions[get_column_letter(2 + si)].width = 12
+        for gi in range(N_CRIT):
+            cs = CRIT_START + gi * 3
+            ws2.column_dimensions[get_column_letter(cs)].width     = 6
+            ws2.column_dimensions[get_column_letter(cs + 1)].width = 6
+            ws2.column_dimensions[get_column_letter(cs + 2)].width = 6
 
-        if stt2 == 0:
-            ws2.merge_cells("A3:F3")
-            c = ws2.cell(row=3, column=1, value="Tất cả CBNV tự khai khớp với dữ liệu HR")
-            c.font = _font(bold=True, size=10, color="065F46")
-            c.alignment = _align(h="center")
-            c.fill = _fill("D1FAE5")
-
-        for ci2, w2 in enumerate([6, 24, 44, 12, 12, 34], 1):
-            ws2.column_dimensions[get_column_letter(ci2)].width = w2
-        ws2.freeze_panes = "C3"
+        ws2.freeze_panes = "F4"
 
     buf = io.BytesIO()
     wb.save(buf)
