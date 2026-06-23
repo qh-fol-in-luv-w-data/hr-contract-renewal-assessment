@@ -170,8 +170,8 @@ def _get_client() -> OpenAI:
     return _client
 
 
-def _log_tokens(resp, label: str = "") -> None:
-    """In token usage ra console và frappe logger sau mỗi lần gọi OpenAI."""
+def _log_tokens(resp, label: str = "", session_name: str = "", action_name: str = "") -> None:
+    """In token usage ra console và frappe logger, sau đó ghi vào CSDL qua ActivityLogger."""
     usage = resp.usage
     if not usage:
         return
@@ -186,7 +186,32 @@ def _log_tokens(resp, label: str = "") -> None:
         print(msg, flush=True)  # hiện trong terminal bench
     except BrokenPipeError:
         pass  # stdout pipe đóng khi dùng bench serve – bỏ qua, không ảnh hưởng response
+    
+    import frappe
     frappe.logger("cnb_token").info(msg)
+
+    try:
+        from cnb_2as.utils.activity_logger import ActivityLogger
+        _logger = ActivityLogger(prefix="CNB", module="cnb_2as")
+        
+        # Nếu không có session_name, tạo một fallback session để track
+        if not session_name:
+            import uuid
+            session_name = _logger.create_session(f"fallback_{uuid.uuid4().hex[:8]}", dept="Auto", role="System")
+        if not action_name:
+            action_name = _logger.start_action(session_name, action_type="ai_call", input_summary=label)
+            
+        _logger.log_ai_call(
+            session_name=session_name,
+            action_name=action_name,
+            call_type=label or "ai_call",
+            ai_model=model,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            status="success"
+        )
+    except Exception as e:
+        frappe.logger("cnb_token").error(f"Lỗi khi ghi ActivityLogger: {e}")
 
 
 def _compute_canh_bao_han_real(ngay_het_han_str: str) -> dict:

@@ -113,6 +113,11 @@ def _ocr_page_title(client, page_b64: str, page_num: int) -> dict:
         response_format={"type": "json_object"},
     )
     raw = resp.choices[0].message.content
+    try:
+        from cnb_2as.services.thu_viec_service import _log_tokens
+        _log_tokens(resp, "scan_sxkd._ocr_page_title")
+    except Exception:
+        pass
     if not raw:
         return {"tieu_de": "", "ho_ten": ""}
     try:
@@ -138,6 +143,11 @@ def _ocr_page_full(client, page_b64: str, page_num: int, known_title: str = "") 
         response_format={"type": "json_object"},
     )
     raw = resp.choices[0].message.content
+    try:
+        from cnb_2as.services.thu_viec_service import _log_tokens
+        _log_tokens(resp, "scan_sxkd._ocr_page_full")
+    except Exception:
+        pass
     if not raw:
         return {}
     try:
@@ -363,7 +373,7 @@ def _fill_excel(data: dict) -> bytes:
 # ──────────────────────────────────────────────────────────────────
 # Whitelist API: scan & OCR
 # ──────────────────────────────────────────────────────────────────
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def ocr_sxkd():
     """
     POST /api/method/cnb_2as.api.scan_sxkd.ocr_sxkd
@@ -419,7 +429,7 @@ def ocr_sxkd():
 
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def export_excel():
     """
     POST /api/method/cnb_2as.api.scan_sxkd.export_excel

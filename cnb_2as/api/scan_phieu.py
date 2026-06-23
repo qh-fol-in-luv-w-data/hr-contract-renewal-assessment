@@ -108,7 +108,7 @@ _OCR_API_URL = "http://app.ctpai.vn:8088/layout-parsing-file"
 # ENDPOINT 1 – scan_extract
 # ══════════════════════════════════════════════════════════════════════════════
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 
 
 def scan_extract():
@@ -186,7 +186,7 @@ def scan_extract():
 # ══════════════════════════════════════════════════════════════════════════════
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def scan_analyze():
     """
     POST /api/method/cnb_2as.api.scan_phieu.scan_analyze
@@ -234,6 +234,11 @@ def scan_analyze():
                 max_tokens=2000,
                 response_format={"type": "json_object"},
             )
+            try:
+                from cnb_2as.services.thu_viec_service import _log_tokens
+                _log_tokens(er, "scan_phieu.scan_analyze_reextract")
+            except Exception:
+                pass
             confirmed = json.loads(er.choices[0].message.content)
         except Exception:
             confirmed = sess.get("extracted_fields", {})
@@ -282,6 +287,11 @@ def scan_analyze():
         max_tokens=3500,
         response_format={"type": "json_object"},
     )
+    try:
+        from cnb_2as.services.thu_viec_service import _log_tokens
+        _log_tokens(resp, "scan_phieu.scan_analyze")
+    except Exception:
+        pass
 
     try:
         result = json.loads(resp.choices[0].message.content)
@@ -637,7 +647,7 @@ def fill_docx(scan_session_id: str):
 # bao gồm 7 tiêu chí đánh giá 2AS và đề xuất xử lý
 # ══════════════════════════════════════════════════════════════════════════════
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def download_pdf():
     """
     POST /api/method/cnb_2as.api.scan_phieu.download_pdf

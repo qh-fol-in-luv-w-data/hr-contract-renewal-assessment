@@ -8,3 +8,4 @@ __pycache__
 note/*.pdf
 *.docx
 note/
+CLAUDE.md

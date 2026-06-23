@@ -5,20 +5,26 @@ import Portal from './pages/Portal.vue'
 import ThuViec from './pages/ThuViec.vue'
 import TaiKy from './pages/TaiKy.vue'
 import ScanCombined from './pages/ScanCombined.vue'
-import { getSessionId } from './utils/session';
+import BaoCao from './pages/BaoCao.vue'
+import { getSessionId, getCsrfToken } from './utils/session';
 
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
   let [resource, config] = args;
   config = config || {};
   config.headers = config.headers || {};
-  
+
+  const sid = getSessionId();
+  const csrf = getCsrfToken() || (window.frappe && window.frappe.csrf_token) || '';
+
   if (config.headers instanceof Headers) {
-    config.headers.set('X-App-Session-Id', getSessionId());
+    if (sid) config.headers.set('X-App-Session-Id', sid);
+    if (csrf) config.headers.set('X-Frappe-CSRF-Token', csrf);
   } else {
-    config.headers['X-App-Session-Id'] = getSessionId();
+    if (sid) config.headers['X-App-Session-Id'] = sid;
+    if (csrf) config.headers['X-Frappe-CSRF-Token'] = csrf;
   }
-  
+
   return originalFetch(resource, config);
 };
 
@@ -29,6 +35,7 @@ const routes = [
   { path: '/tai-ky', component: TaiKy },
   { path: '/scan-phieu', component: ScanCombined },
   { path: '/scan-sxkd', component: ScanCombined },
+  { path: '/bao-cao', component: BaoCao },
 ]
 
 const router = createRouter({
