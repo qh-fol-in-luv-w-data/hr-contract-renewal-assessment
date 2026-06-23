@@ -194,12 +194,25 @@ def _log_tokens(resp, label: str = "", session_name: str = "", action_name: str 
         from cnb_2as.utils.activity_logger import ActivityLogger
         _logger = ActivityLogger(prefix="CNB", module="cnb_2as")
         
-        # Nếu không có session_name, tạo một fallback session để track
+        # Nếu không có session_name, thử lấy từ request headers
         if not session_name:
-            import uuid
-            session_name = _logger.create_session(f"fallback_{uuid.uuid4().hex[:8]}", dept="Auto", role="System")
+            import frappe
+            session_id = None
+            if hasattr(frappe.local, "request") and frappe.local.request:
+                session_id = frappe.request.headers.get("X-App-Session-Id") or frappe.request.headers.get("x-app-session-id")
+            
+            if session_id:
+                session_name = frappe.db.get_value("CNB Session", {"session_id": session_id}, "name")
+                if not session_name:
+                    session_name = _logger.create_session(session_id, dept="Employee Assessment", role="User")
+            else:
+                import uuid
+                session_name = _logger.create_session(f"fallback_{uuid.uuid4().hex[:8]}", dept="Auto", role="System")
+                
+        is_local_action = False
         if not action_name:
             action_name = _logger.start_action(session_name, action_type="ai_call", input_summary=label)
+            is_local_action = True
             
         _logger.log_ai_call(
             session_name=session_name,
@@ -210,7 +223,11 @@ def _log_tokens(resp, label: str = "", session_name: str = "", action_name: str 
             completion_tokens=usage.completion_tokens,
             status="success"
         )
+        
+        if is_local_action:
+            _logger.finish_action(action_name, status="success")
     except Exception as e:
+        import frappe
         frappe.logger("cnb_token").error(f"Lỗi khi ghi ActivityLogger: {e}")
 
 

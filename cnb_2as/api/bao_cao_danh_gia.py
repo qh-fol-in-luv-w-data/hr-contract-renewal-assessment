@@ -14,6 +14,19 @@ def ocr_batch_upload():
     Trả JSON: {"ok": True, "persons": [...], "count": N}
     """
     import traceback as _tb
+    from cnb_2as.utils.activity_logger import ActivityLogger
+
+    _logger = ActivityLogger("CNB", "cnb_2as")
+    session_id = frappe.request.headers.get("X-App-Session-Id") or frappe.request.headers.get("x-app-session-id")
+    session_name = ""
+    if session_id:
+        session_name = frappe.db.get_value("CNB Session", {"session_id": session_id}, "name")
+        if not session_name:
+            session_name = _logger.create_session(session_id, dept="Employee Assessment", role="User")
+        _logger.update_session_active(session_name)
+    
+    action_name = _logger.start_action(session_name, "ocr_batch_upload", "Phân tích phiếu đánh giá") if session_name else ""
+
     try:
         files_bytes = []
         hr_files_bytes = []
@@ -32,7 +45,7 @@ def ocr_batch_upload():
         if not files_bytes:
             frappe.throw("Không có file PDF nào được upload.", frappe.ValidationError)
 
-        raw_results = ocr_batch(files_bytes)
+        raw_results = ocr_batch(files_bytes, session_name=session_name, action_name=action_name)
         persons = map_phieu_list(raw_results)
 
         # Attach HR data nếu có file(s) Excel
@@ -42,11 +55,18 @@ def ocr_batch_upload():
                 nkey = _norm_name(p.get("ho_ten") or p.get("ten") or "")
                 p["hr_data"] = hr_data.get(nkey, {})
 
+        if action_name:
+            _logger.finish_action(action_name, status="success", output_summary=f"Processed {len(persons)} persons")
         return {"ok": True, "persons": persons, "count": len(persons)}
-    except frappe.ValidationError:
+    except frappe.ValidationError as e:
+        if action_name:
+            _logger.finish_action(action_name, status="error", error_message=str(e))
         raise
     except Exception as _e:
         err_msg = str(_e)
+        if action_name:
+            _logger.finish_action(action_name, status="error", error_message=err_msg[:500])
+
         if "insufficient_quota" in err_msg:
             return {"ok": False, "error": "OpenAI API hết quota. Kiểm tra billing tại platform.openai.com"}
         if "invalid_api_key" in err_msg or "Incorrect API key" in err_msg:
@@ -61,13 +81,34 @@ def analyze_ai():
     POST form-data: data=<JSON string của persons list>
     Chạy AI overview song song, trả JSON overviews list.
     """
-    data_str = frappe.form_dict.get("data")
-    if not data_str:
-        frappe.throw("Thiếu dữ liệu persons.", frappe.ValidationError)
+    from cnb_2as.utils.activity_logger import ActivityLogger
 
-    persons = json.loads(data_str)
-    overviews = ai_overviews_batch(persons)
-    return {"ok": True, "overviews": overviews}
+    _logger = ActivityLogger("CNB", "cnb_2as")
+    session_id = frappe.request.headers.get("X-App-Session-Id") or frappe.request.headers.get("x-app-session-id")
+    session_name = ""
+    if session_id:
+        session_name = frappe.db.get_value("CNB Session", {"session_id": session_id}, "name")
+        if not session_name:
+            session_name = _logger.create_session(session_id, dept="Employee Assessment", role="User")
+        _logger.update_session_active(session_name)
+    
+    action_name = _logger.start_action(session_name, "analyze_ai", "Chạy AI Overview") if session_name else ""
+
+    try:
+        data_str = frappe.form_dict.get("data")
+        if not data_str:
+            frappe.throw("Thiếu dữ liệu persons.", frappe.ValidationError)
+
+        persons = json.loads(data_str)
+        overviews = ai_overviews_batch(persons, session_name=session_name, action_name=action_name)
+        
+        if action_name:
+            _logger.finish_action(action_name, status="success", output_summary=f"Analyzed {len(persons)} overviews")
+        return {"ok": True, "overviews": overviews}
+    except Exception as e:
+        if action_name:
+            _logger.finish_action(action_name, status="error", error_message=str(e)[:500])
+        raise
 
 
 @frappe.whitelist()
