@@ -101,7 +101,8 @@ class ActivityLogger:
 
     def _increment_session_counters(self, session_name: str,
                                     actions: int = 0, ai_calls: int = 0,
-                                    prompt_tokens: int = 0, completion_tokens: int = 0):
+                                    prompt_tokens: int = 0, completion_tokens: int = 0,
+                                    is_ocr: bool = False):
         """Tang counter trong session. Goi sau moi action/ai_call."""
         if not session_name:
             return
@@ -110,10 +111,17 @@ class ActivityLogger:
             # tren DocType Session theo mac dinh, nen get_doc se fail ma khong throw
             sess = frappe.get_doc(self.session_dt, session_name, ignore_permissions=True)
             sess.total_actions          = (sess.total_actions or 0) + actions
-            sess.total_ai_calls         = (sess.total_ai_calls or 0) + ai_calls
-            sess.total_prompt_tokens    = (sess.total_prompt_tokens or 0) + prompt_tokens
-            sess.total_completion_tokens = (sess.total_completion_tokens or 0) + completion_tokens
-            sess.total_tokens_used      = (sess.total_tokens_used or 0) + prompt_tokens + completion_tokens
+            if is_ocr:
+                sess.total_ocr_calls         = (sess.total_ocr_calls or 0) + ai_calls
+                sess.total_ocr_prompt_tokens    = (sess.total_ocr_prompt_tokens or 0) + prompt_tokens
+                sess.total_ocr_completion_tokens = (sess.total_ocr_completion_tokens or 0) + completion_tokens
+                sess.total_ocr_tokens_used      = (sess.total_ocr_tokens_used or 0) + prompt_tokens + completion_tokens
+            else:
+                sess.total_ai_calls         = (sess.total_ai_calls or 0) + ai_calls
+                sess.total_prompt_tokens    = (sess.total_prompt_tokens or 0) + prompt_tokens
+                sess.total_completion_tokens = (sess.total_completion_tokens or 0) + completion_tokens
+                sess.total_tokens_used      = (sess.total_tokens_used or 0) + prompt_tokens + completion_tokens
+            
             sess.last_active_at         = now_datetime()
             sess.save(ignore_permissions=True)
             frappe.db.commit()
@@ -194,15 +202,18 @@ class ActivityLogger:
                     error_code: str = "", error_message: str = "") -> str:
         """Ghi mot lan goi AI. Tra ve ten document."""
         try:
+            is_ocr = "ocr" in call_type.lower() or "vision" in ai_model.lower()
+            
             doc = frappe.get_doc({
                 "doctype": self.ai_call_dt,
                 "session": session_name,
-                "action_log": action_name,
+                "action_log": action_name or "",
                 "user": frappe.session.user,
                 "timestamp": now_datetime(),
                 "call_type": call_type,
                 "ai_model": ai_model,
                 "attempt_number": attempt_number,
+                "is_ocr": 1 if is_ocr else 0,
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "total_tokens": prompt_tokens + completion_tokens,
@@ -213,10 +224,12 @@ class ActivityLogger:
             })
             doc.insert(ignore_permissions=True)
             frappe.db.commit()
+            
             self._increment_session_counters(
                 session_name, ai_calls=1,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
+                is_ocr=is_ocr
             )
             return doc.name
         except Exception as e:
