@@ -201,6 +201,9 @@ def _log_tokens(resp, label: str = "", session_name: str = "", action_name: str 
             if hasattr(frappe.local, "request") and frappe.local.request:
                 session_id = frappe.request.headers.get("X-App-Session-Id") or frappe.request.headers.get("x-app-session-id")
             
+            if not session_id and hasattr(frappe.local, "session_id"):
+                session_id = frappe.local.session_id
+            
             if session_id:
                 session_name = frappe.db.get_value("CNB Session", {"session_id": session_id}, "name")
                 if not session_name:

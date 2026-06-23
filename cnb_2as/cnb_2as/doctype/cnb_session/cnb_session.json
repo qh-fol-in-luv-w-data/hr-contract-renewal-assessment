@@ -8,7 +8,12 @@
     "department", "role_param", "started_at", "last_active_at",
     "section_stats",
     "total_actions", "total_ai_calls", "total_tokens_used",
-    "total_prompt_tokens", "total_completion_tokens", "status"
+    "total_prompt_tokens", "total_completion_tokens",
+    "column_break_ocr",
+    "total_ocr_calls", "total_ocr_tokens_used",
+    "total_ocr_prompt_tokens", "total_ocr_completion_tokens",
+    "section_break_status",
+    "status"
   ],
   "fields": [
     {
@@ -105,6 +110,43 @@
       "label": "Completion Tokens",
       "default": "0",
       "read_only": 1
+    },
+    {
+      "fieldname": "column_break_ocr",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "total_ocr_calls",
+      "fieldtype": "Int",
+      "label": "Total OCR Calls",
+      "default": "0",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_ocr_tokens_used",
+      "fieldtype": "Int",
+      "label": "Total OCR Tokens Used",
+      "in_list_view": 1,
+      "default": "0",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_ocr_prompt_tokens",
+      "fieldtype": "Int",
+      "label": "OCR Prompt Tokens",
+      "default": "0",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_ocr_completion_tokens",
+      "fieldtype": "Int",
+      "label": "OCR Completion Tokens",
+      "default": "0",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_status",
+      "fieldtype": "Section Break"
     },
     {
       "fieldname": "status",
