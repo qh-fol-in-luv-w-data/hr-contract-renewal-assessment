@@ -100,6 +100,11 @@ def run_evaluation(eval_file, work_report_file, daily_report_file="", ngay_bd=""
 	eval_doc.insert(ignore_permissions=False)
 	frappe.db.commit()
 
+	# Get session_id from request
+	session_id = ""
+	if hasattr(frappe.local, "request") and frappe.local.request:
+		session_id = frappe.request.headers.get("X-App-Session-Id") or frappe.request.headers.get("x-app-session-id") or ""
+
 	# Enqueue background job (pass daily report params as kwargs)
 	frappe.enqueue(
 		"cnb_2as.api.evaluation.process_evaluation",
@@ -109,6 +114,7 @@ def run_evaluation(eval_file, work_report_file, daily_report_file="", ngay_bd=""
 		daily_report_file=daily_report_file or "",
 		ngay_bd=ngay_bd or "",
 		ngay_kt=ngay_kt or "",
+		session_id=session_id,
 	)
 
 	return {
@@ -284,6 +290,11 @@ def confirm_ocr_and_evaluate(evaluation_name, ocr_eval_content, ocr_report_conte
 	eval_doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
+	# Get session_id from request
+	session_id = ""
+	if hasattr(frappe.local, "request") and frappe.local.request:
+		session_id = frappe.request.headers.get("X-App-Session-Id") or frappe.request.headers.get("x-app-session-id") or ""
+
 	# Enqueue AI evaluation with OCR content + daily report info
 	frappe.enqueue(
 		"cnb_2as.api.evaluation.process_evaluation_from_ocr",
@@ -293,6 +304,7 @@ def confirm_ocr_and_evaluate(evaluation_name, ocr_eval_content, ocr_report_conte
 		daily_report_file=daily_report_file or "",
 		ngay_bd=ngay_bd or "",
 		ngay_kt=ngay_kt or "",
+		session_id=session_id,
 	)
 
 	return {
@@ -339,7 +351,7 @@ def get_ocr_preview(evaluation_name):
 	}
 
 
-def process_evaluation_from_ocr(evaluation_name, daily_report_file="", ngay_bd="", ngay_kt=""):
+def process_evaluation_from_ocr(evaluation_name, daily_report_file="", ngay_bd="", ngay_kt="", session_id=""):
 	"""Background job: Run AI evaluation from confirmed OCR content.
 
 	Similar to process_evaluation but uses OCR Markdown content
@@ -350,7 +362,10 @@ def process_evaluation_from_ocr(evaluation_name, daily_report_file="", ngay_bd="
 		daily_report_file: Optional Frappe file URL for daily report.
 		ngay_bd: Start date string for daily report range (YYYY-MM-DD).
 		ngay_kt: End date string for daily report range (YYYY-MM-DD).
+		session_id: The session string from the request headers to keep logs grouped.
 	"""
+	if session_id:
+		frappe.local.session_id = session_id
 
 	try:
 		eval_doc = frappe.get_doc("Employee Evaluation", evaluation_name)
@@ -459,7 +474,7 @@ def process_evaluation_from_ocr(evaluation_name, daily_report_file="", ngay_bd="
 		)
 
 
-def process_evaluation(evaluation_name, daily_report_file="", ngay_bd="", ngay_kt=""):
+def process_evaluation(evaluation_name, daily_report_file="", ngay_bd="", ngay_kt="", session_id=""):
 	"""Background job: Run the AI evaluation pipeline.
 
 	Args:
@@ -467,7 +482,10 @@ def process_evaluation(evaluation_name, daily_report_file="", ngay_bd="", ngay_k
 		daily_report_file: Optional URL of daily report file.
 		ngay_bd: Start date string for daily report range.
 		ngay_kt: End date string for daily report range.
+		session_id: The session string from the request headers to keep logs grouped.
 	"""
+	if session_id:
+		frappe.local.session_id = session_id
 	try:
 		eval_doc = frappe.get_doc("Employee Evaluation", evaluation_name)
 
