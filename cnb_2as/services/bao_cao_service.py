@@ -804,7 +804,7 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
     # ══════════════════════════════════════════════════════════════════
     # PHẦN 1 (rows 1–9): THỐNG KÊ XẾP LOẠI
     # ══════════════════════════════════════════════════════════════════
-    LAST_COL_LETTER = "X"  # col 24 = COL_STATS + 3 (final col)
+    LAST_COL_LETTER = "T"  # col 20 = COL_AI + 3 (final col)
 
     title1 = "BÁO CÁO ĐÁNH GIÁ NHÂN SỰ ĐỊNH KỲ"
     if phong_ban:
@@ -883,9 +883,6 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
     COL_HOD   = 14   # 3 cols: Tổng điểm, Xếp loại, Đề xuất
     COL_AI    = 17   # 4 cols: AI tổng quan
     AI_COLS   = 4
-    COL_STATS = 21   # 4 cols: Ngày T2-T6, Tỉ lệ trễ, Ngày T7, Tỉ lệ T7 vắng
-    STATS_COLS = 4
-
     HEADER_ROW = 10
     SUBHDR_ROW = 11
     DATA_START = 12
@@ -933,15 +930,6 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
     _hcell(ws, SUBHDR_ROW, COL_AI + 2, "Xếp loại &\nLọt khung",    FILL_AI, size=8, color="92400E")
     _hcell(ws, SUBHDR_ROW, COL_AI + 3, "Tự khai\nvs HR",            FILL_AI, size=8, color="92400E")
 
-    FILL_STATS = _fill("F0FFF4")
-    ws.merge_cells(start_row=HEADER_ROW, start_column=COL_STATS,
-                   end_row=HEADER_ROW,   end_column=COL_STATS + STATS_COLS - 1)
-    _hcell(ws, HEADER_ROW, COL_STATS,
-           "THỐNG KÊ KỲ ĐÁNH GIÁ", FILL_STATS, size=9, bold=True, color="065F46")
-    _hcell(ws, SUBHDR_ROW, COL_STATS,     "Ngày làm việc\nT2–T6 (trừ lễ)", FILL_STATS, size=8, color="065F46")
-    _hcell(ws, SUBHDR_ROW, COL_STATS + 1, "Tỉ lệ\nđi trễ (%)",             FILL_STATS, size=8, color="065F46")
-    _hcell(ws, SUBHDR_ROW, COL_STATS + 2, "Tổng ngày\nT7 trong kỳ",        FILL_STATS, size=8, color="065F46")
-    _hcell(ws, SUBHDR_ROW, COL_STATS + 3, "Tỉ lệ T7 vắng\nK.Phép (%)",    FILL_STATS, size=8, color="065F46")
 
     ws.row_dimensions[HEADER_ROW].height = 26
     ws.row_dimensions[SUBHDR_ROW].height = 40
@@ -1005,37 +993,6 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
         _dcell(ws, r, COL_AI + 2, khop_khung,                      fill=FILL_AI, h="left", wrap=True, size=8)
         _dcell(ws, r, COL_AI + 3, ov.get("nhat_quan", ""),         fill=FILL_AI, h="left", wrap=True, size=8)
 
-        # Thống kê kỳ đánh giá
-        ky_tu  = person.get("ky_danh_gia_tu", "")
-        ky_den = person.get("ky_danh_gia_den", "")
-        tong_ngay_lv = _count_working_days(ky_tu, ky_den)
-        tong_ngay_t7 = _count_saturdays(ky_tu, ky_den)
-        hr_p = person.get("hr_data") or {}
-        di_lam_tre_hr = hr_p.get("di_lam_tre")
-        t7_vang_hr    = hr_p.get("sang_t7_vang_khong_phep")
-        if tong_ngay_lv and di_lam_tre_hr is not None:
-            try:
-                ti_le_tre = round(int(di_lam_tre_hr) / tong_ngay_lv * 100, 1)
-            except (ValueError, ZeroDivisionError):
-                ti_le_tre = None
-        else:
-            ti_le_tre = None
-        if tong_ngay_t7 and t7_vang_hr is not None:
-            try:
-                ti_le_t7 = round(int(t7_vang_hr) / tong_ngay_t7 * 100, 1)
-            except (ValueError, ZeroDivisionError):
-                ti_le_t7 = None
-        else:
-            ti_le_t7 = None
-        _dcell(ws, r, COL_STATS,     tong_ngay_lv if tong_ngay_lv is not None else "—",
-               fill=FILL_STATS, h="center", size=9)
-        _dcell(ws, r, COL_STATS + 1, f"{ti_le_tre}%" if ti_le_tre is not None else "—",
-               fill=FILL_STATS, h="center", size=9)
-        _dcell(ws, r, COL_STATS + 2, tong_ngay_t7 if tong_ngay_t7 is not None else "—",
-               fill=FILL_STATS, h="center", size=9)
-        _dcell(ws, r, COL_STATS + 3, f"{ti_le_t7}%" if ti_le_t7 is not None else "—",
-               fill=FILL_STATS, h="center", size=9)
-
         ws.row_dimensions[r].height = 48
 
     # ── Column widths ──────────────────────────────────────────────────
@@ -1050,10 +1007,6 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
     ws.column_dimensions[get_column_letter(COL_HOD + 2)].width = 22
     for i in range(AI_COLS):
         ws.column_dimensions[get_column_letter(COL_AI + i)].width = 28
-    ws.column_dimensions[get_column_letter(COL_STATS)].width     = 14
-    ws.column_dimensions[get_column_letter(COL_STATS + 1)].width = 12
-    ws.column_dimensions[get_column_letter(COL_STATS + 2)].width = 13
-    ws.column_dimensions[get_column_letter(COL_STATS + 3)].width = 13
 
     ws.freeze_panes = f"C{DATA_START}"
 
@@ -1061,23 +1014,38 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
     # Mỗi cột = 1 tiêu chí, chia 3 cột con: NV tự khai / HR xác nhận / Chênh (NV−HR)
     if hr_data:
         ws2 = wb.create_sheet("So sánh NV vs HR")
-        N_CRIT  = len(NV_HR_FIELDS)
-        S2_COLS = 2 + N_CRIT * 3  # col 1: Nhân viên, col 2+: criteria×3
+        N_CRIT   = len(NV_HR_FIELDS)
+        S2_STATS = 4   # col 2-5: stats
+        CRIT_START = 2 + S2_STATS  # criteria bắt đầu từ col 6
+        S2_COLS  = 1 + S2_STATS + N_CRIT * 3
+
+        FILL_STATS2 = _fill("F0FFF4")
 
         # Row 1: title
         ws2.merge_cells(start_row=1, start_column=1, end_row=1, end_column=S2_COLS)
-        c = ws2.cell(row=1, column=1, value="SO SÁNH NV TỰ KHAI vs DỮ LIỆU HR XÁC NHẬN")
+        c = ws2.cell(row=1, column=1, value="SO SÁNH NV TỰ KHAI vs DỮ LIỆU HR XÁC NHẬN + THỐNG KÊ KỲ ĐÁNH GIÁ")
         c.font = _font(bold=True, size=12, color="FFFFFF")
         c.alignment = _align(h="center")
         c.fill = FILL_TITLE
         ws2.row_dimensions[1].height = 28
 
-        # Row 2: col 1 = "Nhân viên" (merged rows 2-3), then criterion names (merged 3 cols each)
+        # Row 2-3: col 1 = "Nhân viên" merged, col 2-5 = stats merged, col 6+ = criteria merged 3 cols
         ws2.merge_cells(start_row=2, start_column=1, end_row=3, end_column=1)
         _hcell(ws2, 2, 1, "Nhân viên", FILL_HEADER, size=9)
 
+        STATS_LABELS = [
+            "Ngày làm việc\nT2–T6 (trừ lễ)",
+            "Tỉ lệ\nđi trễ (%)",
+            "Tổng ngày\nT7 trong kỳ",
+            "Tỉ lệ T7 vắng\nK.Phép (%)",
+        ]
+        for si, lbl in enumerate(STATS_LABELS):
+            col_s = 2 + si
+            ws2.merge_cells(start_row=2, start_column=col_s, end_row=3, end_column=col_s)
+            _hcell(ws2, 2, col_s, lbl, FILL_STATS2, size=7, color="065F46")
+
         for gi, (_, _, fkey, noi_dung) in enumerate(NV_HR_FIELDS):
-            cs = 2 + gi * 3
+            cs = CRIT_START + gi * 3
             ws2.merge_cells(start_row=2, start_column=cs, end_row=2, end_column=cs + 2)
             c2 = ws2.cell(row=2, column=cs, value=noi_dung)
             c2.font      = _font(bold=True, size=7, color="FFFFFF")
@@ -1086,19 +1054,20 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
             c2.fill      = FILL_HEADER
         ws2.row_dimensions[2].height = 42
 
-        # Row 3: sub-headers NV / HR / Chênh (col 1 is already merged from row 2)
+        # Row 3: sub-headers cho criteria (stats cols đã merged rows 2-3)
         for gi in range(N_CRIT):
-            cs = 2 + gi * 3
-            _hcell(ws2, 3, cs,     "NV\ntự khai",   FILL_NV,  size=7, color="1D4ED8")
-            _hcell(ws2, 3, cs + 1, "HR\nxác nhận",  FILL_HOD, size=7, color="065F46")
+            cs = CRIT_START + gi * 3
+            _hcell(ws2, 3, cs,     "NV\ntự khai",    FILL_NV,         size=7, color="1D4ED8")
+            _hcell(ws2, 3, cs + 1, "HR\nxác nhận",   FILL_HOD,        size=7, color="065F46")
             _hcell(ws2, 3, cs + 2, "Chênh\n(NV−HR)", _fill("FEF9C3"), size=7, color="92400E")
         ws2.row_dimensions[3].height = 30
 
-        # Data rows: 1 row per person, show ALL (even those without HR data)
-        FILL_CHENH_POS = _fill("FEE2E2")   # NV khai cao hơn HR → đỏ nhạt
-        FILL_CHENH_NEG = _fill("DBEAFE")   # NV khai thấp hơn HR → xanh nhạt
-        FILL_CHENH_EQ  = _fill("D1FAE5")   # khớp → xanh lá nhạt
-        FILL_CHENH_NA  = _fill("F9FAFB")   # không có dữ liệu → xám nhạt
+        # Data rows
+        FILL_CHENH_POS = _fill("FEE2E2")
+        FILL_CHENH_NEG = _fill("DBEAFE")
+        FILL_CHENH_EQ  = _fill("D1FAE5")
+        FILL_CHENH_NA  = _fill("F9FAFB")
+
         for pi2, person2 in enumerate(persons):
             r2 = 4 + pi2
             ho_ten2  = person2.get("ho_ten", "")
@@ -1106,34 +1075,57 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
             hr_row2  = hr_data.get(_norm_name(ho_ten2), {})
             raw2     = _get_nv_hr_raw(nv_data2, hr_row2)
 
-            # Nhân viên
+            # Col 1: Nhân viên
             c2 = ws2.cell(row=r2, column=1, value=ho_ten2)
-            c2.font      = _font(bold=True, size=8, color="1E293B")
+            c2.font = _font(bold=True, size=8, color="1E293B")
             c2.alignment = _align(h="left")
-            c2.border    = _border()
-            c2.fill      = _fill("F0F9FF")
+            c2.border = _border()
+            c2.fill = _fill("F0F9FF")
 
+            # Col 2-5: stats
+            ky_tu2  = person2.get("ky_danh_gia_tu", "")
+            ky_den2 = person2.get("ky_danh_gia_den", "")
+            nlv2  = _count_working_days(ky_tu2, ky_den2)
+            nt72  = _count_saturdays(ky_tu2, ky_den2)
+            tre2  = hr_row2.get("di_lam_tre")
+            t7v2  = hr_row2.get("sang_t7_vang_khong_phep")
+            try:
+                tl_tre2 = round(int(tre2) / nlv2 * 100, 1) if nlv2 and tre2 is not None else None
+            except (ValueError, ZeroDivisionError):
+                tl_tre2 = None
+            try:
+                tl_t72  = round(int(t7v2) / nt72 * 100, 1) if nt72 and t7v2 is not None else None
+            except (ValueError, ZeroDivisionError):
+                tl_t72  = None
+
+            stat_vals = [
+                nlv2 if nlv2 is not None else "—",
+                f"{tl_tre2}%" if tl_tre2 is not None else "—",
+                nt72 if nt72 is not None else "—",
+                f"{tl_t72}%" if tl_t72 is not None else "—",
+            ]
+            for si, sv in enumerate(stat_vals):
+                cs2 = ws2.cell(row=r2, column=2 + si, value=sv)
+                cs2.font = _font(size=8)
+                cs2.alignment = _align(h="center")
+                cs2.border = _border()
+                cs2.fill = FILL_STATS2
+
+            # Col 6+: criteria NV/HR/Chênh
             for gi, (_, _, fkey, _) in enumerate(NV_HR_FIELDS):
-                cs = 2 + gi * 3
+                cs = CRIT_START + gi * 3
                 nv_v, hr_v = raw2.get(fkey, (None, None))
 
-                # NV tự khai
                 cn = ws2.cell(row=r2, column=cs)
-                cn.value     = nv_v if nv_v is not None else "—"
-                cn.fill      = FILL_NV
-                cn.font      = _font(size=8)
-                cn.alignment = _align(h="center")
-                cn.border    = _border()
+                cn.value = nv_v if nv_v is not None else "—"
+                cn.fill = FILL_NV; cn.font = _font(size=8)
+                cn.alignment = _align(h="center"); cn.border = _border()
 
-                # HR xác nhận
                 ch_ = ws2.cell(row=r2, column=cs + 1)
-                ch_.value     = hr_v if hr_v is not None else "—"
-                ch_.fill      = FILL_HOD
-                ch_.font      = _font(size=8)
-                ch_.alignment = _align(h="center")
-                ch_.border    = _border()
+                ch_.value = hr_v if hr_v is not None else "—"
+                ch_.fill = FILL_HOD; ch_.font = _font(size=8)
+                ch_.alignment = _align(h="center"); ch_.border = _border()
 
-                # Chênh lệch (số thô NV − HR)
                 cc = ws2.cell(row=r2, column=cs + 2)
                 if isinstance(nv_v, (int, float)) and isinstance(hr_v, (int, float)):
                     chenh = int(nv_v) - int(hr_v)
@@ -1141,23 +1133,22 @@ def build_excel(persons: list[dict], overviews: list[dict] | None = None,
                     cc.fill  = FILL_CHENH_EQ if chenh == 0 else (FILL_CHENH_POS if chenh > 0 else FILL_CHENH_NEG)
                     cc.font  = _font(size=8, bold=(chenh != 0))
                 else:
-                    cc.value = "—"
-                    cc.fill  = FILL_CHENH_NA
-                    cc.font  = _font(size=8)
-                cc.alignment = _align(h="center")
-                cc.border    = _border()
+                    cc.value = "—"; cc.fill = FILL_CHENH_NA; cc.font = _font(size=8)
+                cc.alignment = _align(h="center"); cc.border = _border()
 
             ws2.row_dimensions[r2].height = 16
 
         # Column widths
         ws2.column_dimensions[get_column_letter(1)].width = 22
+        for si in range(S2_STATS):
+            ws2.column_dimensions[get_column_letter(2 + si)].width = 12
         for gi in range(N_CRIT):
-            cs = 2 + gi * 3
+            cs = CRIT_START + gi * 3
             ws2.column_dimensions[get_column_letter(cs)].width     = 6
             ws2.column_dimensions[get_column_letter(cs + 1)].width = 6
             ws2.column_dimensions[get_column_letter(cs + 2)].width = 6
 
-        ws2.freeze_panes = "B4"
+        ws2.freeze_panes = "F4"
 
     buf = io.BytesIO()
     wb.save(buf)

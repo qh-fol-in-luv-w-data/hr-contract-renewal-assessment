@@ -4,7 +4,7 @@ from cnb_2as.utils.activity_logger import ActivityLogger
 
 _logger = ActivityLogger(prefix="CNB", module="cnb_2as")
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=False)
 def get_context():
     dept = ""
     role = ""
