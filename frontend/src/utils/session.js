@@ -79,9 +79,10 @@ export async function initSession(contextUrl) {
     authState.value = 'authorized'
     console.debug('[CT Session] OK', { sessionId: _sessionId.value })
 
-    // Hide the hardcoded splash screen if it exists
     const splash = document.getElementById('ct-splash')
     if (splash) splash.remove()
+    const appEl = document.getElementById('app')
+    if (appEl) appEl.style.display = 'block'
 
   } catch (err) {
     // FAIL-CLOSED: Khong cho phep fail-open trong context xac thuc
@@ -95,6 +96,8 @@ export async function initSession(contextUrl) {
 function removeSplash() {
   const splash = document.getElementById('ct-splash')
   if (splash) splash.remove()
+  const appEl = document.getElementById('app')
+  if (appEl) appEl.style.display = 'block'
 }
 
 /** Lay CSRF token hien tai (dung cho X-Frappe-CSRF-Token header) */
