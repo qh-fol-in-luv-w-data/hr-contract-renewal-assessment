@@ -130,8 +130,8 @@
           <div class="sb-divider"></div>
 
           <button class="sb-btn-primary" 
-            :disabled="loadingExcel || loadingAI || !overviews.length" 
-            :title="!overviews.length ? 'Vui lòng Phân tích AI trước khi xuất Excel' : ''"
+            :disabled="loadingExcel || loadingAI || aiOutdated" 
+            :title="aiOutdated ? 'Vui lòng Phân tích AI trước khi xuất Excel' : ''"
             @click="downloadExcel">
             <span v-if="loadingExcel" class="spinner"></span>
             <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -198,7 +198,7 @@
             :person="persons[activePerson]"
             :idx="activePerson"
             :overview="overviews[activePerson] || null"
-            @dirty="isDirty = true"
+            @dirty="isDirty = true; aiOutdated = true"
           />
         </div>
       </div>
@@ -225,6 +225,7 @@ const persons = ref([])
 const overviews = ref([])
 const activePerson = ref(0)
 const isDirty = ref(false)
+const aiOutdated = ref(true)
 const isDragging = ref(false)
 const isHrDragging = ref(false)
 const phongBan = ref('')
@@ -362,6 +363,7 @@ async function doOCR() {
     persons.value = res.message.persons
     activePerson.value = 0
     step.value = 2
+    aiOutdated.value = true
   } catch (e) {
     error.value = e.message
   } finally {
@@ -382,6 +384,7 @@ async function analyzeAI() {
     )
     if (!res.message?.ok) throw new Error(res.message?.error || 'Phân tích thất bại')
     overviews.value = res.message.overviews
+    aiOutdated.value = false
   } catch (e) {
     alert(`Lỗi phân tích AI: ${e.message}`)
   } finally {
