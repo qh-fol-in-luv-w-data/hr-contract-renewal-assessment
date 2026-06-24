@@ -214,6 +214,7 @@ bench start
 | Đánh giá Tái ký | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/tai-ky` |
 | Scan OCR (Combined) | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/scan` |
 | Báo cáo ĐG Nhân sự | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/bao-cao` |
+| Đánh giá Đề xuất QM/HOD | `http://localhost:8000/assets/cnb_2as/frontend/index.html#/de-xuat` |
 
 > **Dev mode** (Vite dev server): `http://localhost:5181`
 

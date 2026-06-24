@@ -61,13 +61,28 @@
           </div>
         </router-link>
 
-        <router-link to="/bao-cao" class="pcard pcard-wide">
+        <router-link to="/bao-cao" class="pcard">
           <div class="pcard-glow glow-emerald"></div>
           <div class="pcard-inner">
             <div class="pcard-icon">👥</div>
             <div class="pcard-body">
               <h3>{{ t('baocao_title') }}</h3>
               <p>{{ t('baocao_desc') }}</p>
+            </div>
+            <div class="pcard-footer">
+              <span>{{ t('open_system') }}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>
+            </div>
+          </div>
+        </router-link>
+
+        <router-link to="/de-xuat" class="pcard">
+          <div class="pcard-glow glow-teal"></div>
+          <div class="pcard-inner">
+            <div class="pcard-icon">📋</div>
+            <div class="pcard-body">
+              <h3>{{ t('dexuat_title') }}</h3>
+              <p>{{ t('dexuat_desc') }}</p>
             </div>
             <div class="pcard-footer">
               <span>{{ t('open_system') }}</span>
@@ -107,24 +122,21 @@ function toggleLang() {
 .toggle-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(99,102,241,.3); background: rgba(99,102,241,.1); color: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; transition: all .2s; backdrop-filter: blur(4px); }
 .toggle-btn:hover { background: rgba(99,102,241,.2); transform: scale(1.05); }
 
-.portal-content { position: relative; z-index: 1; max-width: 960px; width: 100%; padding: 0 24px }
-.portal-header { text-align: center; margin-bottom: 56px }
+.portal-content { position: relative; z-index: 1; max-width: 780px; width: 100%; padding: 0 24px }
+.portal-header { text-align: center; margin-bottom: 24px }
 
+.portal-logo { display: flex; justify-content: center; margin-bottom: 10px }
+.portal-title { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em }
+.portal-subtitle { font-size: .88rem; color: #94a3b8; margin-top: 5px }
 
-.portal-logo { display: flex; justify-content: center; margin-bottom: 20px }
-.portal-title { font-size: 2rem; font-weight: 800; letter-spacing: -.02em }
-.portal-subtitle { font-size: 1rem; color: #94a3b8; margin-top: 8px }
-
-.portal-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 700px; margin: 0 auto; }
-.pcard-wide { grid-column: 1 / -1; }
-
+.portal-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 
 .pcard {
   position: relative; text-decoration: none; color: inherit;
-  border-radius: 20px; overflow: hidden; cursor: pointer;
+  border-radius: 16px; overflow: hidden; cursor: pointer;
   transition: transform .3s ease, box-shadow .3s ease;
 }
-.pcard:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(99,102,241,.15) }
+.pcard:hover { transform: translateY(-4px); box-shadow: 0 16px 32px rgba(99,102,241,.15) }
 .pcard-glow { position: absolute; inset: 0; opacity: 0; transition: opacity .4s }
 .pcard:hover .pcard-glow { opacity: 1 }
 .glow-indigo { background: linear-gradient(135deg, rgba(99,102,241,.08), rgba(139,92,246,.04)) }
@@ -136,19 +148,19 @@ function toggleLang() {
   position: relative; z-index: 1;
   backdrop-filter: blur(16px);
   border: 1px solid transparent;
-  border-radius: 20px; padding: 32px;
+  border-radius: 16px; padding: 20px 22px;
   display: flex; flex-direction: column; height: 100%;
 }
 
-.pcard-icon { font-size: 40px; margin-bottom: 20px; width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; background: rgba(99,102,241,.1); border-radius: 18px }
+.pcard-icon { font-size: 26px; margin-bottom: 12px; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; background: rgba(99,102,241,.1); border-radius: 13px }
 .pcard-body { flex-grow: 1 }
-.pcard-body h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 10px }
-.pcard-body p { font-size: .88rem; line-height: 1.65; }
-.pcard-footer { margin-top: 24px; display: flex; align-items: center; justify-content: space-between; color: #818cf8; font-weight: 600; font-size: .88rem }
+.pcard-body h3 { font-size: .97rem; font-weight: 700; margin-bottom: 6px }
+.pcard-body p { font-size: .81rem; line-height: 1.55; }
+.pcard-footer { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; color: #818cf8; font-weight: 600; font-size: .81rem }
 .pcard:hover .pcard-footer svg { transform: translateX(4px) }
 .pcard-footer svg { transition: transform .3s }
 
-.portal-footer { text-align: center; margin-top: 48px; font-size: .78rem; color: #475569 }
+.portal-footer { text-align: center; margin-top: 20px; font-size: .75rem; color: #475569 }
 
 @media (max-width: 1100px) {
   .portal-cards { grid-template-columns: repeat(2, 1fr) }

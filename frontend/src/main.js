@@ -6,6 +6,7 @@ import ThuViec from './pages/ThuViec.vue'
 import TaiKy from './pages/TaiKy.vue'
 import ScanCombined from './pages/ScanCombined.vue'
 import BaoCao from './pages/BaoCao.vue'
+import DeXuat from './pages/DeXuat.vue'
 import { getSessionId, getCsrfToken } from './utils/session';
 
 const originalFetch = window.fetch;
@@ -36,6 +37,7 @@ const routes = [
   { path: '/scan-phieu', component: ScanCombined },
   { path: '/scan-sxkd', component: ScanCombined },
   { path: '/bao-cao', component: BaoCao },
+  { path: '/de-xuat', component: DeXuat },
 ]
 
 const router = createRouter({
