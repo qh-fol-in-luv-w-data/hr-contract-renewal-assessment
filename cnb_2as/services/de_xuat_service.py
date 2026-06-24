@@ -3,8 +3,10 @@
 
 """Service layer for Manager Proposal Evaluation (Đánh giá đề xuất Quản lý/HOD).
 
-Handles OCR extraction from uploaded proposal documents (tờ trình đề xuất)
+Handles OCR extraction from scanned PDF proposal documents (tờ trình đề xuất)
 and AI evaluation of each proposal item against 7 criteria (100 points total).
+
+Only scanned PDF files are supported.
 """
 
 import base64
@@ -24,7 +26,6 @@ from cnb_2as.services.prompts.de_xuat_prompts import (
 )
 
 
-_ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".docx", ".doc"}
 _MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024  # 30MB
 _MAX_PAGES = 20
 
@@ -49,8 +50,8 @@ def _validate_file(file_path: str):
     if not os.path.exists(file_path):
         raise ValueError(f"File không tồn tại trên đĩa: {file_path}")
     ext = os.path.splitext(file_path)[1].lower()
-    if ext not in _ALLOWED_EXTENSIONS:
-        raise ValueError(f"Định dạng file không được hỗ trợ: {ext}")
+    if ext != ".pdf":
+        raise ValueError("Chỉ hỗ trợ file PDF scan. Vui lòng upload file .pdf")
     size = os.path.getsize(file_path)
     if size == 0:
         raise ValueError("File rỗng, không thể xử lý")
@@ -61,61 +62,50 @@ def _validate_file(file_path: str):
 
 
 def _pdf_to_base64_images(file_path: str, max_pages: int = _MAX_PAGES) -> list:
-    """Convert PDF pages to base64 JPEG images using PyMuPDF."""
+    """Convert scanned PDF pages to base64 JPEG images for vision LLM OCR.
+
+    200 DPI is the sweet spot for vision LLM accuracy without payload bloat
+    (higher DPI does not improve accuracy but increases size quadratically).
+    Grayscale + contrast enhancement helps with faded/low-quality scans.
+    """
     import fitz
-    from PIL import Image
+    from PIL import Image, ImageEnhance
 
     doc = fitz.open(file_path)
     images = []
-    mat = fitz.Matrix(3.0, 3.0)
 
     for i in range(min(len(doc), max_pages)):
         page = doc[i]
-        pix = page.get_pixmap(matrix=mat)
+        # 200 DPI: ~48% smaller than 3x matrix, same OCR accuracy for vision LLMs
+        pix = page.get_pixmap(dpi=200)
         img = Image.open(io.BytesIO(pix.tobytes("png")))
+
+        # Crop CamScanner watermark (bottom-right corner)
         w, h = img.size
-        # Crop CamScanner watermark bottom-right
         img = img.crop((0, 0, int(w * 0.96), int(h * 0.94)))
+
+        # Contrast boost helps vision LLMs read faded or low-contrast scans
+        gray = img.convert("L")
+        img = ImageEnhance.Contrast(gray).enhance(1.4).convert("RGB")
+
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=90)
+        img.save(buf, format="JPEG", quality=80, optimize=True)
         images.append(base64.b64encode(buf.getvalue()).decode("utf-8"))
 
     doc.close()
     return images
 
 
-def _image_to_base64(file_path: str) -> list:
-    """Convert an image file to a base64 string (single-element list)."""
-    from PIL import Image
-
-    img = Image.open(file_path)
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=90)
-    return [base64.b64encode(buf.getvalue()).decode("utf-8")]
-
-
-def _docx_to_text(file_path: str) -> str:
-    """Extract plain text from a DOCX file."""
-    from docx import Document
-
-    doc = Document(file_path)
-    paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-    return "\n".join(paragraphs)
-
-
 def _count_pages(file_path: str) -> int:
-    """Return page count for PDF, else 1."""
-    ext = os.path.splitext(file_path)[1].lower()
-    if ext == ".pdf":
-        try:
-            import fitz
-            doc = fitz.open(file_path)
-            n = len(doc)
-            doc.close()
-            return n
-        except Exception:
-            return 1
-    return 1
+    """Return page count for a PDF file."""
+    try:
+        import fitz
+        doc = fitz.open(file_path)
+        n = len(doc)
+        doc.close()
+        return n
+    except Exception:
+        return 1
 
 
 def _log_tokens(response, label: str = "de_xuat_service"):
@@ -140,53 +130,32 @@ def _log_tokens(response, label: str = "de_xuat_service"):
 # ── OCR + Extraction ───────────────────────────────────────────────────────────
 
 def extract_proposal_data(file_url: str) -> dict:
-    """OCR and extract structured data from a proposal document.
+    """OCR and extract structured data from a scanned PDF proposal.
 
-    Args:
-        file_url: Frappe file URL for the uploaded proposal.
+    Sends all pages in a single request so the model sees full document context.
+    Image size is kept under payload limits by using 200 DPI + JPEG quality 80.
 
     Returns:
-        Dict with keys:
-          - raw_pages: list of raw OCR text per page
-          - extracted: structured extracted JSON dict
-          - page_count: number of pages processed
-          - warnings: list of extraction warnings
-          - missing_fields: list of missing field names
+        Dict with keys: extracted, page_count, warnings, missing_fields.
     """
     file_path = get_file_path(file_url)
     _validate_file(file_path)
 
-    ext = os.path.splitext(file_path)[1].lower()
     page_count = _count_pages(file_path)
-
-    print(f"[DeXuat] extract start: {os.path.basename(file_path)} ({ext}, {page_count}p)")
+    print(f"[DeXuat] extract start: {os.path.basename(file_path)} (.pdf, {page_count}p)")
     start = time.time()
 
+    b64_images = _pdf_to_base64_images(file_path)
     client = _get_client()
     model = _get_model("gpt-4o")
 
-    system_msg = EXTRACTION_SYSTEM
-    user_prompt = EXTRACTION_USER_PROMPT
-
-    # Build image list based on file type
-    if ext == ".pdf":
-        b64_images = _pdf_to_base64_images(file_path)
-    elif ext in (".png", ".jpg", ".jpeg"):
-        b64_images = _image_to_base64(file_path)
-    else:
-        # DOCX/DOC — extract text and send as text-only prompt
-        text_content = _docx_to_text(file_path)
-        return _extract_from_text(text_content, client, model, system_msg, user_prompt)
-
-    # Single request with ALL pages — AI sees full document at once
-    print(f"[DeXuat] OCR all {len(b64_images)} pages in one request...")
+    print(f"[DeXuat] OCR {len(b64_images)} trang trong 1 request...")
     content = [
         {
             "type": "text",
             "text": (
-                f"Tờ trình gồm {len(b64_images)} trang (đính kèm bên dưới theo thứ tự).\n"
-                f"Hãy đọc TẤT CẢ {len(b64_images)} trang, tổng hợp thông tin từ toàn bộ tài liệu "
-                f"rồi trích xuất đầy đủ:\n\n{user_prompt}"
+                f"Tờ trình gồm {len(b64_images)} trang (đính kèm theo thứ tự).\n"
+                f"Đọc TẤT CẢ {len(b64_images)} trang, tổng hợp toàn bộ rồi trích xuất:\n\n{EXTRACTION_USER_PROMPT}"
             ),
         }
     ]
@@ -200,7 +169,7 @@ def extract_proposal_data(file_url: str) -> dict:
     resp = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": system_msg},
+            {"role": "system", "content": EXTRACTION_SYSTEM},
             {"role": "user", "content": content},
         ],
         response_format={"type": "json_object"},
@@ -208,87 +177,20 @@ def extract_proposal_data(file_url: str) -> dict:
         temperature=0,
     )
     _log_tokens(resp, label="de_xuat_service.extract_proposal_data")
+
     elapsed = time.time() - start
     tokens = resp.usage.total_tokens if resp.usage else 0
     print(f"[DeXuat] extract done: {elapsed:.1f}s, {tokens} tokens")
 
-    raw = resp.choices[0].message.content or ""
-    raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-    try:
-        merged = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"AI trả về JSON không hợp lệ: {e}\nRaw (500 chars): {raw[:500]}")
-
-    return _build_extraction_result(merged, page_count)
-
-
-def _extract_from_text(text_content: str, client, model: str, system_msg: str, user_prompt: str) -> dict:
-    """Extract from plain text content (DOCX)."""
-    start = time.time()
-    print("[DeXuat] extracting from DOCX text content...")
-
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": f"Nội dung tờ trình:\n\n{text_content}\n\n{user_prompt}"},
-        ],
-        response_format={"type": "json_object"},
-        max_tokens=16000,
-        temperature=0,
-    )
-    _log_tokens(resp, label="de_xuat_service.extract_from_text")
-
-    raw = resp.choices[0].message.content or ""
-    raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+    raw = (resp.choices[0].message.content or "").strip()
+    raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
     try:
         extracted = json.loads(raw)
-    except json.JSONDecodeError:
-        raise ValueError("GPT trả về JSON không hợp lệ khi trích xuất từ DOCX")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"AI trả về JSON không hợp lệ: {e}\nRaw: {raw[:500]}")
 
-    elapsed = time.time() - start
-    print(f"[DeXuat] DOCX extract done: {elapsed:.1f}s")
-    return _build_extraction_result(extracted, 1)
+    return _build_extraction_result(extracted, page_count)
 
-
-def _merge_page_results(pages: list) -> dict:
-    """Merge extracted data from multiple pages into one dict."""
-    if not pages:
-        return {}
-    merged = pages[0]
-
-    for page in pages[1:]:
-        # Merge proposalItems (deduplicate by proposalType+fieldName)
-        existing_items = {
-            f"{x.get('proposalType')}|{x.get('fieldName')}": True
-            for x in merged.get("proposalItems", [])
-        }
-        for item in page.get("proposalItems", []):
-            key = f"{item.get('proposalType')}|{item.get('fieldName')}"
-            if key not in existing_items:
-                merged.setdefault("proposalItems", []).append(item)
-
-        # Merge workResults
-        existing_results = {x.get("itemName", ""): True for x in merged.get("workResults", [])}
-        for wr in page.get("workResults", []):
-            if wr.get("itemName") not in existing_results:
-                merged.setdefault("workResults", []).append(wr)
-
-        # Fill empty scalar fields from later pages
-        for section in ["documentMetadata", "employee", "proposalSummary", "evaluationContext"]:
-            if isinstance(merged.get(section), dict) and isinstance(page.get(section), dict):
-                for k, v in page[section].items():
-                    if v is not None and not merged[section].get(k):
-                        merged[section][k] = v
-
-        # Merge warnings and missing fields
-        for key in ["extractionWarnings", "missingFields", "proposalBasis", "commitmentsAfterApproval", "signatories"]:
-            existing = set(str(x) for x in merged.get(key, []))
-            for item in page.get(key, []):
-                if str(item) not in existing:
-                    merged.setdefault(key, []).append(item)
-
-    return merged
 
 
 def _build_extraction_result(extracted: dict, page_count: int) -> dict:
@@ -345,7 +247,6 @@ def evaluate_proposals(extracted_data: dict, reference_data: dict = None) -> dic
     Returns:
         Evaluation result dict matching the output schema.
     """
-    # Compute salary deltas before evaluation
     if "proposalItems" in extracted_data:
         extracted_data["proposalItems"] = compute_salary_delta(
             extracted_data["proposalItems"]
@@ -371,8 +272,8 @@ def evaluate_proposals(extracted_data: dict, reference_data: dict = None) -> dic
     )
     _log_tokens(resp, label="de_xuat_service.evaluate_proposals")
 
-    raw = resp.choices[0].message.content or ""
-    raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+    raw = (resp.choices[0].message.content or "").strip()
+    raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
     try:
         result = json.loads(raw)
     except json.JSONDecodeError:
@@ -381,11 +282,9 @@ def evaluate_proposals(extracted_data: dict, reference_data: dict = None) -> dic
     elapsed = time.time() - start
     print(f"[DeXuat] evaluation done: {elapsed:.1f}s")
 
-    # Compute overall score from proposalEvaluations
     evals = result.get("proposalEvaluations", [])
     if evals:
         result["overallScore"] = round(sum(e.get("score", 0) for e in evals) / len(evals), 1)
-        # Overall recommendation = worst recommendation across all proposals
         _rec_order = ["REJECT", "REQUEST_MORE_INFO", "PARTIALLY_APPROVE", "APPROVE_WITH_CONDITIONS", "APPROVE"]
         recs = [e.get("recommendation", "REJECT") for e in evals]
         result["overallRecommendation"] = min(recs, key=lambda r: _rec_order.index(r) if r in _rec_order else 0)

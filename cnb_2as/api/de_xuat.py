@@ -64,9 +64,10 @@ def upload_file():
     file_url = ret.get("file_url", "")
     file_name = ret.get("file_name", "")
 
-    # Detect file type
     import os
     ext = os.path.splitext(file_name)[1].lower()
+    if ext != ".pdf":
+        frappe.throw("Chỉ hỗ trợ file PDF scan. Vui lòng upload file .pdf")
 
     doc = frappe.get_doc({
         "doctype": "Proposal Evaluation",
@@ -93,47 +94,55 @@ def upload_file():
 
 @frappe.whitelist()
 def extract_data(evaluation_name):
-    """Run OCR and AI extraction on the uploaded file.
+    """Enqueue OCR + AI extraction as a background job and return immediately.
 
-    Updates status to Extracting then Pending Review.
-    Called synchronously (suitable for files up to ~10 pages; larger files
-    should use enqueue — see extract_data_async).
-
-    Args:
-        evaluation_name: Name of the ProposalEvaluation document.
-
-    Returns:
-        Dict with extracted data for frontend review.
+    The frontend polls get_evaluation() to detect completion.
+    Use the long queue with a 30-minute timeout to handle large PDFs.
     """
     doc = _get_doc(evaluation_name)
 
-    if doc.status not in ("Uploaded", "Failed", "Pending Review"):
+    if doc.status not in ("Uploaded", "Failed", "Pending Review", "Extracting"):
         frappe.throw(f"Không thể trích xuất ở trạng thái: {doc.status}")
 
     if not doc.source_file:
         frappe.throw("Chưa có file tờ trình. Vui lòng upload trước.")
 
-    # Update status
     doc.status = "Extracting"
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
-    _publish(1, 3, "Đang OCR và trích xuất dữ liệu từ tờ trình...")
+    frappe.enqueue(
+        "cnb_2as.api.de_xuat.run_extraction_job",
+        evaluation_name=evaluation_name,
+        user=frappe.session.user,
+        queue="long",
+        timeout=1800,
+    )
+
+    return {
+        "evaluation_name": evaluation_name,
+        "status": "Extracting",
+        "message": "Đã bắt đầu xử lý OCR. Trang sẽ tự cập nhật khi hoàn tất.",
+    }
+
+
+def run_extraction_job(evaluation_name, user=None):
+    """Background worker: OCR all pages in batches, save results to doc."""
+    if user:
+        frappe.set_user(user)
+
+    doc = frappe.get_doc("Proposal Evaluation", evaluation_name)
 
     try:
         result = extract_proposal_data(doc.source_file)
         extracted = result["extracted"]
 
-        # Update page count
         doc.page_count = result.get("page_count", 1)
-
-        # Save extraction results
         doc.extracted_json = json.dumps(extracted, ensure_ascii=False, indent=2)
-        doc.raw_ocr_json = doc.extracted_json  # same source for now
+        doc.raw_ocr_json = doc.extracted_json
         doc.ocr_warnings = json.dumps(result.get("warnings", []), ensure_ascii=False)
         doc.missing_fields_json = json.dumps(result.get("missing_fields", []), ensure_ascii=False)
 
-        # Auto-fill employee info from extraction
         emp = extracted.get("employee", {})
         if emp.get("fullName"):
             doc.employee_name = emp["fullName"]
@@ -146,20 +155,16 @@ def extract_data(evaluation_name):
         doc.save(ignore_permissions=True)
         frappe.db.commit()
 
-        _publish(3, 3, "Trích xuất hoàn tất! Vui lòng kiểm tra dữ liệu.", {
-            "completed": True,
-            "evaluation_name": evaluation_name,
-        })
-
-        return {
-            "evaluation_name": evaluation_name,
-            "status": "Pending Review",
-            "extracted": extracted,
-            "warnings": result.get("warnings", []),
-            "missing_fields": result.get("missing_fields", []),
-            "page_count": result.get("page_count", 1),
-            "message": "Trích xuất hoàn tất. Vui lòng kiểm tra và chỉnh sửa nếu cần.",
-        }
+        frappe.publish_realtime(
+            "de_xuat_progress",
+            {
+                "step": 3, "total": 3,
+                "message": "Trích xuất hoàn tất! Vui lòng kiểm tra dữ liệu.",
+                "completed": True,
+                "evaluation_name": evaluation_name,
+            },
+            user=user,
+        )
 
     except Exception as e:
         frappe.log_error(
@@ -169,8 +174,16 @@ def extract_data(evaluation_name):
         doc.status = "Failed"
         doc.save(ignore_permissions=True)
         frappe.db.commit()
-        _publish(-1, 3, f"Lỗi trích xuất: {str(e)[:200]}", {"error": True})
-        frappe.throw(f"Lỗi trích xuất: {str(e)[:300]}")
+        frappe.publish_realtime(
+            "de_xuat_progress",
+            {
+                "step": -1, "total": 3,
+                "message": f"Lỗi: {str(e)[:200]}",
+                "error": True,
+                "evaluation_name": evaluation_name,
+            },
+            user=user,
+        )
 
 
 # ── 3. Update extracted data (user corrections) ────────────────────────────────
@@ -265,7 +278,7 @@ def evaluate(evaluation_name):
     """
     doc = _get_doc(evaluation_name)
 
-    if doc.status not in ("Confirmed", "Failed", "Evaluated"):
+    if doc.status not in ("Confirmed", "Failed", "Evaluated", "Evaluating"):
         frappe.throw(f"Không thể đánh giá ở trạng thái: {doc.status}")
 
     data_json = doc.user_corrected_json or doc.extracted_json
@@ -282,7 +295,6 @@ def evaluate(evaluation_name):
         extracted = json.loads(data_json)
         eval_result = evaluate_proposals(extracted)
 
-        import frappe.utils
         doc.evaluation_result_json = json.dumps(eval_result, ensure_ascii=False, indent=2)
         doc.overall_score = eval_result.get("overallScore", 0)
         doc.recommendation = eval_result.get("overallRecommendation", "")
@@ -352,7 +364,7 @@ def generate_report(evaluation_name):
         "source_file_name": doc.source_file_name or "",
         "uploaded_by": doc.uploaded_by or "",
         "confirmed_by": doc.confirmed_by or "",
-        "evaluated_at": str(doc.evaluated_at) if doc.evaluated_at else "",
+        "evaluated_at": doc.evaluated_at.strftime("%d/%m/%Y %H:%M") if doc.evaluated_at else "",
         "overall_score": doc.overall_score or 0,
         "recommendation": doc.recommendation or "",
         "extracted": extracted,
@@ -408,7 +420,7 @@ def get_evaluation(evaluation_name):
         "page_count": doc.page_count or 0,
         "overall_score": doc.overall_score or 0,
         "recommendation": doc.recommendation or "",
-        "evaluated_at": str(doc.evaluated_at) if doc.evaluated_at else "",
+        "evaluated_at": doc.evaluated_at.strftime("%d/%m/%Y %H:%M") if doc.evaluated_at else "",
         "report_generated_at": str(doc.report_generated_at) if doc.report_generated_at else "",
         "extracted": None,
         "user_corrected": None,
@@ -493,6 +505,15 @@ def list_evaluations(page=1, page_size=20, status_filter=""):
 
 
 # ── 9. Delete evaluation ───────────────────────────────────────────────────────
+
+@frappe.whitelist(methods=["POST"])
+def save_manager_notes(evaluation_name, notes):
+    doc = _get_doc(evaluation_name)
+    doc.manager_notes = notes
+    doc.save(ignore_permissions=False)
+    frappe.db.commit()
+    return {"status": "ok"}
+
 
 @frappe.whitelist(methods=["POST"])
 def delete_evaluation(evaluation_name):

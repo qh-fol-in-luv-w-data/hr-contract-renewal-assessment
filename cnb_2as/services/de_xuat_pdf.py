@@ -41,6 +41,9 @@ _BORDER = colors.HexColor("#cccccc")
 _BG_HEADER = colors.HexColor("#f0f0f0")
 _BG_ALT = colors.HexColor("#f8f8f8")
 _WHITE = colors.white
+_GREEN = colors.HexColor("#15803d")
+_GREEN_BORDER = colors.HexColor("#16a34a")
+_GREEN_BG = colors.HexColor("#f0fdf4")
 
 _FONT = "Helvetica"
 _FONT_BOLD = "Helvetica-Bold"
@@ -85,16 +88,16 @@ def _styles():
     base = getSampleStyleSheet()
 
     def S(name, parent="Normal", **kwargs):
-        return ParagraphStyle(name, parent=base[parent],
-                              fontName=_FONT, **kwargs)
+        kwargs.setdefault("fontName", _FONT)
+        return ParagraphStyle(name, parent=base[parent], **kwargs)
 
     return {
-        "doc_title": S("doc_title", fontSize=14, fontName=_FONT_BOLD,
+        "doc_title": S("doc_title", fontSize=15, fontName=_FONT_BOLD,
                        textColor=_BLACK, alignment=TA_CENTER, spaceAfter=4),
-        "doc_sub": S("doc_sub", fontSize=10, textColor=_MEDIUM,
+        "doc_sub": S("doc_sub", fontSize=9, textColor=_MEDIUM,
                      alignment=TA_CENTER, spaceAfter=12),
-        "section": S("section", fontSize=11, fontName=_FONT_BOLD,
-                     textColor=_BLACK, spaceBefore=14, spaceAfter=6),
+        "section": S("section", fontSize=10, fontName=_FONT_BOLD,
+                     textColor=_WHITE, spaceBefore=0, spaceAfter=0),
         "subsection": S("subsection", fontSize=10, fontName=_FONT_BOLD,
                         textColor=_DARK, spaceBefore=8, spaceAfter=4),
         "body": S("body", fontSize=9, textColor=_DARK,
@@ -106,7 +109,7 @@ def _styles():
                        fontName=_FONT_BOLD, leading=11),
         "cell_center": S("cell_center", fontSize=8, textColor=_DARK,
                          leading=11, alignment=TA_CENTER),
-        "score_big": S("score_big", fontSize=20, fontName=_FONT_BOLD,
+        "score_big": S("score_big", fontSize=15, fontName=_FONT_BOLD,
                        textColor=_BLACK, alignment=TA_CENTER),
         "footer": S("footer", fontSize=7, textColor=_LIGHT,
                     alignment=TA_CENTER),
@@ -114,6 +117,12 @@ def _styles():
                     leading=13, leftIndent=16, spaceAfter=3),
         "independence": S("independence", fontSize=8, textColor=_MEDIUM,
                           leading=13, leftIndent=8, rightIndent=8, spaceAfter=6),
+        "rec_verdict": S("rec_verdict", fontSize=16, fontName=_FONT_BOLD,
+                         textColor=_GREEN, alignment=TA_CENTER, spaceAfter=4),
+        "rec_body": S("rec_body", fontSize=9, textColor=_GREEN,
+                      leading=14, spaceAfter=4, alignment=TA_CENTER),
+        "rec_label": S("rec_label", fontSize=8, textColor=_GREEN,
+                       fontName=_FONT_BOLD, alignment=TA_CENTER),
     }
 
 
@@ -190,9 +199,23 @@ def _page_number_canvas(canvas, doc):
     canvas.drawString(
         1.5 * cm,
         0.8 * cm,
-        "BÁO CÁO ĐÁNH GIÁ TÍNH HỢP LÝ CỦA ĐỀ XUẤT QUẢN LÝ/HOD — Tài liệu nội bộ",
+        "BÁO CÁO ĐÁNH GIÁ ĐỀ XUẤT NHÂN SỰ",
     )
     canvas.restoreState()
+
+
+def _section_block(title: str, W, S):
+    """Return a full-width dark-background section header as a Table."""
+    t = Table([[Paragraph(title, S["section"])]], colWidths=[W])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), _DARK),
+        ("TEXTCOLOR", (0, 0), (-1, -1), _WHITE),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    return t
 
 
 # ── Main builder ───────────────────────────────────────────────────────────────
@@ -245,28 +268,75 @@ def generate_proposal_pdf(report_data: dict) -> io.BytesIO:
 
     # ── Title ──────────────────────────────────────────────────────────────────
     story.append(Paragraph(
-        "BÁO CÁO ĐÁNH GIÁ TÍNH HỢP LÝ", S["doc_title"]
+        "BÁO CÁO ĐÁNH GIÁ ĐỀ XUẤT NHÂN SỰ", S["doc_title"]
     ))
     story.append(Paragraph(
-        "CỦA ĐỀ XUẤT QUẢN LÝ/HOD", S["doc_title"]
-    ))
-    story.append(Paragraph(
-        "Tài liệu nội bộ — CT Group", S["doc_sub"]
+        f"{report_data.get('employee_name', '—')}  ·  {report_data.get('department', '—')}",
+        S["doc_sub"]
     ))
     story.append(HRFlowable(width=W, thickness=1, color=_BORDER, spaceAfter=6))
 
+    # ── Kiến nghị xử lý (green box — at the top) ──────────────────────────────
+    rec_decision = final_rec.get("decision") or report_data.get("recommendation", "")
+    rec_label_top = _REC_LABELS.get(rec_decision, rec_decision)
+    rec_summary = final_rec.get("summary", "")
+    conditions = final_rec.get("approvalConditions") or []
+    required_data = final_rec.get("requiredAdditionalData") or []
+    next_step = final_rec.get("suggestedNextStep", "")
+
+    detail_parts = []
+    if rec_summary:
+        detail_parts.append(rec_summary)
+    if next_step:
+        detail_parts.append(f"Bước tiếp theo: {next_step}")
+    if conditions:
+        detail_parts.append("Điều kiện: " + " | ".join(_fmt(c) for c in conditions))
+
+    rec_rows = [
+        [Paragraph("KIẾN NGHỊ XỬ LÝ", S["rec_label"])],
+        [Paragraph(rec_label_top, S["rec_verdict"])],
+    ]
+    if detail_parts:
+        rec_rows.append([Paragraph("<br/>".join(detail_parts), S["rec_body"])])
+
+    rec_table = Table(rec_rows, colWidths=[W])
+    rec_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), _GREEN_BG),
+        ("BOX", (0, 0), (-1, -1), 1.5, _GREEN_BORDER),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (0, 0), 12),
+        ("BOTTOMPADDING", (0, 0), (0, 0), 2),
+        ("TOPPADDING", (0, 1), (0, 1), 4),
+        ("BOTTOMPADDING", (0, 1), (0, 1), 8),
+        ("TOPPADDING", (0, 2), (0, 2), 0),
+        ("BOTTOMPADDING", (0, 2), (0, 2), 12),
+        ("LEFTPADDING", (0, 0), (-1, -1), 16),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 16),
+    ]))
+    story.append(rec_table)
+    story.append(Spacer(1, 12))
+
     # ── Phần 1: Thông tin chung ────────────────────────────────────────────────
-    story.append(Paragraph("PHẦN 1: THÔNG TIN CHUNG", S["section"]))
+    story.append(Spacer(1, 8))
+    story.append(_section_block("PHẦN 1: THÔNG TIN CHUNG", W, S))
+
+    eval_display_name = report_data.get("evaluation_name", "").replace("PROP-", "")
+
+    raw_types = proposal_summary.get("proposalTypes") or []
+    if isinstance(raw_types, list):
+        types_vn = ", ".join(_PROPOSAL_LABELS.get(t, t) for t in raw_types) if raw_types else "—"
+    elif isinstance(raw_types, str):
+        types_vn = _PROPOSAL_LABELS.get(raw_types, raw_types)
+    else:
+        types_vn = "—"
 
     info_rows = [
-        ["Mã hồ sơ:", report_data.get("evaluation_name", ""), "Ngày đánh giá:", report_data.get("evaluated_at", "—")],
-        ["Nhân sự:", report_data.get("employee_name", "—"), "Đơn vị:", report_data.get("department", "—")],
-        ["Chức danh hiện tại:", report_data.get("current_title", "—"), "Người đề xuất:", _fmt(proposal_summary.get("requestedBy"))],
-        ["Ngày tờ trình:", _fmt(doc_meta.get("documentDate")), "File nguồn:", report_data.get("source_file_name", "—")],
-        ["Người upload:", report_data.get("uploaded_by", "—"), "Người xác nhận:", report_data.get("confirmed_by", "—")],
-        ["Loại đề xuất:", _fmt(proposal_summary.get("proposalTypes")),
-         "Trạng thái dữ liệu:",
-         "Đã xác nhận bởi người dùng" if report_data.get("confirmed_by") else "Chưa xác nhận"],
+        ["Mã đánh giá:", eval_display_name, "Ngày đánh giá:", report_data.get("evaluated_at", "—")],
+        ["Nhân sự:", report_data.get("employee_name", "—"), "Mã nhân viên:", _fmt(emp.get("employeeCode"))],
+        ["Đơn vị:", report_data.get("department", "—"), "Chức danh:", report_data.get("current_title", "—")],
+        ["Loại đề xuất:", types_vn, "Ngày tờ trình:", _fmt(doc_meta.get("documentDate"))],
+        ["Người đề xuất:", _fmt(proposal_summary.get("requestedBy")), "", ""],
     ]
 
     info_col_widths = [W * 0.18, W * 0.32, W * 0.18, W * 0.32]
@@ -292,7 +362,8 @@ def generate_proposal_pdf(report_data: dict) -> io.BytesIO:
     story.append(Spacer(1, 8))
 
     # ── Phần 2: Tóm tắt nhanh đề xuất ────────────────────────────────────────
-    story.append(Paragraph("PHẦN 2: TÓM TẮT NHANH ĐỀ XUẤT", S["section"]))
+    story.append(Spacer(1, 8))
+    story.append(_section_block("PHẦN 2: TÓM TẮT NHANH ĐỀ XUẤT", W, S))
 
     cmp_header = ["Nội dung", "Thông tin hiện tại", "Thông tin đề xuất", "Chênh lệch / Ghi chú"]
     cmp_rows = [cmp_header]
@@ -336,43 +407,9 @@ def generate_proposal_pdf(report_data: dict) -> io.BytesIO:
     story.append(cmp_table)
     story.append(Spacer(1, 8))
 
-    # ── Phần 3: Tóm tắt căn cứ từ tờ trình ───────────────────────────────────
-    story.append(Paragraph("PHẦN 3: TÓM TẮT CĂN CỨ TỪ TỜ TRÌNH", S["section"]))
-
-    if eval_context.get("kpiScore") or eval_context.get("kpiPercent"):
-        kpi_str = f"{eval_context.get('kpiScore', '')} — {eval_context.get('kpiPercent', '')}".strip(" —")
-        story.append(Paragraph(f"<b>KPI / Kết quả đánh giá:</b> {kpi_str}", S["body"]))
-
-    if work_results:
-        story.append(Paragraph("<b>Kết quả công việc nổi bật:</b>", S["body"]))
-        for wr in work_results[:5]:
-            story.append(Paragraph(
-                f"• {_fmt(wr.get('itemName'))}: {_fmt(wr.get('actualResult'))}",
-                S["indent"]
-            ))
-
-    if basis_list:
-        story.append(Paragraph("<b>Cơ sở đề xuất:</b>", S["body"]))
-        for b in basis_list[:5]:
-            story.append(Paragraph(
-                f"• {_fmt(b.get('basisName'))}: {_fmt(b.get('detail'))}",
-                S["indent"]
-            ))
-
-    if commitments:
-        story.append(Paragraph("<b>Cam kết sau điều chỉnh:</b>", S["body"]))
-        for c in commitments[:4]:
-            story.append(Paragraph(f"• {_fmt(c)}", S["indent"]))
-
-    if evaluation.get("overallSummary"):
-        story.append(Paragraph(
-            f"<b>Nhận định tổng quan:</b> {evaluation['overallSummary']}", S["body"]
-        ))
-
+    # ── Phần 3: Kết quả đánh giá từng đề xuất ────────────────────────────────
     story.append(Spacer(1, 8))
-
-    # ── Phần 4: Kết quả đánh giá từng đề xuất ────────────────────────────────
-    story.append(Paragraph("PHẦN 4: KẾT QUẢ ĐÁNH GIÁ TỪNG ĐỀ XUẤT", S["section"]))
+    story.append(_section_block("PHẦN 3: KẾT QUẢ ĐÁNH GIÁ TỪNG ĐỀ XUẤT", W, S))
 
     if not proposal_evals:
         story.append(Paragraph("Chưa có kết quả đánh giá.", S["body"]))
@@ -380,13 +417,14 @@ def generate_proposal_pdf(report_data: dict) -> io.BytesIO:
         for idx, pe in enumerate(proposal_evals, 1):
             ptype = pe.get("proposalType", "")
             plabel = pe.get("proposalLabel") or _PROPOSAL_LABELS.get(ptype, ptype)
-            score = pe.get("score", 0)
+            criteria_scores_list = pe.get("criteriaScores", [])
+            score = sum(cs.get("score", 0) for cs in criteria_scores_list) if criteria_scores_list else pe.get("score", 0)
             rec = pe.get("recommendation", "")
             rec_label = _REC_LABELS.get(rec, rec)
             rating = pe.get("ratingLevel", "")
 
             story.append(Paragraph(
-                f"4.{idx}. Đánh giá đề xuất: {plabel}", S["subsection"]
+                f"3.{idx}. Đánh giá đề xuất: {plabel}", S["subsection"]
             ))
 
             # Score + verdict header row
@@ -442,11 +480,12 @@ def generate_proposal_pdf(report_data: dict) -> io.BytesIO:
                 ])
             criteria_rows.append(["TỔNG", str(total_max), str(total_score), ""])
 
-            col_w = [W * 0.40, W * 0.10, W * 0.08, W * 0.42]
+            col_w = [W * 0.37, W * 0.13, W * 0.09, W * 0.41]
             ct = Table(
                 [[Paragraph(str(c), S["cell_bold"] if row_i in (0, len(criteria_rows)-1) else S["cell"])
                   for c in row] for row_i, row in enumerate(criteria_rows)],
                 colWidths=col_w,
+                splitByRow=False,
             )
             ct_style = _table_style(headers=True, alt_rows=False)
             for r in range(2, len(criteria_rows) - 1, 2):
@@ -457,130 +496,69 @@ def generate_proposal_pdf(report_data: dict) -> io.BytesIO:
             story.append(ct)
             story.append(Spacer(1, 6))
 
-            # Reasons for/against
-            reasons_for = pe.get("reasonsForApproval") or []
+            # Key points only
             reasons_against = pe.get("reasonsAgainstApproval") or []
             risks = pe.get("risks") or []
-            missing_data = pe.get("missingData") or []
             next_actions = pe.get("nextActions") or []
 
-            if reasons_for:
-                story.append(Paragraph("<b>Căn cứ ủng hộ:</b>", S["body"]))
-                for r in reasons_for[:5]:
-                    story.append(Paragraph(f"✓ {_fmt(r)}", S["indent"]))
-
             if reasons_against:
-                story.append(Paragraph("<b>Căn cứ chưa đồng ý:</b>", S["body"]))
-                for r in reasons_against[:5]:
+                story.append(Paragraph("<b>Điểm chưa đáp ứng:</b>", S["body"]))
+                for r in reasons_against[:4]:
                     story.append(Paragraph(f"✗ {_fmt(r)}", S["indent"]))
 
             if risks:
                 story.append(Paragraph("<b>Rủi ro:</b>", S["body"]))
-                for r in risks[:4]:
+                for r in risks[:3]:
                     story.append(Paragraph(f"⚠ {_fmt(r)}", S["indent"]))
-
-            if missing_data:
-                story.append(Paragraph("<b>Dữ liệu cần bổ sung:</b>", S["body"]))
-                for m in missing_data[:4]:
-                    story.append(Paragraph(f"○ {_fmt(m)}", S["indent"]))
 
             if next_actions:
                 story.append(Paragraph("<b>Hành động tiếp theo:</b>", S["body"]))
-                for a in next_actions[:4]:
+                for a in next_actions[:3]:
                     story.append(Paragraph(f"→ {_fmt(a)}", S["indent"]))
 
             story.append(Spacer(1, 10))
 
-    # ── Phần 5: Nhận định độc lập ─────────────────────────────────────────────
-    story.append(Paragraph("PHẦN 5: NHẬN ĐỊNH ĐỘC LẬP VỚI KẾT QUẢ KÝ/TÁI KÝ HỢP ĐỒNG", S["section"]))
-
-    independence_text = (
-        evaluation.get("independenceStatement") or
-        "Kết quả đánh giá đề xuất này được xem xét độc lập với kết quả đánh giá học việc/thử việc/tái ký "
-        "hợp đồng. Việc nhân sự đạt yêu cầu ký/tái ký hợp đồng không đồng nghĩa tự động đủ điều kiện "
-        "tăng lương/bổ nhiệm/điều chỉnh chức danh. Đề xuất chỉ nên được phê duyệt khi có căn cứ riêng về "
-        "KPI, năng lực, đóng góp, JD, khung lương/chính sách và cơ cấu tổ chức."
-    )
-    story.append(Paragraph(independence_text, S["independence"]))
+    # ── Phần 4: Tóm tắt căn cứ từ tờ trình ───────────────────────────────────
     story.append(Spacer(1, 8))
+    story.append(_section_block("PHẦN 4: TÓM TẮT CĂN CỨ TỪ TỜ TRÌNH", W, S))
 
-    # ── Phần 6: Kiến nghị xử lý ───────────────────────────────────────────────
-    story.append(Paragraph("PHẦN 6: KIẾN NGHỊ XỬ LÝ", S["section"]))
+    kpi_val = eval_context.get("kpiScore") or eval_context.get("kpiPercent")
+    if kpi_val:
+        story.append(Paragraph(f"<b>KPI / Kết quả đánh giá:</b> {kpi_val}", S["body"]))
 
-    rec_decision = final_rec.get("decision") or report_data.get("recommendation", "")
-    rec_label = _REC_LABELS.get(rec_decision, rec_decision)
-    rec_summary = final_rec.get("summary", "")
-    conditions = final_rec.get("approvalConditions") or []
-    required_data = final_rec.get("requiredAdditionalData") or []
-    next_step = final_rec.get("suggestedNextStep", "")
+    if work_results:
+        story.append(Paragraph("<b>Kết quả công việc nổi bật:</b>", S["body"]))
+        for wr in work_results[:5]:
+            story.append(Paragraph(
+                f"• {_fmt(wr.get('itemName'))}: {_fmt(wr.get('actualResult'))}",
+                S["indent"]
+            ))
 
-    story.append(Paragraph(f"<b>Kết luận:</b> {rec_label}", S["body"]))
-    if rec_summary:
-        story.append(Paragraph(rec_summary, S["body"]))
+    if basis_list:
+        story.append(Paragraph("<b>Cơ sở đề xuất:</b>", S["body"]))
+        for b in basis_list[:5]:
+            story.append(Paragraph(
+                f"• {_fmt(b.get('basisName'))}: {_fmt(b.get('detail'))}",
+                S["indent"]
+            ))
 
-    if conditions:
-        story.append(Paragraph("<b>Điều kiện phê duyệt:</b>", S["body"]))
-        for c in conditions:
+    if commitments:
+        story.append(Paragraph("<b>Cam kết sau điều chỉnh:</b>", S["body"]))
+        for c in commitments[:4]:
             story.append(Paragraph(f"• {_fmt(c)}", S["indent"]))
 
-    if required_data:
-        story.append(Paragraph("<b>Dữ liệu cần bổ sung thêm:</b>", S["body"]))
-        for d in required_data:
-            story.append(Paragraph(f"• {_fmt(d)}", S["indent"]))
-
-    if next_step:
-        story.append(Paragraph(f"<b>Bước tiếp theo:</b> {next_step}", S["body"]))
-
-    # Notes
-    report_notes = evaluation.get("reportNotes") or []
-    if report_notes:
-        story.append(Paragraph("<b>Ghi chú:</b>", S["body"]))
-        for note in report_notes:
-            story.append(Paragraph(f"• {_fmt(note)}", S["indent"]))
+    if evaluation.get("overallSummary"):
+        story.append(Paragraph(
+            f"<b>Nhận định tổng quan:</b> {evaluation['overallSummary']}", S["body"]
+        ))
 
     story.append(Spacer(1, 8))
-
-    # ── Phần 7: Phụ lục ───────────────────────────────────────────────────────
-    story.append(HRFlowable(width=W, thickness=0.5, color=_BORDER, spaceAfter=4))
-    story.append(Paragraph("PHỤ LỤC", S["section"]))
-
-    if missing_fields:
-        story.append(Paragraph("<b>Trường thiếu trong tờ trình:</b>", S["subsection"]))
-        for mf in missing_fields[:10]:
-            story.append(Paragraph(f"○ {_fmt(mf)}", S["indent"]))
-
-    if ocr_warnings:
-        story.append(Paragraph("<b>Cảnh báo OCR:</b>", S["subsection"]))
-        for w in ocr_warnings[:6]:
-            story.append(Paragraph(f"⚠ {_fmt(w)}", S["indent"]))
-
-    # Signatories
-    signatories = extracted.get("signatories") or []
-    valid_sigs = [s for s in signatories if s.get("fullName") or s.get("roleInFlow")]
-    if valid_sigs:
-        story.append(Paragraph("<b>Người ký trong tờ trình:</b>", S["subsection"]))
-        sig_rows = [["Vai trò", "Họ tên", "Chức danh"]]
-        for s in valid_sigs:
-            sig_rows.append([
-                _fmt(s.get("roleInFlow")),
-                _fmt(s.get("fullName")),
-                _fmt(s.get("title")),
-            ])
-        sig_table = Table(
-            [[Paragraph(c, S["cell_bold"] if r == 0 else S["cell"]) for c in row]
-             for r, row in enumerate(sig_rows)],
-            colWidths=[W * 0.25, W * 0.35, W * 0.40],
-        )
-        sig_table.setStyle(_table_style(headers=True, alt_rows=False))
-        story.append(sig_table)
 
     # Footer note
     story.append(Spacer(1, 10))
+    story.append(HRFlowable(width=W, thickness=0.5, color=_BORDER, spaceAfter=4))
     story.append(Paragraph(
-        f"Hồ sơ: {report_data.get('evaluation_name', '')} · "
-        f"File nguồn: {report_data.get('source_file_name', '—')} · "
-        f"Người upload: {report_data.get('uploaded_by', '—')} · "
-        f"Ngày hệ thống đánh giá: {report_data.get('evaluated_at', '—')}",
+        f"Ngày đánh giá: {report_data.get('evaluated_at', '—')}",
         S["footer"],
     ))
 

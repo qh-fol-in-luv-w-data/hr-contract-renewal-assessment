@@ -20,8 +20,8 @@ NGUYÊN TẮC TUYỆT ĐỐI — BẮT BUỘC TUÂN THỦ:
 
 Các nhóm thông tin PHẢI trích xuất đầy đủ:
 1. Thông tin văn bản: đơn vị, số hiệu biểu mẫu, ngày lập, nơi lập, kính gửi, về việc, căn cứ.
-2. Thông tin nhân sự: họ tên, mã NV, đơn vị, chức danh, cấp bậc, lương hiện tại, phụ cấp, thời gian làm việc.
-3. Nội dung đề xuất: từng đề xuất riêng biệt với loại, giá trị hiện tại, giá trị đề xuất, thời điểm, lý do.
+2. Thông tin nhân sự: họ tên, mã NV (thường ký hiệu "Mã NV", "Mã nhân viên", "MSNV", "Employee ID" — tìm kỹ vì thường ở đầu form hoặc góc trên), đơn vị, chức danh, cấp bậc, lương hiện tại, phụ cấp, thời gian làm việc.
+3. Nội dung đề xuất: từng đề xuất riêng biệt với loại, giá trị hiện tại, giá trị đề xuất, thời điểm, lý do — trường "reason" phải chép TOÀN BỘ phần lý do/căn cứ/giải thích của đề xuất đó, không được cắt bớt dù dài.
 4. Kết quả KPI/đánh giá/kỷ luật — chép nguyên điểm số, tỷ lệ, xếp loại.
 5. Kết quả công việc — chép nguyên từng dòng/mục trong tài liệu.
 6. Cơ sở đề xuất — chép nguyên tất cả các căn cứ.
@@ -110,6 +110,23 @@ Trả về JSON hợp lệ theo schema sau (giữ đúng cấu trúc, điền nu
       "title": null
     }
   ],
+  "proposalLetterContent": {
+    "sections": [
+      {
+        "sectionNumber": null,
+        "sectionTitle": null,
+        "content": null
+      }
+    ]
+  },
+  "managerOpinions": [
+    {
+      "role": null,
+      "fullName": null,
+      "isSigned": null,
+      "opinion": null
+    }
+  ],
   "missingFields": [],
   "extractionWarnings": []
 }"""
@@ -122,10 +139,31 @@ QUAN TRỌNG:
 - workResults: điền TẤT CẢ các hạng mục kết quả công việc có trong tài liệu.
 - proposalBasis: điền TẤT CẢ các căn cứ đề xuất.
 - Nếu một thông tin xuất hiện ở nhiều trang, lấy phiên bản chi tiết nhất.
+- Trường "reason" trong proposalItems: chép NGUYÊN VĂN toàn bộ nội dung lý do/giải thích/căn cứ của đề xuất đó — dù nhiều đoạn, nhiều dòng, không được tóm tắt hay cắt ngắn.
 - proposalType có thể là: SALARY_INCREASE, TITLE_APPOINTMENT, TITLE_ADJUSTMENT, GRADE_CHANGE, BENEFIT_ADJUSTMENT, ROLE_CHANGE, OTHER
 - Nếu có tăng lương: tính deltaValue = proposedValue - currentValue (số nguyên), deltaPercent = delta/current*100 (làm tròn 2 chữ số thập phân)
 - confidence: 0.0–1.0 (mức chắc chắn của trường dữ liệu đó)
 - Chỉ trả về JSON hợp lệ, không thêm markdown hay giải thích ngoài JSON.
+
+proposalLetterContent.sections — trích xuất TẤT CẢ các mục của nội dung tờ trình THEO ĐÚNG THỨ TỰ XUẤT HIỆN:
+- Đọc kỹ toàn bộ phần "Nội dung tờ trình", tìm TẤT CẢ các mục có đánh số (I., II., III., IV., V., VI., VII., VIII., IX., X. hoặc 1., 2., 3....)
+- Mỗi mục = một phần tử trong mảng sections:
+  + sectionNumber: số thứ tự gốc như "I", "II", "III", "1", "2"... (null nếu không có số)
+  + sectionTitle: tiêu đề đầy đủ của mục (chép nguyên văn, ví dụ: "Phạm vi vai trò & trách nhiệm", "Kết quả công việc và đóng góp nổi bật")
+  + content: toàn bộ nội dung của mục đó (chép NGUYÊN VĂN, không được rút gọn dù dài)
+- Nếu có đoạn văn mở đầu trước mục I (hoặc mục 1), thêm vào đầu mảng với sectionNumber = null, sectionTitle = "Mở đầu"
+- KHÔNG BỎ SÓT bất kỳ mục nào, kể cả mục ngắn
+- KHÔNG gộp nhiều mục thành một
+
+managerOpinions — tìm TẤT CẢ phần ý kiến/ký duyệt ở cuối tài liệu (thường trang cuối):
+Có HAI loại cần tìm, liệt kê cả hai vào cùng mảng managerOpinions:
+LOẠI 1 — BẢNG Ý KIẾN QUẢN LÝ (thường sau phần cam kết): bảng 2 cột với nhãn vai trò như "Đề xuất của Quản lý trực tiếp", "Đề xuất của Lãnh đạo Ban/Lực lượng/Khối" — nội dung có thể viết tay
+LOẠI 2 — BẢNG CHỮ KÝ/PHÊ DUYỆT: bảng ở đầu/cuối trang với các ô "Đề xuất", "Kiểm tra 1", "Kiểm tra 2", "Phê duyệt" kèm tên người ký
+Với MỖI hàng/ô từ cả hai loại:
+- role: tên nhãn/vai trò
+- fullName: họ tên nếu có, null nếu không
+- isSigned: true nếu ô/cột có chữ viết tay hoặc chữ ký, false nếu trống
+- opinion: nội dung viết tay (null nếu trống)
 
 {EXTRACTION_SCHEMA_PROMPT}"""
 
@@ -153,9 +191,9 @@ BỘ TIÊU CHÍ 100 ĐIỂM:
 A. Phù hợp với kết quả đánh giá nhân sự: 20 điểm
    (Đánh giá RIÊNG, không xét việc đạt/không đạt học việc/thử việc/tái ký)
 B. Tương xứng với KPI, năng lực và hiệu quả công việc: 20 điểm
-C. Mức độ đóng góp và giá trị mang lại: 15 điểm
-D. Phù hợp với JD, chức danh, cấp bậc và cơ cấu tổ chức: 15 điểm
-E. Phù hợp với khung lương, đãi ngộ và thị trường: 15 điểm
+C. Mức độ đóng góp và giá trị mang lại: 25 điểm
+D. Phù hợp với JD, chức danh, cấp bậc và cơ cấu tổ chức: 10 điểm
+E. Phù hợp với khung lương, đãi ngộ và thị trường: 10 điểm
 F. Phù hợp về thời điểm, ngân sách và rủi ro quản trị: 10 điểm (chấm rộng rãi)
 G. Đầy đủ căn cứ và minh chứng: 5 điểm
 
@@ -212,7 +250,7 @@ Trả về JSON hợp lệ với cấu trúc sau:
           "criterionCode": "C",
           "criterionName": "Mức độ đóng góp và giá trị mang lại",
           "score": 0,
-          "maxScore": 15,
+          "maxScore": 25,
           "comment": "",
           "missingData": []
         },
@@ -220,7 +258,7 @@ Trả về JSON hợp lệ với cấu trúc sau:
           "criterionCode": "D",
           "criterionName": "Phù hợp với JD, chức danh, cấp bậc và cơ cấu tổ chức",
           "score": 0,
-          "maxScore": 15,
+          "maxScore": 10,
           "comment": "",
           "missingData": []
         },
@@ -228,7 +266,7 @@ Trả về JSON hợp lệ với cấu trúc sau:
           "criterionCode": "E",
           "criterionName": "Phù hợp với khung lương, đãi ngộ và thị trường",
           "score": 0,
-          "maxScore": 15,
+          "maxScore": 10,
           "comment": "",
           "missingData": []
         },

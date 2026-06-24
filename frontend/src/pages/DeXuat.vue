@@ -28,12 +28,12 @@
             <div class="sb-section-title">Upload tờ trình</div>
             <div class="sb-upload-card" :class="{ filled: uploadFile, err: uploadError }"
                  @dragover.prevent @drop.prevent="handleDrop" @click="$refs.fileInput.click()">
-              <input ref="fileInput" type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.doc" @change="handleFileSelect" hidden/>
+              <input ref="fileInput" type="file" accept=".pdf" @change="handleFileSelect" hidden/>
               <div class="upc-icon">{{ uploadFile ? '✅' : '📄' }}</div>
               <div class="upc-info">
                 <div class="upc-label">Tờ trình đề xuất</div>
                 <div class="upc-val" :class="uploadFile ? 'ok' : 'empty'">{{ uploadFile ? uploadFile.name : 'Click hoặc kéo file vào đây' }}</div>
-                <div class="upc-hint">{{ uploadFile ? fmtSize(uploadFile.size) : 'PDF · PNG · JPG · DOCX · ≤30MB' }}</div>
+                <div class="upc-hint">{{ uploadFile ? fmtSize(uploadFile.size) : 'PDF scan · ≤30MB' }}</div>
               </div>
               <button v-if="uploadFile" class="upc-rm" @click.stop="uploadFile = null">✕</button>
             </div>
@@ -178,7 +178,7 @@
         <h1>Đánh giá Đề xuất Quản lý / HOD</h1>
         <p>Upload tờ trình đề xuất nhân sự. AI đọc, trích xuất cấu trúc, đánh giá độc lập từng đề xuất theo 7 tiêu chí 100 điểm.</p>
         <div class="welcome-features">
-          <div class="wf"><div class="wf-icon">📤</div><div>Upload PDF / ảnh / DOCX</div></div>
+          <div class="wf"><div class="wf-icon">📤</div><div>Upload PDF scan</div></div>
           <div class="wf"><div class="wf-icon">🔍</div><div>OCR & trích xuất tự động</div></div>
           <div class="wf"><div class="wf-icon">⚖️</div><div>Đánh giá độc lập 7 tiêu chí</div></div>
           <div class="wf"><div class="wf-icon">📄</div><div>Báo cáo PDF A4</div></div>
@@ -195,7 +195,7 @@
           </svg>
         </div>
         <h1>Chọn file tờ trình</h1>
-        <p>Chọn file ở thanh bên trái rồi nhấn <b>Upload &amp; Bắt đầu</b>.<br/>Hỗ trợ PDF scan nhiều trang, PNG, JPG, DOCX. Tối đa 30MB.</p>
+        <p>Chọn file ở thanh bên trái rồi nhấn <b>Upload &amp; Bắt đầu</b>.<br/>Hỗ trợ PDF scan nhiều trang. Tối đa 30MB.</p>
       </div>
 
       <!-- Wizard steps -->
@@ -270,8 +270,8 @@
               <div v-if="openSections.doc" class="dx-edit-grid">
                 <div class="dx-ef"><label>Đơn vị</label><input v-model="editData.documentMetadata.unit" :disabled="stepState(3)==='done'"/></div>
                 <div class="dx-ef"><label>Ngày lập</label><input v-model="editData.documentMetadata.documentDate" :disabled="stepState(3)==='done'"/></div>
-                <div class="dx-ef dx-ef-full"><label>Về việc</label><input v-model="editData.documentMetadata.subject" :disabled="stepState(3)==='done'"/></div>
                 <div class="dx-ef dx-ef-full"><label>Kính gửi</label><input v-model="editData.documentMetadata.recipient" :disabled="stepState(3)==='done'"/></div>
+                <div class="dx-ef dx-ef-full"><label>Về việc</label><input v-model="editData.documentMetadata.subject" :disabled="stepState(3)==='done'"/></div>
               </div>
             </div>
 
@@ -317,7 +317,7 @@
                     <div class="dx-ef"><label>Hiện tại</label><input v-model="item.currentValue" :disabled="stepState(3)==='done'"/></div>
                     <div class="dx-ef"><label>Đề xuất <span class="req">*</span></label><input v-model="item.proposedValue" :disabled="stepState(3)==='done'"/></div>
                     <div class="dx-ef"><label>Ngày áp dụng</label><input v-model="item.effectiveDate" :disabled="stepState(3)==='done'"/></div>
-                    <div class="dx-ef dx-ef-full"><label>Lý do</label><textarea v-model="item.reason" rows="2" :disabled="stepState(3)==='done'"></textarea></div>
+                    <div class="dx-ef dx-ef-full"><label>Lý do</label><textarea v-model="item.reason" rows="6" :disabled="stepState(3)==='done'" style="resize:vertical;min-height:120px"></textarea></div>
                   </div>
                   <div v-if="item.proposalType==='SALARY_INCREASE' && item.currentValue && item.proposedValue" class="dx-delta-row">
                     {{ computeDelta(item) }}
@@ -327,17 +327,70 @@
               </div>
             </div>
 
-            <!-- KPI -->
+
+            <!-- Nội dung tờ trình -->
             <div class="wz-sub-section">
-              <div class="wz-sub-title" @click="toggleSection('kpi')">
-                📊 KPI / Kết quả đánh giá
-                <span class="wz-toggle">{{ openSections.kpi ? '▲' : '▼' }}</span>
+              <div class="wz-sub-title" @click="toggleSection('letter')">
+                📄 Nội dung tờ trình
+                <span class="wz-toggle">{{ openSections.letter ? '▲' : '▼' }}</span>
               </div>
-              <div v-if="openSections.kpi" class="dx-edit-grid">
-                <div class="dx-ef"><label>Điểm KPI</label><input v-model="editData.evaluationContext.kpiScore" :disabled="stepState(3)==='done'"/></div>
-                <div class="dx-ef"><label>Tỷ lệ KPI (%)</label><input v-model="editData.evaluationContext.kpiPercent" :disabled="stepState(3)==='done'" placeholder="VD: 87.5"/></div>
-                <div class="dx-ef"><label>Tình trạng kỷ luật</label><input v-model="editData.evaluationContext.disciplineStatus" :disabled="stepState(3)==='done'"/></div>
-                <div class="dx-ef"><label>Đào tạo</label><input v-model="editData.evaluationContext.trainingParticipation" :disabled="stepState(3)==='done'"/></div>
+              <div v-if="openSections.letter">
+                <!-- New format: dynamic sections array -->
+                <template v-if="editData.proposalLetterContent?.sections?.length">
+                  <div v-for="(sec, i) in editData.proposalLetterContent.sections" :key="i" class="dx-letter-section">
+                    <label class="dx-letter-label">
+                      <span v-if="sec.sectionNumber" class="dx-letter-num">{{ sec.sectionNumber }}.</span>
+                      {{ sec.sectionTitle || ('Mục ' + (i + 1)) }}
+                    </label>
+                    <textarea v-model="sec.content" :rows="sectionRows(sec.content)" :disabled="stepState(3)==='done'" style="resize:vertical;min-height:80px"></textarea>
+                  </div>
+                </template>
+                <!-- Fallback: old fixed fields (for records extracted before schema change) -->
+                <template v-else>
+                  <div class="dx-edit-grid">
+                    <div class="dx-ef dx-ef-full"><label>Mở đầu tờ trình</label><textarea v-model="editData.proposalLetterContent.openingText" rows="8" :disabled="stepState(3)==='done'" style="resize:vertical;min-height:160px"></textarea></div>
+                    <div class="dx-ef dx-ef-full"><label>Phạm vi vai trò &amp; trách nhiệm</label><textarea v-model="editData.proposalLetterContent.roleAndResponsibilities" rows="8" :disabled="stepState(3)==='done'" style="resize:vertical;min-height:160px"></textarea></div>
+                    <div class="dx-ef dx-ef-full"><label>Giá trị mang lại cho Công ty</label><textarea v-model="editData.proposalLetterContent.companyValue" rows="8" :disabled="stepState(3)==='done'" style="resize:vertical;min-height:160px"></textarea></div>
+                    <div class="dx-ef dx-ef-full"><label>Cơ sở đề xuất điều chỉnh lương</label><textarea v-model="editData.proposalLetterContent.salaryBasisDetails" rows="6" :disabled="stepState(3)==='done'" style="resize:vertical;min-height:120px"></textarea></div>
+                    <div class="dx-ef dx-ef-full"><label>Nội dung đề xuất</label><textarea v-model="editData.proposalLetterContent.proposalDetailText" rows="6" :disabled="stepState(3)==='done'" style="resize:vertical;min-height:120px"></textarea></div>
+                    <div class="dx-ef dx-ef-full"><label>Cam kết sau điều chỉnh</label><textarea v-model="editData.proposalLetterContent.commitmentsText" rows="6" :disabled="stepState(3)==='done'" style="resize:vertical;min-height:120px"></textarea></div>
+                    <div class="dx-ef dx-ef-full"><label>Kiến nghị</label><textarea v-model="editData.proposalLetterContent.petitionText" rows="4" :disabled="stepState(3)==='done'" style="resize:vertical;min-height:80px"></textarea></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Ý kiến Quản lý / HOD -->
+            <div class="wz-sub-section">
+              <div class="wz-sub-title" @click="toggleSection('managers')">
+                ✍️ Ý kiến Quản lý / HOD ({{ editData.managerOpinions?.length || 0 }})
+                <span class="wz-toggle">{{ openSections.managers ? '▲' : '▼' }}</span>
+              </div>
+              <div v-if="openSections.managers">
+                <div v-for="(op, idx) in editData.managerOpinions" :key="idx" class="dx-pi-card">
+                  <!-- Role + name header row -->
+                  <div class="dx-op-head">
+                    <div class="dx-op-meta">
+                      <span class="dx-op-role">{{ op.role || ('Ý kiến ' + (idx+1)) }}</span>
+                      <span v-if="op.fullName" class="dx-op-name">{{ op.fullName }}</span>
+                    </div>
+                    <label class="dx-signed-toggle" :class="op.isSigned ? 'signed' : 'unsigned'">
+                      <input type="checkbox" v-model="op.isSigned" :disabled="stepState(3)==='done'" style="display:none"/>
+                      {{ op.isSigned ? '✓ Đã ký' : '○ Chưa ký' }}
+                    </label>
+                  </div>
+                  <!-- Name field (editable) -->
+                  <div class="dx-ef dx-ef-full" style="margin-top:6px">
+                    <label>Họ tên</label>
+                    <input v-model="op.fullName" :disabled="stepState(3)==='done'" placeholder="Họ tên người ký"/>
+                  </div>
+                  <!-- Opinion text -->
+                  <div class="dx-ef dx-ef-full" style="margin-top:6px">
+                    <label>Nội dung ý kiến</label>
+                    <textarea v-model="op.opinion" rows="3" :disabled="stepState(3)==='done'" placeholder="(chưa có ý kiến)" style="resize:vertical;min-height:60px"></textarea>
+                  </div>
+                </div>
+                <div v-if="!editData.managerOpinions?.length" class="wz-prompt" style="font-size:.8rem;color:#94a3b8">Không đọc được ý kiến quản lý trong tài liệu.</div>
               </div>
             </div>
 
@@ -385,11 +438,6 @@
                 </div>
               </div>
 
-              <!-- Independence note -->
-              <div class="wz-note">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                {{ evalResult.independenceStatement || 'Kết quả đánh giá độc lập với kết quả tái ký hợp đồng.' }}
-              </div>
 
               <!-- Per-proposal results -->
               <div v-for="(pe, idx) in evalResult.proposalEvaluations" :key="idx" class="wz-pe-card">
@@ -438,6 +486,23 @@
                 <div class="wz-fr-title">Kiến nghị xử lý tổng thể</div>
                 <div class="dx-rec-badge dx-rec-lg" :class="recClass(evalResult.finalRecommendation.decision)">{{ recLabel(evalResult.finalRecommendation.decision) }}</div>
                 <p v-if="evalResult.finalRecommendation.summary" class="wz-summary">{{ evalResult.finalRecommendation.summary }}</p>
+              </div>
+
+              <!-- Manager notes -->
+              <div class="wz-manager-notes">
+                <div class="wz-mn-header">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                  Ghi chú của quản lý
+                </div>
+                <textarea class="wz-mn-input" v-model="managerNotes" placeholder="Nhập nhận xét, quyết định hoặc lưu ý thêm của quản lý..." rows="4"></textarea>
+                <div class="wz-mn-footer">
+                  <button class="wz-mn-save" :disabled="notesSaving" @click="saveManagerNotes">
+                    <span v-if="notesSaving" class="spinner spinner-dark"></span>
+                    <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    {{ notesSaving ? 'Đang lưu...' : 'Lưu ghi chú' }}
+                  </button>
+                  <span v-if="notesSaved" class="wz-mn-saved">✓ Đã lưu</span>
+                </div>
               </div>
             </template>
           </div>
@@ -508,8 +573,12 @@ const progressMsg = ref('')
 const progressPct = ref(0)
 const detailError = ref('')
 
-const openSections = ref({ doc: true, emp: true, proposals: true, kpi: true })
+const openSections = ref({ doc: true, emp: true, proposals: true, kpi: true, letter: true, managers: true })
 function toggleSection(k) { openSections.value[k] = !openSections.value[k] }
+
+const managerNotes = ref('')
+const notesSaving = ref(false)
+const notesSaved = ref(false)
 
 // ── Step logic ─────────────────────────────────────────────────────────────────
 const currentStep = computed(() => {
@@ -571,6 +640,12 @@ function ctClass(cs) {
   return p >= 0.8 ? 'ct-green' : p >= 0.6 ? 'ct-yellow' : 'ct-red'
 }
 function fmtSize(b) { return b < 1e6 ? `${(b/1024).toFixed(0)} KB` : `${(b/1e6).toFixed(1)} MB` }
+function sectionRows(content) {
+  if (!content) return 4
+  const lines = content.split('\n').length
+  const wrapped = Math.ceil(content.length / 100)
+  return Math.min(Math.max(lines, wrapped, 4), 20)
+}
 function computeDelta(item) {
   const c = parseFloat(String(item.currentValue||'').replace(/\D/g,''))
   const p = parseFloat(String(item.proposedValue||'').replace(/\D/g,''))
@@ -624,9 +699,24 @@ async function loadDetail(name) {
       editData.value.employee = editData.value.employee||{}
       editData.value.proposalItems = editData.value.proposalItems||[]
       editData.value.evaluationContext = editData.value.evaluationContext||{}
+      editData.value.proposalLetterContent = editData.value.proposalLetterContent||{sections:[]}
+      editData.value.managerOpinions = editData.value.managerOpinions||[]
     }
     evalResult.value = r.evaluation_result||null
+    managerNotes.value = r.manager_notes || ''
+    notesSaved.value = false
   } catch(e) { detailError.value=`Lỗi: ${e.message}` }
+}
+
+async function saveManagerNotes() {
+  notesSaving.value = true
+  notesSaved.value = false
+  try {
+    await apiPost('save_manager_notes', { evaluation_name: evalDoc.value.name, notes: managerNotes.value })
+    evalDoc.value.manager_notes = managerNotes.value
+    notesSaved.value = true
+    setTimeout(() => { notesSaved.value = false }, 2500)
+  } finally { notesSaving.value = false }
 }
 
 // ── Upload ─────────────────────────────────────────────────────────────────────
@@ -634,7 +724,7 @@ function handleDrop(e) { if(e.dataTransfer.files.length) setFile(e.dataTransfer.
 function handleFileSelect(e) { if(e.target.files.length) setFile(e.target.files[0]) }
 function setFile(f) {
   const ext=f.name.split('.').pop().toLowerCase()
-  if(!['pdf','png','jpg','jpeg','docx','doc'].includes(ext)) { uploadError.value=`Không hỗ trợ .${ext}`; return }
+  if(ext !== 'pdf') { uploadError.value='Chỉ hỗ trợ file PDF scan'; return }
   if(f.size>30*1024*1024) { uploadError.value='File quá lớn (>30MB)'; return }
   uploadError.value=''; uploadFile.value=f
 }
@@ -652,20 +742,72 @@ async function doUpload() {
 
 // ── Extract ────────────────────────────────────────────────────────────────────
 async function doExtract() {
-  processing.value=true; progressMsg.value='AI đang đọc và trích xuất tờ trình...'; progressPct.value=30; detailError.value=''
+  processing.value=true; progressMsg.value='Đang gửi yêu cầu OCR...'; progressPct.value=10; detailError.value=''
   try {
-    const r=await apiGet('extract_data',{evaluation_name:evalDoc.value.name})
-    evalDoc.value.status=r.status; evalDoc.value.page_count=r.page_count
-    const e=r.extracted; editData.value=JSON.parse(JSON.stringify(e))
+    await apiGet('extract_data',{evaluation_name:evalDoc.value.name})
+    progressMsg.value='AI đang đọc và trích xuất tờ trình... (có thể mất vài phút)'
+    progressPct.value=20
+    await waitForExtraction(evalDoc.value.name)
+  } catch(e) { detailError.value=`Lỗi trích xuất: ${e.message}`; evalDoc.value.status='Failed'
+  } finally { processing.value=false; progressMsg.value=''; progressPct.value=0 }
+}
+
+function applyExtractionResult(r) {
+  evalDoc.value=r
+  warningList.value=r.warnings||[]; missingList.value=r.missing_fields||[]
+  const src=r.user_corrected||r.extracted
+  if(src) {
+    editData.value=JSON.parse(JSON.stringify(src))
     editData.value.documentMetadata=editData.value.documentMetadata||{}
     editData.value.employee=editData.value.employee||{}
     editData.value.proposalItems=editData.value.proposalItems||[]
     editData.value.evaluationContext=editData.value.evaluationContext||{}
-    if(e.employee?.fullName) evalDoc.value.employee_name=e.employee.fullName
-    if(e.employee?.department) evalDoc.value.department=e.employee.department
-    warningList.value=r.warnings||[]; missingList.value=r.missing_fields||[]
-  } catch(e) { detailError.value=`Lỗi trích xuất: ${e.message}`; evalDoc.value.status='Failed'
-  } finally { processing.value=false; progressMsg.value=''; progressPct.value=0 }
+    editData.value.proposalLetterContent=editData.value.proposalLetterContent||{sections:[]}
+    editData.value.managerOpinions=editData.value.managerOpinions||[]
+  }
+  progressPct.value=100
+}
+
+async function waitForExtraction(name) {
+  const hasRealtime = !!window.frappe?.realtime
+  return new Promise((resolve, reject) => {
+    let settled=false
+    let pollTimer=null
+
+    const done=(err, data)=>{
+      if(settled) return
+      settled=true
+      if(pollTimer) clearInterval(pollTimer)
+      if(hasRealtime) window.frappe.realtime.off('de_xuat_progress', onRealtime)
+      if(err) reject(err)
+      else { applyExtractionResult(data); resolve() }
+    }
+
+    // Polling backup — slower when realtime is available
+    const poll=async()=>{
+      if(settled) return
+      try {
+        const r=await apiGet('get_evaluation',{evaluation_name:name})
+        if(r.status==='Pending Review') { done(null,r); return }
+        if(r.status==='Failed') { done(new Error('Trích xuất thất bại. Vui lòng thử lại.')); return }
+        if(progressPct.value<85) progressPct.value+=5
+      } catch(e) { /* keep going */ }
+    }
+    pollTimer=setInterval(poll, hasRealtime ? 20000 : 10000)
+
+    // Realtime: server notifies the moment the job finishes
+    const onRealtime=async(data)=>{
+      if(data.evaluation_name!==name) return
+      if(data.error) { done(new Error(data.message||'Lỗi trích xuất')); return }
+      if(data.completed) {
+        try { const r=await apiGet('get_evaluation',{evaluation_name:name}); done(null,r) }
+        catch(e) { /* let polling catch it on next tick */ }
+      }
+    }
+    if(hasRealtime) window.frappe.realtime.on('de_xuat_progress', onRealtime)
+
+    setTimeout(()=>done(new Error('Quá thời gian chờ (30 phút). Vui lòng kiểm tra lại sau.')), 30*60*1000)
+  })
 }
 
 // ── Save ───────────────────────────────────────────────────────────────────────
@@ -724,6 +866,13 @@ onMounted(loadList)
 .app-layout { display: flex; height: 100vh; overflow: hidden; background: #f8fafc }
 .sidebar { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid #e2e8f0; background: #fff }
 .result-panel { flex: 1; overflow-y: auto; background: #f8fafc }
+
+/* ── Custom thin scrollbars ──────────────────────────────────────── */
+* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent }
+*::-webkit-scrollbar { width: 5px; height: 5px }
+*::-webkit-scrollbar-track { background: transparent }
+*::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px }
+*::-webkit-scrollbar-thumb:hover { background: #94a3b8 }
 
 .sb-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px; border-bottom: 1px solid #e2e8f0; background: #fff; flex-shrink: 0 }
 .sb-reload { width: 30px; height: 30px; border-radius: 7px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s }
@@ -826,7 +975,7 @@ onMounted(loadList)
 .loading-spinner { border: 3px solid rgba(13,148,136,.15); border-top-color: #0d9488; border-radius: 50%; animation: spin 1s linear infinite }
 
 /* ── Wizard scroll area ───────────────────────────────────────────── */
-.wizard-scroll { padding: 24px 28px; max-width: 860px }
+.wizard-scroll { padding: 24px 32px; max-width: 1080px; width: 100%; box-sizing: border-box }
 
 /* Step card */
 .wz-step { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; margin-bottom: 14px; overflow: hidden; transition: all .2s }
@@ -885,6 +1034,23 @@ onMounted(loadList)
 .dx-rm-btn:hover { background: #fee2e2; color: #ef4444 }
 .dx-delta-row { font-size: .74rem; color: #0d9488; font-weight: 600; margin-top: 4px; padding: 4px 8px; background: rgba(13,148,136,.06); border-radius: 5px }
 
+/* Dynamic letter sections */
+.dx-letter-section { margin-bottom: 12px }
+.dx-letter-label { display: flex; align-items: baseline; gap: 5px; font-size: .75rem; font-weight: 700; color: #475569; margin-bottom: 5px }
+.dx-letter-num { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; background: #0d9488; color: #fff; border-radius: 4px; font-size: .68rem; font-weight: 800; padding: 0 4px; flex-shrink: 0 }
+.dx-letter-section textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 7px; font-size: .82rem; color: #334155; font-family: inherit; line-height: 1.6; outline: none; transition: border .2s; background: #fff }
+.dx-letter-section textarea:focus { border-color: #0d9488 }
+.dx-letter-section textarea:disabled { background: #f8fafc; color: #64748b; cursor: default }
+
+/* Manager opinion card header */
+.dx-op-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px }
+.dx-op-meta { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0 }
+.dx-op-role { font-size: .8rem; font-weight: 700; color: #334155 }
+.dx-op-name { font-size: .76rem; color: #64748b }
+.dx-signed-toggle { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700; cursor: pointer; flex-shrink: 0; user-select: none; transition: all .15s }
+.dx-signed-toggle.signed { background: rgba(34,197,94,.12); color: #16a34a; border: 1px solid rgba(34,197,94,.3) }
+.dx-signed-toggle.unsigned { background: rgba(148,163,184,.1); color: #94a3b8; border: 1px solid #e2e8f0 }
+
 /* Warn list */
 .dx-warn-list { padding-left: 14px; font-size: .8rem; color: #92400e; margin: 0 }
 .dx-warn-list li { margin-bottom: 3px }
@@ -921,6 +1087,14 @@ onMounted(loadList)
 
 /* Final rec */
 .wz-final-rec { background: rgba(13,148,136,.04); border: 1px solid rgba(13,148,136,.15); border-radius: 10px; padding: 14px 16px; margin-top: 4px }
+.wz-manager-notes { margin-top: 14px; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden }
+.wz-mn-header { display: flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 600; color: #475569; padding: 9px 12px; background: #f8fafc; border-bottom: 1px solid #e2e8f0 }
+.wz-mn-input { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: .82rem; color: #1e293b; border: none; resize: vertical; min-height: 80px; font-family: inherit; line-height: 1.5; outline: none; background: #fff }
+.wz-mn-footer { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid #e2e8f0; background: #f8fafc }
+.wz-mn-save { display: flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: .78rem; font-weight: 600; color: #334155; cursor: pointer; transition: background .15s }
+.wz-mn-save:hover:not(:disabled) { background: #f1f5f9 }
+.wz-mn-save:disabled { opacity: .5; cursor: not-allowed }
+.wz-mn-saved { font-size: .78rem; color: #16a34a; font-weight: 600 }
 .wz-fr-title { font-size: .78rem; font-weight: 700; color: #64748b; margin-bottom: 8px }
 
 /* Rec badges */
@@ -981,6 +1155,12 @@ body.theme-dark .comp-table td { border-bottom-color: rgba(255,255,255,.04); col
 body.theme-dark .dx-total-row td { background: rgba(255,255,255,.04) }
 body.theme-dark .wz-note { background: rgba(234,179,8,.06); border-color: rgba(234,179,8,.15); color: #ca8a04 }
 body.theme-dark .wz-final-rec { background: rgba(13,148,136,.06); border-color: rgba(13,148,136,.2) }
+body.theme-dark .wz-manager-notes { border-color: #334155 }
+body.theme-dark .wz-mn-header { background: #1e293b; border-color: #334155; color: #94a3b8 }
+body.theme-dark .wz-mn-input { background: #0f172a; color: #e2e8f0 }
+body.theme-dark .wz-mn-footer { background: #1e293b; border-color: #334155 }
+body.theme-dark .wz-mn-save { background: #1e293b; border-color: #475569; color: #cbd5e1 }
+body.theme-dark .wz-mn-save:hover:not(:disabled) { background: #334155 }
 body.theme-dark .wr-group ul { color: #94a3b8 }
 body.theme-dark .sb-score-box { background: rgba(13,148,136,.08); border-color: rgba(13,148,136,.2) }
 </style>

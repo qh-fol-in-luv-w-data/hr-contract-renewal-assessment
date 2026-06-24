@@ -74,8 +74,8 @@ export const dict = {
     vietnamese: 'Tiếng Việt',
     english: 'English',
 
-    baocao_title: 'Báo cáo Đánh giá Nhân sự PAI',
-    baocao_desc: 'Upload toàn bộ phiếu PAI scan PDF. AI đọc tất cả, ghép NV tự đánh giá với HOD, hiển thị đầy đủ từng tiêu chí A1–A5, B1–B7, C1–C4 và xuất Excel tổng hợp.',
+    baocao_title: 'Báo cáo Đánh giá Nhân sự',
+    baocao_desc: 'Upload toàn bộ phiếu scan PDF. AI đọc tất cả, ghép NV tự đánh giá với HOD, hiển thị đầy đủ từng tiêu chí A1–A5, B1–B7, C1–C4 và xuất Excel tổng hợp.',
 
     // OCR Scan
     input_mode: 'Loại file đầu vào',

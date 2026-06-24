@@ -31,6 +31,7 @@
   "overall_score",
   "recommendation",
   "evaluated_at",
+  "manager_notes",
   "report_section",
   "report_file",
   "report_generated_at"
@@ -175,6 +176,11 @@
    "fieldtype": "Datetime",
    "label": "Thời điểm đánh giá",
    "read_only": 1
+  },
+  {
+   "fieldname": "manager_notes",
+   "fieldtype": "Long Text",
+   "label": "Ghi chú của quản lý"
   },
   {
    "fieldname": "report_section",
