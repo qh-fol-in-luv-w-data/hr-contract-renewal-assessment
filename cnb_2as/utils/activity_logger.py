@@ -122,6 +122,16 @@ class ActivityLogger:
                 sess.total_completion_tokens = (sess.total_completion_tokens or 0) + completion_tokens
                 sess.total_tokens_used      = (sess.total_tokens_used or 0) + prompt_tokens + completion_tokens
             
+            total_used_now = prompt_tokens + completion_tokens
+            if ai_model and total_used_now > 0:
+                import json
+                try:
+                    breakdown = json.loads(sess.token_breakdown) if sess.token_breakdown else {}
+                except:
+                    breakdown = {}
+                breakdown[ai_model] = breakdown.get(ai_model, 0) + total_used_now
+                sess.token_breakdown = json.dumps(breakdown, ensure_ascii=False)
+                
             sess.last_active_at         = now_datetime()
             sess.save(ignore_permissions=True)
             frappe.db.commit()
