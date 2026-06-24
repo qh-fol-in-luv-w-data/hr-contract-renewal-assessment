@@ -108,28 +108,41 @@ def _count_pages(file_path: str) -> int:
         return 1
 
 
-def _log_tokens(response, label: str = "de_xuat_service"):
-    """Log token usage to cnb_ai_call_log."""
+def _log_tokens(response, evaluation_name: str, label: str = "de_xuat_service", is_ocr: bool = False):
+    """Log token usage using ActivityLogger to link with a CNB Session."""
     try:
         usage = response.usage
         if not usage:
             return
-        frappe.get_doc({
-            "doctype": "Cnb Ai Call Log",
-            "model": getattr(response, "model", "gpt-4o"),
-            "label": label,
-            "tokens_in": usage.prompt_tokens,
-            "tokens_out": usage.completion_tokens,
-            "total_tokens": usage.total_tokens,
-        }).insert(ignore_permissions=True)
-        frappe.db.commit()
+            
+        from cnb_2as.utils.activity_logger import ActivityLogger
+        logger = ActivityLogger(prefix="CNB", module="Proposal Evaluation")
+        
+        session_id = f"de_xuat_{evaluation_name}"
+        session_name = frappe.db.get_value("CNB Session", {"session_id": session_id})
+        if not session_name:
+            session_name = logger.create_session(session_id=session_id, dept="HR")
+            
+        action_name = logger.start_action(session_name, action_type=label)
+        
+        logger.log_ai_call(
+            session_name=session_name,
+            action_name=action_name,
+            call_type=label,
+            ai_model=getattr(response, "model", "gpt-4o"),
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            status="success"
+        )
+        
+        logger.finish_action(action_name, status="success")
     except Exception:
         pass
 
 
 # ── OCR + Extraction ───────────────────────────────────────────────────────────
 
-def extract_proposal_data(file_url: str) -> dict:
+def extract_proposal_data(file_url: str, evaluation_name: str = "") -> dict:
     """OCR and extract structured data from a scanned PDF proposal.
 
     Sends all pages in a single request so the model sees full document context.
@@ -176,7 +189,7 @@ def extract_proposal_data(file_url: str) -> dict:
         max_tokens=16000,
         temperature=0,
     )
-    _log_tokens(resp, label="de_xuat_service.extract_proposal_data")
+    _log_tokens(resp, evaluation_name=evaluation_name, label="extract_proposal", is_ocr=True)
 
     elapsed = time.time() - start
     tokens = resp.usage.total_tokens if resp.usage else 0
@@ -237,7 +250,7 @@ def _parse_salary(val) -> float:
 
 # ── Evaluation ─────────────────────────────────────────────────────────────────
 
-def evaluate_proposals(extracted_data: dict, reference_data: dict = None) -> dict:
+def evaluate_proposals(extracted_data: dict, reference_data: dict = None, evaluation_name: str = "") -> dict:
     """Evaluate proposal items against 7 criteria (100 points).
 
     Args:
@@ -270,7 +283,7 @@ def evaluate_proposals(extracted_data: dict, reference_data: dict = None) -> dic
         max_tokens=16000,
         temperature=0,
     )
-    _log_tokens(resp, label="de_xuat_service.evaluate_proposals")
+    _log_tokens(resp, evaluation_name=evaluation_name, label="evaluate_proposal", is_ocr=False)
 
     raw = (resp.choices[0].message.content or "").strip()
     raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()

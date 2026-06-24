@@ -134,7 +134,7 @@ def run_extraction_job(evaluation_name, user=None):
     doc = frappe.get_doc("Proposal Evaluation", evaluation_name)
 
     try:
-        result = extract_proposal_data(doc.source_file)
+        result = extract_proposal_data(doc.source_file, evaluation_name=evaluation_name)
         extracted = result["extracted"]
 
         doc.page_count = result.get("page_count", 1)
@@ -293,7 +293,7 @@ def evaluate(evaluation_name):
 
     try:
         extracted = json.loads(data_json)
-        eval_result = evaluate_proposals(extracted)
+        eval_result = evaluate_proposals(extracted, evaluation_name=evaluation_name)
 
         doc.evaluation_result_json = json.dumps(eval_result, ensure_ascii=False, indent=2)
         doc.overall_score = eval_result.get("overallScore", 0)
