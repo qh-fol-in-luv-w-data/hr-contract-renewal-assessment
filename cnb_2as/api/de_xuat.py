@@ -111,10 +111,13 @@ def extract_data(evaluation_name):
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
+    session_id = frappe.get_request_header("X-App-Session-Id") or ""
+
     frappe.enqueue(
         "cnb_2as.api.de_xuat.run_extraction_job",
         evaluation_name=evaluation_name,
         user=frappe.session.user,
+        session_id=session_id,
         queue="long",
         timeout=1800,
     )
@@ -126,7 +129,7 @@ def extract_data(evaluation_name):
     }
 
 
-def run_extraction_job(evaluation_name, user=None):
+def run_extraction_job(evaluation_name, user=None, session_id=""):
     """Background worker: OCR all pages in batches, save results to doc."""
     if user:
         frappe.set_user(user)
@@ -134,7 +137,11 @@ def run_extraction_job(evaluation_name, user=None):
     doc = frappe.get_doc("Proposal Evaluation", evaluation_name)
 
     try:
-        result = extract_proposal_data(doc.source_file, evaluation_name=evaluation_name)
+        result = extract_proposal_data(
+            doc.source_file,
+            evaluation_name=evaluation_name,
+            session_id=session_id,
+        )
         extracted = result["extracted"]
 
         doc.page_count = result.get("page_count", 1)
@@ -293,7 +300,12 @@ def evaluate(evaluation_name):
 
     try:
         extracted = json.loads(data_json)
-        eval_result = evaluate_proposals(extracted, evaluation_name=evaluation_name)
+        session_id = frappe.get_request_header("X-App-Session-Id") or ""
+        eval_result = evaluate_proposals(
+            extracted,
+            evaluation_name=evaluation_name,
+            session_id=session_id,
+        )
 
         doc.evaluation_result_json = json.dumps(eval_result, ensure_ascii=False, indent=2)
         doc.overall_score = eval_result.get("overallScore", 0)

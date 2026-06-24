@@ -108,7 +108,13 @@ def _count_pages(file_path: str) -> int:
         return 1
 
 
-def _log_tokens(response, evaluation_name: str, label: str = "de_xuat_service", is_ocr: bool = False):
+def _log_tokens(
+    response,
+    evaluation_name: str,
+    label: str = "de_xuat_service",
+    is_ocr: bool = False,
+    session_id: str = "",
+):
     """Log token usage using ActivityLogger to link with a CNB Session."""
     try:
         usage = response.usage
@@ -118,31 +124,61 @@ def _log_tokens(response, evaluation_name: str, label: str = "de_xuat_service", 
         from cnb_2as.utils.activity_logger import ActivityLogger
         logger = ActivityLogger(prefix="CNB", module="Proposal Evaluation")
         
-        session_id = f"de_xuat_{evaluation_name}"
-        session_name = frappe.db.get_value("CNB Session", {"session_id": session_id})
+        resolved_session_id = session_id or f"de_xuat_{evaluation_name}"
+        session_name = frappe.db.get_value(
+            "CNB Session",
+            {"session_id": resolved_session_id},
+        )
         if not session_name:
-            session_name = logger.create_session(session_id=session_id, dept="HR")
-            
+            session_name = logger.create_session(
+                session_id=resolved_session_id,
+                dept="HR",
+            )
+
         action_name = logger.start_action(session_name, action_type=label)
-        
+        ai_model = getattr(response, "model", "gpt-4o")
+        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+
         logger.log_ai_call(
             session_name=session_name,
             action_name=action_name,
             call_type=label,
-            ai_model=getattr(response, "model", "gpt-4o"),
-            prompt_tokens=usage.prompt_tokens,
-            completion_tokens=usage.completion_tokens,
-            status="success"
+            ai_model=ai_model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            status="success",
+            is_ocr=is_ocr,
         )
-        
-        logger.finish_action(action_name, status="success")
-    except Exception:
-        pass
+
+        logger.finish_action(
+            action_name,
+            status="success",
+            ai_model=ai_model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+    except Exception as e:
+        try:
+            frappe.db.rollback()
+        except Exception:
+            pass
+        try:
+            frappe.log_error(
+                title=f"DeXuat token logging failed: {label}",
+                message=frappe.get_traceback() or str(e),
+            )
+        except Exception:
+            pass
 
 
 # ── OCR + Extraction ───────────────────────────────────────────────────────────
 
-def extract_proposal_data(file_url: str, evaluation_name: str = "") -> dict:
+def extract_proposal_data(
+    file_url: str,
+    evaluation_name: str = "",
+    session_id: str = "",
+) -> dict:
     """OCR and extract structured data from a scanned PDF proposal.
 
     Sends all pages in a single request so the model sees full document context.
@@ -189,7 +225,13 @@ def extract_proposal_data(file_url: str, evaluation_name: str = "") -> dict:
         max_tokens=16000,
         temperature=0,
     )
-    _log_tokens(resp, evaluation_name=evaluation_name, label="extract_proposal", is_ocr=True)
+    _log_tokens(
+        resp,
+        evaluation_name=evaluation_name,
+        label="extract_proposal_ocr",
+        is_ocr=True,
+        session_id=session_id,
+    )
 
     elapsed = time.time() - start
     tokens = resp.usage.total_tokens if resp.usage else 0
@@ -250,7 +292,12 @@ def _parse_salary(val) -> float:
 
 # ── Evaluation ─────────────────────────────────────────────────────────────────
 
-def evaluate_proposals(extracted_data: dict, reference_data: dict = None, evaluation_name: str = "") -> dict:
+def evaluate_proposals(
+    extracted_data: dict,
+    reference_data: dict = None,
+    evaluation_name: str = "",
+    session_id: str = "",
+) -> dict:
     """Evaluate proposal items against 7 criteria (100 points).
 
     Args:
@@ -283,7 +330,13 @@ def evaluate_proposals(extracted_data: dict, reference_data: dict = None, evalua
         max_tokens=16000,
         temperature=0,
     )
-    _log_tokens(resp, evaluation_name=evaluation_name, label="evaluate_proposal", is_ocr=False)
+    _log_tokens(
+        resp,
+        evaluation_name=evaluation_name,
+        label="evaluate_proposal",
+        is_ocr=False,
+        session_id=session_id,
+    )
 
     raw = (resp.choices[0].message.content or "").strip()
     raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
