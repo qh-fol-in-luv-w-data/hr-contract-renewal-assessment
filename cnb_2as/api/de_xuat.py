@@ -34,7 +34,10 @@ def _get_doc(name: str):
     if not name:
         frappe.throw("Thiếu tên hồ sơ đề xuất")
     try:
-        return frappe.get_doc("Proposal Evaluation", name)
+        doc = frappe.get_doc("Proposal Evaluation", name)
+        if doc.uploaded_by != frappe.session.user and "System Manager" not in frappe.get_roles():
+            frappe.throw("Bạn không có quyền truy cập hồ sơ này", frappe.PermissionError)
+        return doc
     except frappe.DoesNotExistError:
         frappe.throw(f"Hồ sơ đề xuất không tồn tại: {name}")
 
@@ -488,6 +491,9 @@ def list_evaluations(page=1, page_size=20, status_filter=""):
     filters = {}
     if status_filter:
         filters["status"] = status_filter
+
+    if "System Manager" not in frappe.get_roles():
+        filters["uploaded_by"] = frappe.session.user
 
     fields = [
         "name", "employee_name", "department", "current_title",
