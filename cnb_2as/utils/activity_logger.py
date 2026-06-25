@@ -102,7 +102,8 @@ class ActivityLogger:
     def _increment_session_counters(self, session_name: str,
                                     actions: int = 0, ai_calls: int = 0,
                                     prompt_tokens: int = 0, completion_tokens: int = 0,
-                                    is_ocr: bool = False):
+                                    is_ocr: bool = False,
+                                    ai_model: str = ""):
         """Tang counter trong session. Goi sau moi action/ai_call."""
         if not session_name:
             return
@@ -122,6 +123,16 @@ class ActivityLogger:
                 sess.total_completion_tokens = (sess.total_completion_tokens or 0) + completion_tokens
                 sess.total_tokens_used      = (sess.total_tokens_used or 0) + prompt_tokens + completion_tokens
             
+            total_used_now = prompt_tokens + completion_tokens
+            if ai_model and total_used_now > 0:
+                import json
+                try:
+                    breakdown = json.loads(sess.token_breakdown) if sess.token_breakdown else {}
+                except:
+                    breakdown = {}
+                breakdown[ai_model] = breakdown.get(ai_model, 0) + total_used_now
+                sess.token_breakdown = json.dumps(breakdown, ensure_ascii=False)
+                
             sess.last_active_at         = now_datetime()
             sess.save(ignore_permissions=True)
             frappe.db.commit()
@@ -199,10 +210,12 @@ class ActivityLogger:
                     duration_seconds: float = 0.0,
                     status: str = "success",
                     attempt_number: int = 1,
-                    error_code: str = "", error_message: str = "") -> str:
+                    error_code: str = "", error_message: str = "",
+                    is_ocr: bool = None) -> str:
         """Ghi mot lan goi AI. Tra ve ten document."""
         try:
-            is_ocr = "ocr" in call_type.lower() or "vision" in ai_model.lower()
+            if is_ocr is None:
+                is_ocr = "ocr" in call_type.lower() or "vision" in ai_model.lower()
             
             doc = frappe.get_doc({
                 "doctype": self.ai_call_dt,
@@ -229,7 +242,8 @@ class ActivityLogger:
                 session_name, ai_calls=1,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
-                is_ocr=is_ocr
+                is_ocr=is_ocr,
+                ai_model=ai_model,
             )
             return doc.name
         except Exception as e:

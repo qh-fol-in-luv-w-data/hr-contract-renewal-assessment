@@ -56,9 +56,28 @@ def get_client():
 	"""Create and return an OpenAI client instance.
 
 	Returns:
-		OpenAI client configured with the resolved API key.
+		OpenAI client configured with the resolved API key and optional base_url.
 	"""
-	return OpenAI(api_key=get_api_key())
+	api_key = get_api_key()
+	base_url = frappe.conf.get("openai_base_url")
+	if base_url:
+		return OpenAI(api_key=api_key, base_url=base_url)
+	return OpenAI(api_key=api_key)
+
+
+def get_model(default="gpt-4o"):
+	"""Get the OpenAI model name.
+
+	Priority:
+		1. frappe.conf (site_config.json: openai_model)
+		2. OPENAI_MODEL environment variable
+		3. Provided default
+	"""
+	return (
+		frappe.conf.get("openai_model")
+		or os.environ.get("OPENAI_MODEL")
+		or default
+	)
 
 
 def chat_completion_json(system_prompt, user_prompt, model="gpt-4o"):
