@@ -1,230 +1,210 @@
 {
- "actions": [],
- "allow_rename": 0,
- "autoname": "PROP-.#####",
- "creation": "2026-06-22 00:00:00.000000",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "info_section",
-  "employee_name",
-  "department",
-  "current_title",
-  "col_break_1",
-  "status",
-  "uploaded_by",
-  "confirmed_by",
-  "files_section",
-  "source_file",
-  "source_file_name",
-  "source_file_type",
-  "page_count",
-  "ocr_section",
-  "raw_ocr_json",
-  "extracted_json",
-  "user_corrected_json",
-  "confidence_summary",
-  "ocr_warnings",
-  "missing_fields_json",
-  "eval_section",
-  "evaluation_result_json",
-  "overall_score",
-  "recommendation",
-  "evaluated_at",
-  "manager_notes",
-  "report_section",
-  "report_file",
-  "report_generated_at"
- ],
- "fields": [
-  {
-   "fieldname": "info_section",
-   "fieldtype": "Section Break",
-   "label": "Thông tin chung"
-  },
-  {
-   "fieldname": "employee_name",
-   "fieldtype": "Data",
-   "label": "Tên nhân sự",
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "department",
-   "fieldtype": "Data",
-   "label": "Đơn vị / Phòng ban",
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "current_title",
-   "fieldtype": "Data",
-   "label": "Chức danh hiện tại"
-  },
-  {
-   "fieldname": "col_break_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "label": "Trạng thái",
-   "options": "Uploaded\nExtracting\nPending Review\nConfirmed\nEvaluating\nEvaluated\nReport Generated\nFailed",
-   "default": "Uploaded",
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "uploaded_by",
-   "fieldtype": "Data",
-   "label": "Người upload",
-   "read_only": 1
-  },
-  {
-   "fieldname": "confirmed_by",
-   "fieldtype": "Data",
-   "label": "Người xác nhận",
-   "read_only": 1
-  },
-  {
-   "fieldname": "files_section",
-   "fieldtype": "Section Break",
-   "label": "File tờ trình"
-  },
-  {
-   "fieldname": "source_file",
-   "fieldtype": "Attach",
-   "label": "File tờ trình gốc"
-  },
-  {
-   "fieldname": "source_file_name",
-   "fieldtype": "Data",
-   "label": "Tên file",
-   "read_only": 1
-  },
-  {
-   "fieldname": "source_file_type",
-   "fieldtype": "Data",
-   "label": "Loại file",
-   "read_only": 1
-  },
-  {
-   "fieldname": "page_count",
-   "fieldtype": "Int",
-   "label": "Số trang",
-   "read_only": 1
-  },
-  {
-   "fieldname": "ocr_section",
-   "fieldtype": "Section Break",
-   "label": "Dữ liệu OCR / Trích xuất"
-  },
-  {
-   "fieldname": "raw_ocr_json",
-   "fieldtype": "Long Text",
-   "label": "Raw OCR JSON"
-  },
-  {
-   "fieldname": "extracted_json",
-   "fieldtype": "Long Text",
-   "label": "Dữ liệu đã trích xuất (JSON)"
-  },
-  {
-   "fieldname": "user_corrected_json",
-   "fieldtype": "Long Text",
-   "label": "Dữ liệu người dùng chỉnh sửa (JSON)"
-  },
-  {
-   "fieldname": "confidence_summary",
-   "fieldtype": "Long Text",
-   "label": "Tóm tắt độ tin cậy (JSON)"
-  },
-  {
-   "fieldname": "ocr_warnings",
-   "fieldtype": "Long Text",
-   "label": "Cảnh báo OCR (JSON)"
-  },
-  {
-   "fieldname": "missing_fields_json",
-   "fieldtype": "Long Text",
-   "label": "Trường thiếu (JSON)"
-  },
-  {
-   "fieldname": "eval_section",
-   "fieldtype": "Section Break",
-   "label": "Kết quả đánh giá"
-  },
-  {
-   "fieldname": "evaluation_result_json",
-   "fieldtype": "Long Text",
-   "label": "Kết quả đánh giá (JSON)"
-  },
-  {
-   "fieldname": "overall_score",
-   "fieldtype": "Float",
-   "label": "Điểm tổng hợp",
-   "read_only": 1,
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "recommendation",
-   "fieldtype": "Select",
-   "label": "Kết luận",
-   "options": "\nAPPROVE\nAPPROVE_WITH_CONDITIONS\nPARTIALLY_APPROVE\nREQUEST_MORE_INFO\nREJECT",
-   "read_only": 1,
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "evaluated_at",
-   "fieldtype": "Datetime",
-   "label": "Thời điểm đánh giá",
-   "read_only": 1
-  },
-  {
-   "fieldname": "manager_notes",
-   "fieldtype": "Long Text",
-   "label": "Ghi chú của quản lý"
-  },
-  {
-   "fieldname": "report_section",
-   "fieldtype": "Section Break",
-   "label": "Báo cáo PDF"
-  },
-  {
-   "fieldname": "report_file",
-   "fieldtype": "Attach",
-   "label": "File báo cáo PDF",
-   "read_only": 1
-  },
-  {
-   "fieldname": "report_generated_at",
-   "fieldtype": "Datetime",
-   "label": "Thời điểm tạo báo cáo",
-   "read_only": 1
-  }
- ],
- "module": "Cnb 2as",
- "name": "Proposal Evaluation",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 0,
-   "read": 1,
-   "role": "HR User",
-   "write": 1
-  }
- ],
- "sort_field": "modified",
- "sort_order": "DESC",
- "title_field": "employee_name"
+    "actions": [],
+    "allow_rename": 0,
+    "autoname": "PROP-.#####",
+    "creation": "2026-06-22 00:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "info_section",
+        "employee_name",
+        "department",
+        "current_title",
+        "col_break_1",
+        "status",
+        "uploaded_by",
+        "confirmed_by",
+        "files_section",
+        "source_file",
+        "source_file_name",
+        "source_file_type",
+        "page_count",
+        "ocr_section",
+        "raw_ocr_json",
+        "extracted_json",
+        "user_corrected_json",
+        "confidence_summary",
+        "ocr_warnings",
+        "missing_fields_json",
+        "eval_section",
+        "evaluation_result_json",
+        "overall_score",
+        "recommendation",
+        "evaluated_at",
+        "manager_notes",
+        "report_section",
+        "report_file",
+        "report_generated_at"
+    ],
+    "fields": [
+        {
+            "fieldname": "info_section",
+            "fieldtype": "Section Break",
+            "label": "Thông tin chung"
+        },
+        {
+            "fieldname": "employee_name",
+            "fieldtype": "Data",
+            "label": "Tên nhân sự",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "department",
+            "fieldtype": "Data",
+            "label": "Đơn vị / Phòng ban",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "current_title",
+            "fieldtype": "Data",
+            "label": "Chức danh hiện tại"
+        },
+        {
+            "fieldname": "col_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "status",
+            "fieldtype": "Select",
+            "label": "Trạng thái",
+            "options": "Uploaded\nExtracting\nPending Review\nConfirmed\nEvaluating\nEvaluated\nReport Generated\nFailed",
+            "default": "Uploaded",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "uploaded_by",
+            "fieldtype": "Data",
+            "label": "Người upload",
+            "read_only": 1
+        },
+        {
+            "fieldname": "confirmed_by",
+            "fieldtype": "Data",
+            "label": "Người xác nhận",
+            "read_only": 1
+        },
+        {
+            "fieldname": "files_section",
+            "fieldtype": "Section Break",
+            "label": "File tờ trình"
+        },
+        {
+            "fieldname": "source_file",
+            "fieldtype": "Attach",
+            "label": "File tờ trình gốc"
+        },
+        {
+            "fieldname": "source_file_name",
+            "fieldtype": "Data",
+            "label": "Tên file",
+            "read_only": 1
+        },
+        {
+            "fieldname": "source_file_type",
+            "fieldtype": "Data",
+            "label": "Loại file",
+            "read_only": 1
+        },
+        {
+            "fieldname": "page_count",
+            "fieldtype": "Int",
+            "label": "Số trang",
+            "read_only": 1
+        },
+        {
+            "fieldname": "ocr_section",
+            "fieldtype": "Section Break",
+            "label": "Dữ liệu OCR / Trích xuất"
+        },
+        {
+            "fieldname": "raw_ocr_json",
+            "fieldtype": "Long Text",
+            "label": "Raw OCR JSON"
+        },
+        {
+            "fieldname": "extracted_json",
+            "fieldtype": "Long Text",
+            "label": "Dữ liệu đã trích xuất (JSON)"
+        },
+        {
+            "fieldname": "user_corrected_json",
+            "fieldtype": "Long Text",
+            "label": "Dữ liệu người dùng chỉnh sửa (JSON)"
+        },
+        {
+            "fieldname": "confidence_summary",
+            "fieldtype": "Long Text",
+            "label": "Tóm tắt độ tin cậy (JSON)"
+        },
+        {
+            "fieldname": "ocr_warnings",
+            "fieldtype": "Long Text",
+            "label": "Cảnh báo OCR (JSON)"
+        },
+        {
+            "fieldname": "missing_fields_json",
+            "fieldtype": "Long Text",
+            "label": "Trường thiếu (JSON)"
+        },
+        {
+            "fieldname": "eval_section",
+            "fieldtype": "Section Break",
+            "label": "Kết quả đánh giá"
+        },
+        {
+            "fieldname": "evaluation_result_json",
+            "fieldtype": "Long Text",
+            "label": "Kết quả đánh giá (JSON)"
+        },
+        {
+            "fieldname": "overall_score",
+            "fieldtype": "Float",
+            "label": "Điểm tổng hợp",
+            "read_only": 1,
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "recommendation",
+            "fieldtype": "Select",
+            "label": "Kết luận",
+            "options": "\nAPPROVE\nAPPROVE_WITH_CONDITIONS\nPARTIALLY_APPROVE\nREQUEST_MORE_INFO\nREJECT",
+            "read_only": 1,
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "evaluated_at",
+            "fieldtype": "Datetime",
+            "label": "Thời điểm đánh giá",
+            "read_only": 1
+        },
+        {
+            "fieldname": "manager_notes",
+            "fieldtype": "Long Text",
+            "label": "Ghi chú của quản lý"
+        },
+        {
+            "fieldname": "report_section",
+            "fieldtype": "Section Break",
+            "label": "Báo cáo PDF"
+        },
+        {
+            "fieldname": "report_file",
+            "fieldtype": "Attach",
+            "label": "File báo cáo PDF",
+            "read_only": 1
+        },
+        {
+            "fieldname": "report_generated_at",
+            "fieldtype": "Datetime",
+            "label": "Thời điểm tạo báo cáo",
+            "read_only": 1
+        }
+    ],
+    "module": "Cnb 2as",
+    "name": "Proposal Evaluation",
+    "owner": "Administrator",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "title_field": "employee_name"
 }
