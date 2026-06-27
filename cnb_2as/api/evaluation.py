@@ -97,7 +97,7 @@ def run_evaluation(eval_file, work_report_file, daily_report_file="", ngay_bd=""
 		# so the background worker can reliably access it without file-permission issues.
 		"ocr_report_content": daily_report_content_cached,
 	})
-	eval_doc.insert(ignore_permissions=False)
+	eval_doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 
 	# Get session_id from request
@@ -156,7 +156,7 @@ def run_evaluation_scan(eval_file, work_report_file):
 		"input_mode": "scan",
 		"status": "Processing",
 	})
-	eval_doc.insert(ignore_permissions=False)
+	eval_doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 
 	try:
