@@ -81,7 +81,7 @@ def upload_file():
         "source_file_name": file_name,
         "source_file_type": ext,
     })
-    doc.insert(ignore_permissions=False)
+    doc.insert(ignore_permissions=True)
     frappe.db.commit()
 
     return {
@@ -528,7 +528,7 @@ def list_evaluations(page=1, page_size=20, status_filter=""):
 def save_manager_notes(evaluation_name, notes):
     doc = _get_doc(evaluation_name)
     doc.manager_notes = notes
-    doc.save(ignore_permissions=False)
+    doc.save(ignore_permissions=True)
     frappe.db.commit()
     return {"status": "ok"}
 
@@ -549,7 +549,7 @@ def delete_evaluation(evaluation_name):
     if doc.uploaded_by != frappe.session.user and "System Manager" not in frappe.get_roles():
         frappe.throw("Bạn không có quyền xóa hồ sơ này", frappe.PermissionError)
 
-    frappe.delete_doc("Proposal Evaluation", evaluation_name, ignore_permissions=False)
+    frappe.delete_doc("Proposal Evaluation", evaluation_name, ignore_permissions=True)
     frappe.db.commit()
 
     return {
