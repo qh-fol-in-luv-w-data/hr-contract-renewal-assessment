@@ -63,14 +63,29 @@ def upload_file():
     if frappe.session.user == "Guest":
         frappe.throw("Vui lòng đăng nhập trước", frappe.AuthenticationError)
 
-    ret = frappe_upload_file()
-    file_url = ret.get("file_url", "")
-    file_name = ret.get("file_name", "")
-
     import os
+    if "file" not in getattr(frappe.request, "files", {}):
+        frappe.throw("Vui lòng đính kèm file", frappe.ValidationError)
+
+    uploaded_file = frappe.request.files["file"]
+    file_name = uploaded_file.filename
+    file_content = uploaded_file.read()
+
     ext = os.path.splitext(file_name)[1].lower()
     if ext != ".pdf":
         frappe.throw("Chỉ hỗ trợ file PDF scan. Vui lòng upload file .pdf")
+
+    # Tạo File DocType (bypass permission)
+    file_doc = frappe.get_doc({
+        "doctype": "File",
+        "file_name": file_name,
+        "content": file_content,
+        "is_private": int(frappe.form_dict.get("is_private", 1))
+    })
+    file_doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    file_url = file_doc.file_url
 
     doc = frappe.get_doc({
         "doctype": "Proposal Evaluation",
@@ -81,7 +96,7 @@ def upload_file():
         "source_file_name": file_name,
         "source_file_type": ext,
     })
-    doc.insert(ignore_permissions=False)
+    doc.insert(ignore_permissions=True)
     frappe.db.commit()
 
     return {
@@ -528,7 +543,7 @@ def list_evaluations(page=1, page_size=20, status_filter=""):
 def save_manager_notes(evaluation_name, notes):
     doc = _get_doc(evaluation_name)
     doc.manager_notes = notes
-    doc.save(ignore_permissions=False)
+    doc.save(ignore_permissions=True)
     frappe.db.commit()
     return {"status": "ok"}
 
@@ -549,7 +564,7 @@ def delete_evaluation(evaluation_name):
     if doc.uploaded_by != frappe.session.user and "System Manager" not in frappe.get_roles():
         frappe.throw("Bạn không có quyền xóa hồ sơ này", frappe.PermissionError)
 
-    frappe.delete_doc("Proposal Evaluation", evaluation_name, ignore_permissions=False)
+    frappe.delete_doc("Proposal Evaluation", evaluation_name, ignore_permissions=True)
     frappe.db.commit()
 
     return {
