@@ -1,7 +1,9 @@
 # 🤖 CNB 2AS – AI Đánh Giá Nhân Sự
 
-> Hệ thống AI đánh giá **Thử việc**, **Học việc** và **Tái ký hợp đồng** dành cho CT Group  
-> **Kiến trúc**: Frappe App (Python backend) + Vue 3 SPA (Frontend)
+> Hệ thống AI đánh giá **Thử việc**, **Học việc**, **Tái ký hợp đồng** và **Đề xuất Quản lý** dành cho CT Group.
+> **Kiến trúc**: Frappe App `cnb_2as` (Python backend) + Vue 3 SPA (Frontend)
+
+- Repo: [qh-fol-in-luv-w-data/hr-contract-renewal-assessment](https://github.com/qh-fol-in-luv-w-data/hr-contract-renewal-assessment)
 
 ---
 
@@ -56,60 +58,75 @@
 ## 📁 Cấu trúc thư mục
 
 ```
-cnb_2as/
+.
 ├── frontend/                            # Vue 3 SPA (Vite)
 │   ├── src/
 │   │   ├── pages/
 │   │   │   ├── Portal.vue               # Trang chủ chọn loại đánh giá
 │   │   │   ├── ThuViec.vue              # Đánh giá thử việc / học việc
 │   │   │   ├── TaiKy.vue                # Đánh giá tái ký hợp đồng
+│   │   │   ├── DeXuat.vue               # Đánh giá đề xuất quản lý (HOD/TBP)
 │   │   │   ├── ScanCombined.vue         # Scan + OCR review (phiếu + SXKD)
-│   │   │   ├── BaoCao.vue               # Báo cáo đánh giá nhân sự (batch OCR + Excel)
-│   │   │   ├── PersonCard.vue           # Card chi tiết từng nhân viên
 │   │   │   ├── ScanPhieu.vue            # Scan phiếu đánh giá riêng
-│   │   │   └── ScanSXKD.vue             # Scan SXKD riêng
+│   │   │   ├── ScanSXKD.vue             # Scan SXKD riêng
+│   │   │   ├── BaoCao.vue               # Báo cáo đánh giá nhân sự (batch OCR + Excel)
+│   │   │   └── PersonCard.vue           # Card chi tiết từng nhân viên
 │   │   ├── components/
-│   │   │   └── JdGoiY.vue               # Component hiển thị gợi ý JD
+│   │   │   ├── JdGoiY.vue               # Hiển thị gợi ý JD
+│   │   │   ├── CTAccessDenied.vue       # Trang chặn khi thiếu quyền
+│   │   │   └── CTSplashScreen.vue       # Splash / loading
 │   │   ├── store.js                     # Global state + i18n (VI/EN)
 │   │   ├── main.js                      # Vue Router setup
 │   │   └── App.vue
-│   ├── package.json
+│   ├── package.json                     # vue 3.4, vue-router 4, vite 5
 │   └── vite.config.js
 │
-├── cnb_2as/                             # Frappe Python App
+├── cnb_2as/                             # Frappe Python App (name = cnb_2as)
 │   ├── api/
 │   │   ├── thu_viec.py                  # API: review_files, review_from_scan, chat_review
-│   │   ├── evaluation.py               # API: đánh giá tái ký
-│   │   ├── scan_phieu.py               # API: OCR scan phiếu
-│   │   ├── scan_sxkd.py                # API: OCR scan SXKD
-│   │   └── bao_cao_danh_gia.py         # API: báo cáo đánh giá nhân sự batch
+│   │   ├── evaluation.py                # API: đánh giá tái ký hợp đồng
+│   │   ├── de_xuat.py                   # API: đánh giá đề xuất quản lý
+│   │   ├── scan_phieu.py                # API: OCR scan phiếu
+│   │   ├── scan_sxkd.py                 # API: OCR scan SXKD
+│   │   └── bao_cao_danh_gia.py          # API: báo cáo đánh giá nhân sự batch
 │   ├── services/
-│   │   ├── agents.py                    # Multi-agent pipeline (manager proposal, etc.)
-│   │   ├── openai_client.py             # OpenAI client wrapper
+│   │   ├── agents.py                    # Multi-agent pipeline
+│   │   ├── openai_client.py             # OpenAI client wrapper (MAX_RETRIES, TIMEOUT)
 │   │   ├── document_parser.py           # Parse daily report (DOCX/XLSX/PDF/image)
 │   │   ├── thu_viec_parsers.py          # Parse phiếu DOCX + Excel KPI chi tiết
-│   │   ├── thu_viec_service.py          # Business logic thử việc (prompts, filters)
+│   │   ├── thu_viec_service.py          # Business logic thử việc
 │   │   ├── thu_viec_pdf.py              # PDF generation thử việc
-│   │   ├── ocr_service.py               # OCR via OpenAI Vision
-│   │   ├── ocr_report_to_excel.py       # Chuyển OCR report → Excel format
+│   │   ├── de_xuat_service.py           # Business logic đề xuất quản lý
+│   │   ├── de_xuat_pdf.py               # PDF generation đề xuất quản lý
+│   │   ├── ocr_service.py               # OCR qua OpenAI Vision
+│   │   ├── ocr_report_to_excel.py       # OCR report → Excel format
 │   │   ├── scan_service.py              # Scan flow orchestration
 │   │   ├── scan_readers.py              # Đọc & parse scan PDF
 │   │   ├── pdf_generator.py             # PDF generation tái ký
-│   │   ├── bao_cao_service.py           # OCR batch + map + AI overview + Excel export
+│   │   ├── bao_cao_service.py           # Batch OCR + map + AI overview + Excel export
 │   │   ├── validators.py                # Input validation & E1 check
 │   │   └── prompts/
-│   │       ├── __init__.py              # Export shared prompts
 │   │       ├── eval_prompts.py          # Prompts cho đánh giá tái ký
 │   │       ├── review_prompts.py        # Prompts cho đánh giá thử việc
+│   │       ├── de_xuat_prompts.py       # Prompts cho đề xuất quản lý
 │   │       ├── scan_prompts.py          # Prompts cho OCR scan
 │   │       └── bao_cao_prompts.py       # Prompts cho báo cáo đánh giá nhân sự
-│   ├── hooks.py
-│   ├── modules.txt
-│   └── public/frontend/                 # ⚡ Vite build output (auto-generated)
+│   ├── cnb_2as/doctype/                 # DocType: employee_evaluation, competency_score,
+│   │                                    # evaluation_evidence, proposal_evaluation,
+│   │                                    # cnb_session, cnb_action_log, cnb_ai_call_log
+│   ├── config/                          # Bootstrap config
+│   ├── patches/                         # Frappe migration patches
+│   ├── utils/activity_logger.py         # Log activity + AI call
+│   ├── www/                             # Web template gắn SPA (cnb_2as_spa)
+│   ├── templates/pages/                 # Frappe templates
+│   ├── public/frontend/                 # Vite build output (auto-generated)
+│   ├── hooks.py                         # SPA route /aicenter/2as-employee-assessment
+│   └── modules.txt
 │
-├── note/
-│   └── update-code.md                   # Ghi chú yêu cầu cập nhật
-├── pyproject.toml
+├── pyproject.toml                       # flit_core; dep chính: reportlab (đóng gói app)
+├── requirements.txt                     # dep runtime: openai, python-docx, openpyxl, pypdf, PyMuPDF, ...
+├── HUONG_DAN_CHAY_HE_THONG.md
+├── PLAN_REFACTOR_CNB2AS.md
 └── README.md
 ```
 
@@ -145,7 +162,7 @@ bench new-site mysite.localhost
 cd /path/to/frappe-bench
 
 # Clone repo vào thư mục apps
-git clone https://github.com/CTGroup-DAIT/2as-employee-assessment.git apps/cnb_2as
+git clone https://github.com/qh-fol-in-luv-w-data/hr-contract-renewal-assessment.git apps/cnb_2as
 
 # Cài app vào site
 bench --site mysite.localhost install-app cnb_2as
